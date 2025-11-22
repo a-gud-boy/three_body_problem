@@ -53,9 +53,9 @@ const SCENARIOS = {
         description: "Demonstrates Lagrange points L4 and L5 where a small body can orbit in stable equilibrium 60° ahead/behind a planet.",
         g: 1,
         bodies: [
-            { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, mass: 10, color: 0xeab308 }, // Sun
-            { x: 100, y: 0, z: 0, vx: 0, vy: 0.316, vz: 0, mass: 1, color: 0x3b82f6 }, // Planet
-            { x: 50, y: 86.6, z: 0, vx: -0.274, vy: 0.158, vz: 0, mass: 0.01, color: 0xff6600 } // Trojan asteroid
+            { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, mass: 100, color: 0xeab308 }, // Sun (massive)
+            { x: 10, y: 0, z: 0, vx: 0, vy: 3.16, vz: 0, mass: 1, color: 0x3b82f6 }, // Planet (circular orbit)
+            { x: 5, y: 8.66, z: 0, vx: -2.74, vy: 1.58, vz: 0, mass: 0.001, color: 0xff6600 } // Trojan at L4 (60° ahead)
         ],
         scale: 100,
         cameraPos: { r: 350, theta: Math.PI / 6, phi: Math.PI / 3 }
@@ -65,22 +65,22 @@ const SCENARIOS = {
         description: "Two equal masses orbit in the XY plane while a third mass oscillates along the Z-axis perpendicular to their orbit.",
         g: 1,
         bodies: [
-            { x: -10, y: 0, z: 0, vx: 0, vy: 0.3, vz: 0, mass: 1, color: 0x3b82f6 },
-            { x: 10, y: 0, z: 0, vx: 0, vy: -0.3, vz: 0, mass: 1, color: 0xef4444 },
-            { x: 0, y: 0, z: 20, vx: 0, vy: 0, vz: 0, mass: 0.01, color: 0x22c55e }
+            { x: 1, y: 0, z: 0, vx: 0, vy: 1, vz: 0, mass: 1, color: 0x3b82f6 }, // Binary star 1
+            { x: -1, y: 0, z: 0, vx: 0, vy: -1, vz: 0, mass: 1, color: 0xef4444 }, // Binary star 2
+            { x: 0, y: 0, z: 3, vx: 0, vy: 0, vz: 0, mass: 0.001, color: 0x22c55e } // Test particle on Z-axis
         ],
         scale: 100,
         cameraPos: { r: 350, theta: Math.PI / 4, phi: Math.PI / 4 }
     },
     FOUR_BODY: {
         name: "4-Body Chaos",
-        description: "Four equal masses arranged in a square. Highly chaotic and unpredictable evolution.",
+        description: "Four equal masses arranged in a square with circular initial velocities. Chaotic and unpredictable evolution.",
         g: 1,
         bodies: [
-            { x: 10, y: 10, z: 0, vx: -0.1, vy: -0.1, vz: 0, mass: 1, color: 0xef4444 },
-            { x: -10, y: 10, z: 0, vx: -0.1, vy: 0.1, vz: 0, mass: 1, color: 0x3b82f6 },
-            { x: -10, y: -10, z: 0, vx: 0.1, vy: 0.1, vz: 0, mass: 1, color: 0x22c55e },
-            { x: 10, y: -10, z: 0, vx: 0.1, vy: -0.1, vz: 0, mass: 1, color: 0xeab308 }
+            { x: 1, y: 1, z: 0, vx: -0.35, vy: 0.35, vz: 0, mass: 1, color: 0xef4444 },
+            { x: -1, y: 1, z: 0, vx: -0.35, vy: -0.35, vz: 0, mass: 1, color: 0x3b82f6 },
+            { x: -1, y: -1, z: 0, vx: 0.35, vy: -0.35, vz: 0, mass: 1, color: 0x22c55e },
+            { x: 1, y: -1, z: 0, vx: 0.35, vy: 0.35, vz: 0, mass: 1, color: 0xeab308 }
         ],
         scale: 80,
         cameraPos: { r: 300, theta: 0.3, phi: 0.6 }
@@ -191,6 +191,7 @@ const App = () => {
     const timeRef = useRef(0);
     const frameCountRef = useRef(0);
     const gridRef = useRef(null);
+    const comMarkerRef = useRef(null);
 
     // Three.js Objects Refs
     const sceneRef = useRef(null);
@@ -401,40 +402,7 @@ const App = () => {
         };
     };
 
-    const predictCollisions = () => {
-        const bodies = bodiesRef.current;
-        const warnings = [];
 
-        for (let i = 0; i < bodies.length; i++) {
-            for (let j = i + 1; j < bodies.length; j++) {
-                const dx = bodies[j].x - bodies[i].x;
-                const dy = bodies[j].y - bodies[i].y;
-                const dz = bodies[j].z - bodies[i].z;
-                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-                const dvx = bodies[j].vx - bodies[i].vx;
-                const dvy = bodies[j].vy - bodies[i].vy;
-                const dvz = bodies[j].vz - bodies[i].vz;
-
-                // Simple linear projection-closing velocity
-                const closingRate = -(dx * dvx + dy * dvy + dz * dvz) / dist;
-
-                if (closingRate > 0) {
-                    const timeToCollision = dist / closingRate;
-                    const minDist = Math.max(6, Math.cbrt(bodies[i].mass) * 6, Math.cbrt(bodies[j].mass) * 6) * 2;
-
-                    if (timeToCollision < 100 && dist < minDist * 3) {
-                        warnings.push({
-                            bodies: [i, j],
-                            timeToCollision
-                        });
-                    }
-                }
-            }
-        }
-
-        return warnings;
-    };
 
     const handleAddBody = () => {
         const newBody = generateRandomBody();
@@ -838,6 +806,33 @@ const App = () => {
         scene.add(gridHelper);
         gridRef.current = gridHelper;
 
+        // Create COM Marker (crosshair)
+        const comGroup = new THREE.Group();
+        const axisLength = 20;
+        const axisWidth = 2;
+
+        // X-axis (red)
+        const xGeom = new THREE.BoxGeometry(axisLength, axisWidth, axisWidth);
+        const xMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const xAxis = new THREE.Mesh(xGeom, xMat);
+        comGroup.add(xAxis);
+
+        // Y-axis (green)
+        const yGeom = new THREE.BoxGeometry(axisWidth, axisLength, axisWidth);
+        const yMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const yAxis = new THREE.Mesh(yGeom, yMat);
+        comGroup.add(yAxis);
+
+        // Z-axis (blue)
+        const zGeom = new THREE.BoxGeometry(axisWidth, axisWidth, axisLength);
+        const zMat = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+        const zAxis = new THREE.Mesh(zGeom, zMat);
+        comGroup.add(zAxis);
+
+        comGroup.visible = showCOM;
+        scene.add(comGroup);
+        comMarkerRef.current = comGroup;
+
         raycasterRef.current = new THREE.Raycaster();
         raycasterRef.current.params.Points.threshold = 5;
         dragPlaneRef.current = new THREE.Plane();
@@ -876,15 +871,30 @@ const App = () => {
         const THREE = window.THREE;
         const scale = SCENARIOS[scenarioKey].scale || 100;
 
-        if (isPlaying) updatePhysics();
+        // Only run physics if playing AND not in step mode
+        // (step mode requires manual stepping via a button)
+        if (isPlaying && !isStepMode) {
+            updatePhysics();
+        }
 
         // Throttle trail updates (every 4th frame)
         const shouldUpdateTrails = frameCountRef.current % 4 === 0;
 
+        // Calculate COM for barycentric frame
+        let comOffset = { x: 0, y: 0, z: 0 };
+        if (referenceFrame === 'barycentric') {
+            const com = calculateCOM();
+            comOffset = { x: com.x, y: com.y, z: com.z };
+        }
+
         bodiesRef.current.forEach((body, i) => {
             if (!meshRefs.current[i]) return;
 
-            meshRefs.current[i].position.set(body.x * scale, body.y * scale, body.z * scale);
+            // Apply barycentric frame offset (subtract COM from all positions)
+            const renderX = (body.x - comOffset.x) * scale;
+            const renderY = (body.y - comOffset.y) * scale;
+            const renderZ = (body.z - comOffset.z) * scale;
+            meshRefs.current[i].position.set(renderX, renderY, renderZ);
 
             // Increased base size for better visibility
             const r = Math.max(6, Math.cbrt(body.mass) * 6);
@@ -1010,10 +1020,22 @@ const App = () => {
         cameraRef.current.position.set(camX, camY, camZ);
         cameraRef.current.lookAt(lookX, lookY, lookZ);
 
+        // Update COM marker position (always at origin in barycentric, or actual COM in inertial)
+        if (comMarkerRef.current && showCOM) {
+            if (referenceFrame === 'barycentric') {
+                // In barycentric frame, COM is at origin
+                comMarkerRef.current.position.set(0, 0, 0);
+            } else {
+                // In inertial frame, show actual COM position
+                const com = calculateCOM();
+                comMarkerRef.current.position.set(com.x * scale, com.y * scale, com.z * scale);
+            }
+        }
+
         rendererRef.current.render(sceneRef.current, cameraRef.current);
         frameCountRef.current++;
         requestRef.current = requestAnimationFrame(animate);
-    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, enableCollisions, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showAnalysis]);
+    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, enableCollisions, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showAnalysis, isStepMode, referenceFrame, showCOM]);
 
     useEffect(() => {
         if (threeLoaded) {
@@ -1028,6 +1050,12 @@ const App = () => {
             gridRef.current.visible = showGrid;
         }
     }, [showGrid]);
+
+    useEffect(() => {
+        if (comMarkerRef.current) {
+            comMarkerRef.current.visible = showCOM;
+        }
+    }, [showCOM]);
 
     // --- Interaction ---
     const resetSimulation = useCallback((key) => {
@@ -1330,11 +1358,18 @@ const App = () => {
                             ⏮️ Reverse
                         </button>
                         <button
-                            onClick={() => setIsStepMode(!isStepMode)}
+                            onClick={() => {
+                                if (!isStepMode) {
+                                    setIsStepMode(true);
+                                    setIsPlaying(true);
+                                } else {
+                                    updatePhysics();
+                                }
+                            }}
                             className={`text-xs py-2 px-2 rounded border transition-all ${isStepMode ? 'bg-amber-600 border-amber-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'} `}
-                            title="Frame Stepping Mode"
+                            title={isStepMode ? "Click to Step Forward" : "Enter Frame Stepping Mode"}
                         >
-                            ⏭️ Step
+                            {isStepMode ? "⏯️ Next Frame" : "⏭️ Step Mode"}
                         </button>
                         <button
                             onClick={saveBookmark}
@@ -1386,18 +1421,7 @@ const App = () => {
                         </button>
                     </div>
 
-                    {/* Collision Warnings */}
-                    {(() => {
-                        const warnings = predictCollisions();
-                        if (warnings.length > 0) {
-                            return (
-                                <div className="bg-red-900/30 border border-red-700/50 rounded p-2 text-xs text-red-300">
-                                    ⚠️ {warnings.length} collision(s) imminent ({warnings[0].timeToCollision.toFixed(1)}Δt)
-                                </div>
-                            );
-                        }
-                        return null;
-                    })()}
+
 
                     {/* Reference Frame */}
                     <div className="mt-2">
@@ -1570,12 +1594,18 @@ const App = () => {
                 <div className="p-6 border-t border-slate-800 bg-slate-900/50">
                     <div className="flex space-x-3">
                         <button
-                            onClick={() => setIsPlaying(!isPlaying)}
-                            className={`flex-1 flex items-center justify-center space-x-2 py-3 rounded-lg font-semibold transition-colors ${isPlaying ? 'bg-amber-500/10 text-amber-500 border border-amber-500/50' : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20'
-                                } `}
+                            onClick={() => {
+                                if (isStepMode) {
+                                    setIsStepMode(false);
+                                    setIsPlaying(true);
+                                } else {
+                                    setIsPlaying(!isPlaying);
+                                }
+                            }}
+                            className={`flex-1 flex items-center justify-center space-x-2 py-3 rounded-lg font-semibold transition-colors ${isPlaying && !isStepMode ? 'bg-amber-500/10 text-amber-500 border border-amber-500/50' : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20'} `}
                         >
-                            {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-current" />}
-                            <span>{isPlaying ? "Pause" : "Start Simulation"}</span>
+                            {isPlaying && !isStepMode ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-current" />}
+                            <span>{isPlaying && !isStepMode ? "Pause" : (isStepMode ? "Resume" : "Start Simulation")}</span>
                         </button>
                         <button
                             onClick={() => { setIsPlaying(false); resetSimulation(scenarioKey); }}
