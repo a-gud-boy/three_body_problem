@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Play, Pause, RotateCcw, Info, Activity, Settings, MousePointer2, Move3d, Globe, Sparkles, Plus, Hand, Merge, Calculator, X, Target, Eye, Video, LineChart as LineChartIcon, Clock } from 'lucide-react';
+import { Play, Pause, RotateCcw, Info, Activity, Settings, MousePointer2, Move3d, Globe, Sparkles, Plus, Hand, Merge, Calculator, X, Target, Eye, Video, LineChart as LineChartIcon, Clock, Download, HelpCircle, Upload, Trash2, Tag, Maximize, Camera, ArrowRight } from 'lucide-react';
 
 // --- Physics Constants & Presets ---
 
@@ -116,6 +116,15 @@ const createGlowTexture = () => {
     return canvas;
 };
 
+// Cached textures (created once, reused for all bodies)
+let cachedGlowCanvas = null;
+const getCachedGlowCanvas = () => {
+    if (!cachedGlowCanvas) {
+        cachedGlowCanvas = createGlowTexture();
+    }
+    return cachedGlowCanvas;
+};
+
 // Circular texture for stars
 const createStarTexture = () => {
     const canvas = document.createElement('canvas');
@@ -156,6 +165,10 @@ const App = () => {
     const [showAnalysis, setShowAnalysis] = useState(false);
     const [performanceMode, setPerformanceMode] = useState(true); // Simple trails by default
     const [showGrid, setShowGrid] = useState(false);
+    const [showHelp, setShowHelp] = useState(false);
+    const [showLabels, setShowLabels] = useState(true);
+    const [showVelocityVectors, setShowVelocityVectors] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
 
     // Time Control
     const [timeDirection, setTimeDirection] = useState(1); // 1 forward, -1 reverse
@@ -193,6 +206,10 @@ const App = () => {
     const gridRef = useRef(null);
     const comMarkerRef = useRef(null);
 
+    // Gizmo refs (corner axis indicator)
+    const gizmoSceneRef = useRef(null);
+    const gizmoCameraRef = useRef(null);
+
     // Three.js Objects Refs
     const sceneRef = useRef(null);
     const cameraRef = useRef(null);
@@ -200,6 +217,8 @@ const App = () => {
     const meshRefs = useRef([]);
     const glowRefs = useRef([]);
     const trailLineRefs = useRef([]);
+    const labelRefs = useRef([]);
+    const velocityArrowRefs = useRef([]);
 
     // Interaction Refs
     const raycasterRef = useRef(null);
@@ -210,13 +229,55 @@ const App = () => {
     // --- Keyboard Controls ---
     useEffect(() => {
         const handleKeyDown = (e) => {
-            if (e.key === 'k' || e.key === 'K') {
-                setIsPlaying(prev => !prev);
+            // Ignore if typing in an input
+            if (e.target.tagName === 'INPUT') return;
+            
+            switch (e.key.toLowerCase()) {
+                case 'k':
+                case ' ':
+                    e.preventDefault();
+                    setIsPlaying(prev => !prev);
+                    break;
+                case 'r':
+                    if (!e.ctrlKey && !e.metaKey) {
+                        setIsPlaying(false);
+                        resetSimulation(scenarioKey);
+                    }
+                    break;
+                case 'g':
+                    setShowGrid(prev => !prev);
+                    break;
+                case 't':
+                    setShowTrails(prev => !prev);
+                    break;
+                case 'c':
+                    setShowCOM(prev => !prev);
+                    break;
+                case 'l':
+                    setShowLabels(prev => !prev);
+                    break;
+                case 'v':
+                    setShowVelocityVectors(prev => !prev);
+                    break;
+                case 'f':
+                    toggleFullscreen();
+                    break;
+                case 'a':
+                    setShowAnalysis(prev => !prev);
+                    break;
+                case '?':
+                case 'h':
+                    setShowHelp(prev => !prev);
+                    break;
+                case 'escape':
+                    setShowHelp(false);
+                    setSelectedBodyIndex(null);
+                    break;
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, []);
+    }, [scenarioKey]);
 
     const cameraControlsRef = useRef({
         isDragging: false,
@@ -308,8 +369,8 @@ const App = () => {
         scene.add(mesh);
         meshRefs.current.push(mesh);
 
-        // 2. Glow
-        const glowTex = new THREE.CanvasTexture(createGlowTexture());
+        // 2. Glow (reuse cached canvas texture)
+        const glowTex = new THREE.CanvasTexture(getCachedGlowCanvas());
         const spriteMat = new THREE.SpriteMaterial({
             map: glowTex, color: body.color, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending
         });
@@ -334,13 +395,29 @@ const App = () => {
         if (!sceneRef.current) return;
         const scene = sceneRef.current;
 
+        // Remove from scene
         scene.remove(meshRefs.current[index]);
         scene.remove(glowRefs.current[index]);
         scene.remove(trailLineRefs.current[index]);
 
+        // Dispose mesh resources (geometry, material, texture)
         meshRefs.current[index].geometry.dispose();
+        if (meshRefs.current[index].material.map) {
+            meshRefs.current[index].material.map.dispose();
+        }
         meshRefs.current[index].material.dispose();
 
+        // Dispose glow sprite resources
+        if (glowRefs.current[index].material.map) {
+            glowRefs.current[index].material.map.dispose();
+        }
+        glowRefs.current[index].material.dispose();
+
+        // Dispose trail line resources
+        trailLineRefs.current[index].geometry.dispose();
+        trailLineRefs.current[index].material.dispose();
+
+        // Remove from arrays
         meshRefs.current.splice(index, 1);
         glowRefs.current.splice(index, 1);
         trailLineRefs.current.splice(index, 1);
@@ -410,6 +487,117 @@ const App = () => {
         addBodyVisuals(newBody);
         setStats(prev => ({ ...prev, bodyCount: bodiesRef.current.length }));
     };
+
+    const handleDeleteBody = (index) => {
+        if (bodiesRef.current.length <= 2) {
+            alert('Cannot delete: minimum 2 bodies required for simulation');
+            return;
+        }
+        removeBodyVisuals(index);
+        bodiesRef.current.splice(index, 1);
+        setSelectedBodyIndex(null);
+        setStats(prev => ({ ...prev, bodyCount: bodiesRef.current.length }));
+    };
+
+    // --- Import State ---
+    const importState = () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const state = JSON.parse(event.target.result);
+                    
+                    // Validate structure
+                    if (!state.bodies || !Array.isArray(state.bodies)) {
+                        throw new Error('Invalid file: missing bodies array');
+                    }
+                    
+                    // Clear existing visuals
+                    while (meshRefs.current.length > 0) {
+                        removeBodyVisuals(0);
+                    }
+                    
+                    // Load bodies
+                    bodiesRef.current = state.bodies.map(b => ({
+                        x: b.x || 0, y: b.y || 0, z: b.z || 0,
+                        vx: b.vx || 0, vy: b.vy || 0, vz: b.vz || 0,
+                        mass: b.mass || 1,
+                        color: b.color || 0x3b82f6
+                    }));
+                    
+                    // Create visuals
+                    bodiesRef.current.forEach(body => addBodyVisuals(body));
+                    
+                    // Restore settings
+                    if (state.gravityG) setGravityG(state.gravityG);
+                    if (state.time) timeRef.current = state.time;
+                    if (state.settings) {
+                        if (state.settings.physicsMode) setPhysicsMode(state.settings.physicsMode);
+                        if (state.settings.simSpeed) setSimSpeed(state.settings.simSpeed);
+                        if (state.settings.enableCollisions !== undefined) setEnableCollisions(state.settings.enableCollisions);
+                    }
+                    
+                    // Clear trails
+                    trailsRef.current = bodiesRef.current.map(() => []);
+                    
+                    setStats(prev => ({ ...prev, bodyCount: bodiesRef.current.length }));
+                    setIsPlaying(false);
+                    setSelectedBodyIndex(null);
+                    setInitialEnergy(null);
+                    
+                    alert(`Loaded ${bodiesRef.current.length} bodies from file`);
+                } catch (err) {
+                    alert('Failed to load file: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    };
+
+    // --- Screenshot ---
+    const takeScreenshot = () => {
+        if (!rendererRef.current || !sceneRef.current || !cameraRef.current) return;
+        
+        // Render one frame to ensure it's up to date
+        rendererRef.current.render(sceneRef.current, cameraRef.current);
+        
+        // Get canvas data
+        const canvas = rendererRef.current.domElement;
+        const dataURL = canvas.toDataURL('image/png');
+        
+        // Download
+        const a = document.createElement('a');
+        a.href = dataURL;
+        a.download = `three-body-screenshot-${Date.now()}.png`;
+        a.click();
+    };
+
+    // --- Fullscreen ---
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            mountRef.current?.requestFullscreen?.();
+            setIsFullscreen(true);
+        } else {
+            document.exitFullscreen?.();
+            setIsFullscreen(false);
+        }
+    };
+
+    // Listen for fullscreen changes
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
 
     // --- Physics & Integration ---
 
@@ -696,8 +884,8 @@ const App = () => {
         }
 
         // Update Stats & Analysis Data (Throttled)
-        // Reduce update frequency to prevent UI lag (every ~30 frames / 0.5s at 1x speed)
-        if (Math.floor(timeRef.current * 100) % 30 === 0) {
+        // Reduce update frequency to prevent UI lag (every 30 frames)
+        if (frameCountRef.current % 30 === 0) {
 
             // Calculate PE only when needed for display
             let totalPE = 0;
@@ -797,14 +985,103 @@ const App = () => {
         const stars = new THREE.Points(starGeo, starMat);
         scene.add(stars);
 
-        // Create 3D Grid (X, Y, Z)
-        const gridSize = 400;
-        const gridDivisions = 20;
-        const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x3b82f6, 0x334155);
-        gridHelper.rotation.x = Math.PI / 2; // Rotate to XY plane
-        gridHelper.visible = showGrid;
-        scene.add(gridHelper);
-        gridRef.current = gridHelper;
+        // Create Blender-style Axis Gizmo (renders in corner)
+        const gizmoScene = new THREE.Scene();
+        const gizmoCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+        gizmoCamera.position.set(0, 0, 5);
+        gizmoSceneRef.current = gizmoScene;
+        gizmoCameraRef.current = gizmoCamera;
+        
+        const gizmoGroup = new THREE.Group();
+        const gizmoAxisLength = 1.5;
+        const coneRadius = 0.12;
+        const coneHeight = 0.35;
+        
+        // Create axis with arrow (no label - labels added separately)
+        const createGizmoAxis = (color, direction) => {
+          const axisGroup = new THREE.Group();
+          
+          // Cylinder for the axis line
+          const cylGeo = new THREE.CylinderGeometry(0.04, 0.04, gizmoAxisLength, 8);
+          const cylMat = new THREE.MeshBasicMaterial({ color });
+          const cyl = new THREE.Mesh(cylGeo, cylMat);
+          
+          // Arrow cone
+          const coneGeo = new THREE.ConeGeometry(coneRadius, coneHeight, 12);
+          const coneMat = new THREE.MeshBasicMaterial({ color });
+          const cone = new THREE.Mesh(coneGeo, coneMat);
+          cone.position.y = gizmoAxisLength / 2 + coneHeight / 2;
+          
+          axisGroup.add(cyl);
+          axisGroup.add(cone);
+          
+          // Rotate to point in correct direction
+          if (direction === 'x') {
+            axisGroup.rotation.z = -Math.PI / 2;
+          } else if (direction === 'z') {
+            axisGroup.rotation.x = Math.PI / 2;
+          }
+          // Y is default (no rotation needed)
+          
+          return axisGroup;
+        };
+        
+        // Create label sprite (added to gizmoGroup, not rotated axisGroup)
+        const createGizmoLabel = (label, colorHex, position) => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = 64;
+          canvas.height = 64;
+          ctx.font = 'bold 48px Arial';
+          ctx.fillStyle = colorHex;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(label, 32, 32);
+          
+          const texture = new THREE.CanvasTexture(canvas);
+          const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+          const sprite = new THREE.Sprite(spriteMat);
+          sprite.scale.set(0.5, 0.5, 1);
+          sprite.position.set(...position);
+          
+          return sprite;
+        };
+        
+        // X-axis (Red)
+        gizmoGroup.add(createGizmoAxis(0xff4444, 'x'));
+        // Y-axis (Green)
+        gizmoGroup.add(createGizmoAxis(0x44ff44, 'y'));
+        // Z-axis (Blue)
+        gizmoGroup.add(createGizmoAxis(0x4488ff, 'z'));
+        
+        // Add labels at correct world positions (not rotated)
+        const labelOffset = gizmoAxisLength / 2 + coneHeight + 0.3;
+        gizmoGroup.add(createGizmoLabel('X', '#ff6666', [labelOffset, 0, 0]));
+        gizmoGroup.add(createGizmoLabel('Y', '#66ff66', [0, labelOffset, 0]));
+        gizmoGroup.add(createGizmoLabel('Z', '#6699ff', [0, 0, labelOffset]));
+        
+        // Origin sphere
+        const gizmoOriginGeo = new THREE.SphereGeometry(0.12, 16, 16);
+        const gizmoOriginMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const gizmoOriginSphere = new THREE.Mesh(gizmoOriginGeo, gizmoOriginMat);
+        gizmoGroup.add(gizmoOriginSphere);
+        
+        // Add negative axis indicators (small spheres)
+        const negIndicatorGeo = new THREE.SphereGeometry(0.06, 8, 8);
+        const negX = new THREE.Mesh(negIndicatorGeo, new THREE.MeshBasicMaterial({ color: 0x882222 }));
+        negX.position.set(-gizmoAxisLength / 2 - 0.2, 0, 0);
+        gizmoGroup.add(negX);
+        
+        const negY = new THREE.Mesh(negIndicatorGeo, new THREE.MeshBasicMaterial({ color: 0x228822 }));
+        negY.position.set(0, -gizmoAxisLength / 2 - 0.2, 0);
+        gizmoGroup.add(negY);
+        
+        const negZ = new THREE.Mesh(negIndicatorGeo, new THREE.MeshBasicMaterial({ color: 0x224488 }));
+        negZ.position.set(0, 0, -gizmoAxisLength / 2 - 0.2);
+        gizmoGroup.add(negZ);
+        
+        gizmoScene.add(gizmoGroup);
+        gridRef.current = gizmoGroup;
 
         // Create COM Marker (crosshair)
         const comGroup = new THREE.Group();
@@ -857,10 +1134,77 @@ const App = () => {
 
         return () => {
             window.removeEventListener('resize', handleResize);
+            
+            // Cancel animation loop
+            if (requestRef.current) {
+                cancelAnimationFrame(requestRef.current);
+            }
+
+            // Dispose all body visuals
+            while (meshRefs.current.length > 0) {
+                const idx = meshRefs.current.length - 1;
+                scene.remove(meshRefs.current[idx]);
+                meshRefs.current[idx].geometry.dispose();
+                if (meshRefs.current[idx].material.map) meshRefs.current[idx].material.map.dispose();
+                meshRefs.current[idx].material.dispose();
+                meshRefs.current.pop();
+            }
+            while (glowRefs.current.length > 0) {
+                const idx = glowRefs.current.length - 1;
+                scene.remove(glowRefs.current[idx]);
+                if (glowRefs.current[idx].material.map) glowRefs.current[idx].material.map.dispose();
+                glowRefs.current[idx].material.dispose();
+                glowRefs.current.pop();
+            }
+            while (trailLineRefs.current.length > 0) {
+                const idx = trailLineRefs.current.length - 1;
+                scene.remove(trailLineRefs.current[idx]);
+                trailLineRefs.current[idx].geometry.dispose();
+                trailLineRefs.current[idx].material.dispose();
+                trailLineRefs.current.pop();
+            }
+
+            // Dispose stars
+            if (stars) {
+                scene.remove(stars);
+                starGeo.dispose();
+                starMat.dispose();
+                if (starTex) starTex.dispose();
+            }
+
+            // Dispose gizmo
+            if (gizmoSceneRef.current && gridRef.current) {
+                gizmoSceneRef.current.remove(gridRef.current);
+                gridRef.current.traverse((child) => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (child.material.map) child.material.map.dispose();
+                        child.material.dispose();
+                    }
+                });
+                gizmoSceneRef.current = null;
+                gizmoCameraRef.current = null;
+            }
+
+            // Dispose COM marker
+            if (comMarkerRef.current) {
+                scene.remove(comMarkerRef.current);
+                comMarkerRef.current.children.forEach(child => {
+                    child.geometry.dispose();
+                    child.material.dispose();
+                });
+            }
+
+            // Remove canvas and dispose renderer
             if (mountRef.current && renderer.domElement) {
                 mountRef.current.removeChild(renderer.domElement);
             }
             renderer.dispose();
+
+            // Clear refs
+            sceneRef.current = null;
+            cameraRef.current = null;
+            rendererRef.current = null;
         };
 
     }, [threeLoaded]);
@@ -952,21 +1296,37 @@ const App = () => {
                         smoothPoints = curve.getPoints(pointsCount);
                     }
 
-                    const positions = [];
-                    const colors = [];
+                    const geometry = trailLineRefs.current[i].geometry;
+                    const numPoints = smoothPoints.length;
                     const bodyColor = new THREE.Color(body.color);
 
-                    for (let j = 0; j < smoothPoints.length; j++) {
-                        positions.push(smoothPoints[j].x, smoothPoints[j].y, smoothPoints[j].z);
-                        const alpha = j / (smoothPoints.length - 1);
-                        colors.push(bodyColor.r * alpha, bodyColor.g * alpha, bodyColor.b * alpha);
+                    // Reuse existing buffers if they exist and are large enough
+                    let posAttr = geometry.getAttribute('position');
+                    let colAttr = geometry.getAttribute('color');
+
+                    if (!posAttr || posAttr.count < numPoints) {
+                        // Create new buffers with extra capacity to reduce reallocations
+                        const capacity = Math.max(numPoints * 2, 512);
+                        posAttr = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3);
+                        posAttr.setUsage(THREE.DynamicDrawUsage);
+                        geometry.setAttribute('position', posAttr);
+                        
+                        colAttr = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3);
+                        colAttr.setUsage(THREE.DynamicDrawUsage);
+                        geometry.setAttribute('color', colAttr);
                     }
 
-                    const geometry = trailLineRefs.current[i].geometry;
-                    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-                    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-                    geometry.attributes.position.needsUpdate = true;
-                    geometry.attributes.color.needsUpdate = true;
+                    // Update buffer data directly
+                    for (let j = 0; j < numPoints; j++) {
+                        posAttr.setXYZ(j, smoothPoints[j].x, smoothPoints[j].y, smoothPoints[j].z);
+                        const alpha = j / (numPoints - 1);
+                        colAttr.setXYZ(j, bodyColor.r * alpha, bodyColor.g * alpha, bodyColor.b * alpha);
+                    }
+
+                    // Update draw range and mark for upload
+                    geometry.setDrawRange(0, numPoints);
+                    posAttr.needsUpdate = true;
+                    colAttr.needsUpdate = true;
                     geometry.computeBoundingSphere();
                     trailLineRefs.current[i].visible = true;
                 } else {
@@ -1033,9 +1393,37 @@ const App = () => {
         }
 
         rendererRef.current.render(sceneRef.current, cameraRef.current);
+        
+        // Render corner gizmo (Blender-style axis indicator)
+        if (showGrid && gizmoSceneRef.current && gizmoCameraRef.current && gridRef.current) {
+            // Sync gizmo rotation with main camera orientation
+            const mainCamDir = new THREE.Vector3();
+            cameraRef.current.getWorldDirection(mainCamDir);
+            
+            // Position gizmo camera to look at the gizmo from the same angle as main camera
+            gizmoCameraRef.current.position.copy(mainCamDir).multiplyScalar(-5);
+            gizmoCameraRef.current.lookAt(0, 0, 0);
+            
+            // Render gizmo in corner viewport
+            const gizmoSize = 120;
+            const margin = 20;
+            rendererRef.current.setViewport(margin, margin, gizmoSize, gizmoSize);
+            rendererRef.current.setScissor(margin, margin, gizmoSize, gizmoSize);
+            rendererRef.current.setScissorTest(true);
+            rendererRef.current.setClearColor(0x1a1a2e, 0.8);
+            rendererRef.current.clear();
+            rendererRef.current.render(gizmoSceneRef.current, gizmoCameraRef.current);
+            
+            // Reset viewport to full screen
+            const w = mountRef.current.clientWidth;
+            const h = mountRef.current.clientHeight;
+            rendererRef.current.setViewport(0, 0, w, h);
+            rendererRef.current.setScissorTest(false);
+        }
+        
         frameCountRef.current++;
         requestRef.current = requestAnimationFrame(animate);
-    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, enableCollisions, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showAnalysis, isStepMode, referenceFrame, showCOM]);
+    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, enableCollisions, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showAnalysis, isStepMode, referenceFrame, showCOM, showGrid]);
 
     useEffect(() => {
         if (threeLoaded) {
@@ -1220,7 +1608,8 @@ const App = () => {
         if (cameraControlsRef.current.dragMode === 'ROTATE') {
             cameraControlsRef.current.theta -= deltaX * 0.005;
             cameraControlsRef.current.phi -= deltaY * 0.005;
-            cameraControlsRef.current.phi = Math.max(0.1, Math.min(Math.PI - 0.1, cameraControlsRef.current.phi));
+            // Allow full rotation without gimbal lock - wrap phi to allow going past poles
+            // No clamping needed - camera position calculation handles any phi value
         } else if (cameraControlsRef.current.dragMode === 'PAN' && cameraRef.current) {
             const right = new THREE.Vector3();
             const up = new THREE.Vector3();
@@ -1250,6 +1639,94 @@ const App = () => {
         cameraControlsRef.current.radius = Math.max(50, Math.min(2000, newRadius));
     };
 
+    // --- Touch Handlers for Mobile ---
+    const touchRef = useRef({ lastDistance: 0, lastCenter: { x: 0, y: 0 } });
+
+    const getTouchDistance = (touches) => {
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    };
+
+    const getTouchCenter = (touches) => ({
+        x: (touches[0].clientX + touches[1].clientX) / 2,
+        y: (touches[0].clientY + touches[1].clientY) / 2
+    });
+
+    const handleTouchStart = (e) => {
+        if (e.touches.length === 2) {
+            touchRef.current.lastDistance = getTouchDistance(e.touches);
+            touchRef.current.lastCenter = getTouchCenter(e.touches);
+        } else if (e.touches.length === 1) {
+            cameraControlsRef.current.isDragging = true;
+            cameraControlsRef.current.dragMode = 'ROTATE';
+            cameraControlsRef.current.previousMouse = {
+                x: e.touches[0].clientX,
+                y: e.touches[0].clientY
+            };
+        }
+    };
+
+    const handleTouchMove = (e) => {
+        e.preventDefault();
+        
+        if (e.touches.length === 2) {
+            // Pinch to zoom
+            const newDistance = getTouchDistance(e.touches);
+            const delta = touchRef.current.lastDistance - newDistance;
+            const zoomSpeed = 0.5;
+            const newRadius = cameraControlsRef.current.radius + delta * zoomSpeed;
+            cameraControlsRef.current.radius = Math.max(50, Math.min(2000, newRadius));
+            touchRef.current.lastDistance = newDistance;
+        } else if (e.touches.length === 1 && cameraControlsRef.current.isDragging) {
+            // Single finger rotate
+            const deltaX = e.touches[0].clientX - cameraControlsRef.current.previousMouse.x;
+            const deltaY = e.touches[0].clientY - cameraControlsRef.current.previousMouse.y;
+            cameraControlsRef.current.previousMouse = {
+                x: e.touches[0].clientX,
+                y: e.touches[0].clientY
+            };
+            cameraControlsRef.current.theta -= deltaX * 0.005;
+            cameraControlsRef.current.phi -= deltaY * 0.005;
+            // Allow full rotation without gimbal lock
+        }
+    };
+
+    const handleTouchEnd = () => {
+        cameraControlsRef.current.isDragging = false;
+        touchRef.current.lastDistance = 0;
+    };
+
+    // --- Export State ---
+    const exportState = () => {
+        const state = {
+            scenario: scenarioKey,
+            time: timeRef.current,
+            gravityG,
+            bodies: bodiesRef.current.map(b => ({
+                x: b.x, y: b.y, z: b.z,
+                vx: b.vx, vy: b.vy, vz: b.vz,
+                mass: b.mass,
+                color: b.color
+            })),
+            settings: {
+                physicsMode,
+                enableCollisions,
+                simSpeed,
+                trailLength
+            },
+            exportedAt: new Date().toISOString()
+        };
+        
+        const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `three-body-state-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <div className="flex flex-col lg:flex-row h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
 
@@ -1262,6 +1739,9 @@ const App = () => {
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
                 onWheel={handleWheel}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
                 onContextMenu={e => e.preventDefault()}
             >
                 {!threeLoaded && <div className="absolute inset-0 flex items-center justify-center text-blue-400">Loading 3D Engine...</div>}
@@ -1286,8 +1766,20 @@ const App = () => {
                         bodiesRef={bodiesRef}
                         selectedBodyIndex={selectedBodyIndex}
                         onClose={() => setSelectedBodyIndex(null)}
+                        onDelete={handleDeleteBody}
                         dragMode={dragMode}
                         isPlaying={isPlaying}
+                    />
+                )}
+
+                {/* Body Labels Overlay */}
+                {showLabels && threeLoaded && (
+                    <BodyLabelsOverlay
+                        bodiesRef={bodiesRef}
+                        meshRefs={meshRefs}
+                        cameraRef={cameraRef}
+                        mountRef={mountRef}
+                        selectedBodyIndex={selectedBodyIndex}
                     />
                 )}
 
@@ -1300,6 +1792,100 @@ const App = () => {
                         dataRef={analysisDataRef}
                         onClose={() => setShowAnalysis(false)}
                         selectedBodyIndex={selectedBodyIndex}
+                    />
+                )}
+
+                {/* Help Modal */}
+                {showHelp && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-30 backdrop-blur-sm" onClick={() => setShowHelp(false)}>
+                        <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                                    <HelpCircle className="w-5 h-5 text-blue-400" /> Keyboard Shortcuts
+                                </h2>
+                                <button onClick={() => setShowHelp(false)} className="text-slate-400 hover:text-white">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <div className="space-y-2 text-sm">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">Space</kbd> / <kbd className="text-blue-400">K</kbd></div>
+                                    <div className="text-slate-300">Play / Pause</div>
+                                    
+                                    <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">R</kbd></div>
+                                    <div className="text-slate-300">Reset simulation</div>
+                                    
+                                    <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">G</kbd></div>
+                                    <div className="text-slate-300">Toggle grid</div>
+                                    
+                                    <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">T</kbd></div>
+                                    <div className="text-slate-300">Toggle trails</div>
+                                    
+                                    <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">C</kbd></div>
+                                    <div className="text-slate-300">Toggle center of mass</div>
+                                    
+                                    <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">L</kbd></div>
+                                    <div className="text-slate-300">Toggle body labels</div>
+                                    
+                                    <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">V</kbd></div>
+                                    <div className="text-slate-300">Toggle velocity vectors</div>
+                                    
+                                    <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">F</kbd></div>
+                                    <div className="text-slate-300">Toggle fullscreen</div>
+                                    
+                                    <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">A</kbd></div>
+                                    <div className="text-slate-300">Toggle analysis panel</div>
+                                    
+                                    <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">H</kbd> / <kbd className="text-blue-400">?</kbd></div>
+                                    <div className="text-slate-300">Show this help</div>
+                                    
+                                    <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">Esc</kbd></div>
+                                    <div className="text-slate-300">Close panels</div>
+                                </div>
+                                <div className="border-t border-slate-700 pt-3 mt-3">
+                                    <p className="text-slate-400 text-xs"><strong>Mouse:</strong> Left-drag to rotate • Right-drag to pan • Scroll to zoom</p>
+                                    <p className="text-slate-400 text-xs mt-1"><strong>Touch:</strong> One finger to rotate • Pinch to zoom</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Help Button */}
+                <button
+                    onClick={() => setShowHelp(true)}
+                    className="absolute bottom-4 right-4 p-2 bg-slate-800/80 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors z-10"
+                    title="Keyboard Shortcuts (H)"
+                >
+                    <HelpCircle className="w-5 h-5" />
+                </button>
+
+                {/* Screenshot Button */}
+                <button
+                    onClick={takeScreenshot}
+                    className="absolute bottom-4 right-16 p-2 bg-slate-800/80 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors z-10"
+                    title="Take Screenshot"
+                >
+                    <Camera className="w-5 h-5" />
+                </button>
+
+                {/* Fullscreen Button */}
+                <button
+                    onClick={toggleFullscreen}
+                    className="absolute bottom-4 right-28 p-2 bg-slate-800/80 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors z-10"
+                    title="Toggle Fullscreen (F)"
+                >
+                    <Maximize className="w-5 h-5" />
+                </button>
+
+                {/* Velocity Vectors Overlay */}
+                {showVelocityVectors && threeLoaded && (
+                    <VelocityVectorsOverlay
+                        bodiesRef={bodiesRef}
+                        meshRefs={meshRefs}
+                        cameraRef={cameraRef}
+                        mountRef={mountRef}
+                        scale={SCENARIOS[scenarioKey].scale || 100}
                     />
                 )}
             </div>
@@ -1449,17 +2035,23 @@ const App = () => {
                         <Globe className="w-4 h-4 text-purple-400" />
                         <h3 className="text-sm font-semibold text-slate-300">Select Scenario</h3>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-2 mb-3">
                         {Object.keys(SCENARIOS).map((key) => (
                             <button
                                 key={key}
                                 onClick={() => handleScenarioChange(key)}
                                 className={`text-xs py-2 px-3 rounded-md transition-all border ${scenarioKey === key ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'
                                     } `}
+                                title={SCENARIOS[key].description}
                             >
                                 {SCENARIOS[key].name}
                             </button>
                         ))}
+                    </div>
+                    {/* Active Scenario Description */}
+                    <div className="bg-slate-800/50 p-2 rounded text-[11px] text-slate-400 leading-relaxed">
+                        <Info className="w-3 h-3 inline mr-1 text-blue-400" />
+                        {SCENARIOS[scenarioKey].description}
                     </div>
                 </div>
 
@@ -1535,6 +2127,24 @@ const App = () => {
                             />
                             <span className="text-xs text-slate-300">Show 3D Grid (X, Y, Z Axes)</span>
                         </label>
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={showLabels}
+                                onChange={(e) => setShowLabels(e.target.checked)}
+                                className="w-4 h-4 rounded bg-slate-700 border-slate-600"
+                            />
+                            <span className="text-xs text-slate-300">Show Body Labels</span>
+                        </label>
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={showVelocityVectors}
+                                onChange={(e) => setShowVelocityVectors(e.target.checked)}
+                                className="w-4 h-4 rounded bg-slate-700 border-slate-600"
+                            />
+                            <span className="text-xs text-slate-300">Show Velocity Vectors</span>
+                        </label>
                     </div>
 
                     {/* Toggles Grid */}
@@ -1586,6 +2196,22 @@ const App = () => {
                                 <span>{simSpeed.toFixed(1)}x</span>
                             </div>
                             <input type="range" min="0.1" max="4" step="0.1" value={simSpeed} onChange={(e) => setSimSpeed(parseFloat(e.target.value))} className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-green-500" />
+                            {/* Speed Presets */}
+                            <div className="flex gap-1 mt-2">
+                                {[0.25, 0.5, 1, 2, 4].map(speed => (
+                                    <button
+                                        key={speed}
+                                        onClick={() => setSimSpeed(speed)}
+                                        className={`flex-1 text-[10px] py-1 rounded transition-all ${
+                                            Math.abs(simSpeed - speed) < 0.05 
+                                                ? 'bg-green-600 text-white' 
+                                                : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                                        }`}
+                                    >
+                                        {speed}x
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1606,6 +2232,20 @@ const App = () => {
                         >
                             {isPlaying && !isStepMode ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-current" />}
                             <span>{isPlaying && !isStepMode ? "Pause" : (isStepMode ? "Resume" : "Start Simulation")}</span>
+                        </button>
+                        <button
+                            onClick={exportState}
+                            className="px-4 py-3 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 hover:text-white transition-colors border border-slate-700"
+                            title="Export State (JSON)"
+                        >
+                            <Download className="w-5 h-5" />
+                        </button>
+                        <button
+                            onClick={importState}
+                            className="px-4 py-3 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 hover:text-white transition-colors border border-slate-700"
+                            title="Import State (JSON)"
+                        >
+                            <Upload className="w-5 h-5" />
                         </button>
                         <button
                             onClick={() => { setIsPlaying(false); resetSimulation(scenarioKey); }}
@@ -1674,7 +2314,7 @@ const EditableValue = ({ field, value, editing, setEditing, editValue, setEditVa
 };
 
 // Real-time Body Stats Panel Component with Inline Editing
-const BodyStatsPanel = ({ bodiesRef, selectedBodyIndex, onClose, dragMode, isPlaying }) => {
+const BodyStatsPanel = ({ bodiesRef, selectedBodyIndex, onClose, onDelete, dragMode, isPlaying }) => {
     const [stats, setStats] = useState({ mass: 0, speed: 0, vx: 0, vy: 0, vz: 0, x: 0, y: 0, z: 0, color: 0xffffff });
     const [editing, setEditing] = useState(null); // Track which field is being edited
     const [editValue, setEditValue] = useState('');
@@ -1764,7 +2404,16 @@ const BodyStatsPanel = ({ bodiesRef, selectedBodyIndex, onClose, dragMode, isPla
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#' + stats.color.toString(16).padStart(6, '0') }}></div>
                     <h3 className="font-bold text-slate-100">Body {selectedBodyIndex + 1}</h3>
                 </div>
-                <button onClick={onClose} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
+                <div className="flex items-center space-x-1">
+                    <button 
+                        onClick={() => onDelete(selectedBodyIndex)} 
+                        className="text-red-400 hover:text-red-300 p-1 hover:bg-red-500/20 rounded transition-colors"
+                        title="Delete this body"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                    </button>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white p-1"><X className="w-4 h-4" /></button>
+                </div>
             </div>
 
             <div className="space-y-3 text-xs font-mono text-slate-300">
@@ -2275,3 +2924,187 @@ const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex }) => {
         </div>
     );
 });
+
+// Body Labels Overlay - HTML labels positioned over 3D bodies
+const BodyLabelsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, selectedBodyIndex }) => {
+    const [labelPositions, setLabelPositions] = useState([]);
+
+    useEffect(() => {
+        if (!cameraRef.current || !mountRef.current) return;
+
+        const updateLabels = () => {
+            if (!meshRefs.current || meshRefs.current.length === 0) {
+                requestAnimationFrame(updateLabels);
+                return;
+            }
+
+            const camera = cameraRef.current;
+            const rect = mountRef.current.getBoundingClientRect();
+            const positions = [];
+
+            meshRefs.current.forEach((mesh, i) => {
+                if (!mesh) return;
+                
+                // Get world position of mesh
+                const vector = mesh.position.clone();
+                vector.project(camera);
+
+                // Convert to screen coordinates
+                const x = (vector.x * 0.5 + 0.5) * rect.width;
+                const y = (-vector.y * 0.5 + 0.5) * rect.height;
+
+                // Check if in front of camera
+                const visible = vector.z < 1;
+
+                positions.push({
+                    x,
+                    y: y - 30, // Offset above the body
+                    visible,
+                    index: i,
+                    mass: bodiesRef.current[i]?.mass || 1,
+                    color: bodiesRef.current[i]?.color || 0xffffff
+                });
+            });
+
+            setLabelPositions(positions);
+            requestAnimationFrame(updateLabels);
+        };
+
+        const animId = requestAnimationFrame(updateLabels);
+        return () => cancelAnimationFrame(animId);
+    }, [cameraRef, mountRef, meshRefs, bodiesRef]);
+
+    return (
+        <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
+            {labelPositions.map((pos) => (
+                pos.visible && (
+                    <div
+                        key={pos.index}
+                        className={`absolute transform -translate-x-1/2 text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg transition-opacity ${
+                            selectedBodyIndex === pos.index 
+                                ? 'bg-white text-slate-900 ring-2 ring-blue-400' 
+                                : 'bg-slate-800/80 text-white'
+                        }`}
+                        style={{
+                            left: pos.x,
+                            top: pos.y,
+                            borderLeft: `3px solid #${pos.color.toString(16).padStart(6, '0')}`
+                        }}
+                    >
+                        Body {pos.index + 1}
+                        <span className="text-slate-400 ml-1 font-normal">m={pos.mass.toFixed(1)}</span>
+                    </div>
+                )
+            ))}
+        </div>
+    );
+};
+
+// Velocity Vectors Overlay - SVG arrows showing velocity direction/magnitude
+const VelocityVectorsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, scale }) => {
+    const [vectors, setVectors] = useState([]);
+
+    useEffect(() => {
+        if (!cameraRef.current || !mountRef.current) return;
+
+        const updateVectors = () => {
+            if (!meshRefs.current || meshRefs.current.length === 0 || !bodiesRef.current) {
+                requestAnimationFrame(updateVectors);
+                return;
+            }
+
+            const camera = cameraRef.current;
+            const rect = mountRef.current.getBoundingClientRect();
+            const newVectors = [];
+
+            bodiesRef.current.forEach((body, i) => {
+                if (!meshRefs.current[i]) return;
+
+                // Body position in screen coords
+                const startPos = meshRefs.current[i].position.clone();
+                startPos.project(camera);
+                const startX = (startPos.x * 0.5 + 0.5) * rect.width;
+                const startY = (-startPos.y * 0.5 + 0.5) * rect.height;
+
+                // Velocity endpoint in world coords (scaled for visibility)
+                const speed = Math.sqrt(body.vx ** 2 + body.vy ** 2 + body.vz ** 2);
+                const velScale = Math.min(50, speed * 30); // Scale velocity for visual
+                
+                // Create a 3D point offset by velocity
+                const endWorld = meshRefs.current[i].position.clone();
+                endWorld.x += body.vx * scale * 0.5;
+                endWorld.y += body.vy * scale * 0.5;
+                endWorld.z += body.vz * scale * 0.5;
+                endWorld.project(camera);
+                
+                const endX = (endWorld.x * 0.5 + 0.5) * rect.width;
+                const endY = (-endWorld.y * 0.5 + 0.5) * rect.height;
+
+                // Check if in front of camera
+                const visible = startPos.z < 1;
+
+                if (visible && speed > 0.001) {
+                    newVectors.push({
+                        index: i,
+                        startX, startY,
+                        endX, endY,
+                        speed,
+                        color: body.color
+                    });
+                }
+            });
+
+            setVectors(newVectors);
+            requestAnimationFrame(updateVectors);
+        };
+
+        const animId = requestAnimationFrame(updateVectors);
+        return () => cancelAnimationFrame(animId);
+    }, [cameraRef, mountRef, meshRefs, bodiesRef, scale]);
+
+    return (
+        <svg className="absolute inset-0 pointer-events-none z-10 overflow-visible">
+            <defs>
+                {vectors.map(v => (
+                    <marker
+                        key={`arrow-${v.index}`}
+                        id={`arrowhead-${v.index}`}
+                        markerWidth="10"
+                        markerHeight="7"
+                        refX="9"
+                        refY="3.5"
+                        orient="auto"
+                    >
+                        <polygon
+                            points="0 0, 10 3.5, 0 7"
+                            fill={`#${v.color.toString(16).padStart(6, '0')}`}
+                        />
+                    </marker>
+                ))}
+            </defs>
+            {vectors.map(v => (
+                <g key={v.index}>
+                    <line
+                        x1={v.startX}
+                        y1={v.startY}
+                        x2={v.endX}
+                        y2={v.endY}
+                        stroke={`#${v.color.toString(16).padStart(6, '0')}`}
+                        strokeWidth="2"
+                        markerEnd={`url(#arrowhead-${v.index})`}
+                        opacity="0.8"
+                    />
+                    <text
+                        x={(v.startX + v.endX) / 2 + 10}
+                        y={(v.startY + v.endY) / 2}
+                        fill="white"
+                        fontSize="10"
+                        className="font-mono"
+                    >
+                        {v.speed.toFixed(2)}
+                    </text>
+                </g>
+            ))}
+        </svg>
+    );
+};
