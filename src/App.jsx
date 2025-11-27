@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Play, Pause, RotateCcw, Info, Activity, Settings, MousePointer2, Move3d, Globe, Sparkles, Plus, Hand, Merge, Calculator, X, Target, Eye, Video, LineChart as LineChartIcon, Clock, Download, HelpCircle, Upload, Trash2, Tag, Maximize, Minimize, Camera, ArrowRight, PanelRightClose, PanelRightOpen, Cpu } from 'lucide-react';
+import { Play, Pause, RotateCcw, Info, Activity, Settings, MousePointer2, Move3d, Globe, Sparkles, Plus, Hand, Merge, Calculator, X, Target, Eye, Video, LineChart as LineChartIcon, Clock, Download, HelpCircle, Upload, Trash2, Tag, Maximize, Minimize, Camera, ArrowRight, PanelRightClose, PanelRightOpen, Cpu, Zap } from 'lucide-react';
 import { usePhysicsWorker } from './hooks/usePhysicsWorker';
+import { getGPUPhysics, isGPUSupported } from './utils/gpuPhysics';
 
 const DEFAULT_PANEL_WIDTH = 380;
 const MIN_PANEL_WIDTH = 260;
@@ -182,6 +183,8 @@ const App = () => {
     const [showAnalysis, setShowAnalysis] = useState(false);
     const [performanceMode, setPerformanceMode] = useState(true); // Simple trails by default
     const [useWebWorker, setUseWebWorker] = useState(true); // Offload physics to Web Worker
+    const [useGPU, setUseGPU] = useState(false); // GPU acceleration (WebGL2 compute)
+    const [gpuSupported, setGpuSupported] = useState(false); // Check on mount
     const [showGrid, setShowGrid] = useState(false);
     const [showHelp, setShowHelp] = useState(false);
     const [showLabels, setShowLabels] = useState(true);
@@ -210,6 +213,14 @@ const App = () => {
     useEffect(() => {
         window.selectBody = (index) => setSelectedBodyIndex(index);
     }, []);
+
+    // Check GPU support on mount
+    useEffect(() => {
+        setGpuSupported(isGPUSupported());
+    }, []);
+
+    // GPU Physics Engine ref
+    const gpuPhysicsRef = useRef(null);
 
     // Refs for high-frequency data (to avoid re-renders)
     const statsRef = useRef({ time: 0, totalEnergy: 0, bodyCount: 3 });
@@ -1249,10 +1260,97 @@ const App = () => {
         // Only run physics if playing AND not in step mode
         // (step mode requires manual stepping via a button)
         if (isPlaying && !isStepMode) {
-            // Check if we should use Web Worker
-            const shouldUseWorker = useWebWorker && workerReady && workerSupported && !workerPendingRef.current;
+            // Check if we should use GPU acceleration (takes priority)
+            const shouldUseGPU = useGPU && gpuSupported && !enableCollisions; // GPU doesn't support collisions yet
             
-            if (shouldUseWorker) {
+            // Check if we should use Web Worker
+            const shouldUseWorker = !shouldUseGPU && useWebWorker && workerReady && workerSupported && !workerPendingRef.current;
+            
+            if (shouldUseGPU) {
+                // Use GPU for physics (synchronous but parallel)
+                if (!gpuPhysicsRef.current) {
+                    gpuPhysicsRef.current = getGPUPhysics();
+                }
+                
+                const gpuEngine = gpuPhysicsRef.current;
+                const config = {
+                    simSpeed,
+                    timeDirection,
+                    gravityG
+                };
+                
+                const updatedBodies = gpuEngine.update(bodiesRef.current, config);
+                
+                if (updatedBodies) {
+                    // Apply GPU results
+                    updatedBodies.forEach((b, i) => {
+                        if (bodiesRef.current[i]) {
+                            bodiesRef.current[i].x = b.x;
+                            bodiesRef.current[i].y = b.y;
+                            bodiesRef.current[i].z = b.z;
+                            bodiesRef.current[i].vx = b.vx;
+                            bodiesRef.current[i].vy = b.vy;
+                            bodiesRef.current[i].vz = b.vz;
+                        }
+                    });
+                    
+                    // Update time
+                    const dt = 0.01 * simSpeed * timeDirection;
+                    timeRef.current += dt;
+                    
+                    // Update trails
+                    for (let i = 0; i < bodiesRef.current.length; i++) {
+                        if (trailsRef.current[i]) {
+                            trailsRef.current[i].push(new THREE.Vector3(
+                                bodiesRef.current[i].x,
+                                bodiesRef.current[i].y,
+                                bodiesRef.current[i].z
+                            ));
+                            if (trailsRef.current[i].length > trailLength) {
+                                trailsRef.current[i].shift();
+                            }
+                        }
+                    }
+                    
+                    // Throttled stats update
+                    if (frameCountRef.current % 30 === 0) {
+                        const energy = gpuEngine.calculateEnergy(bodiesRef.current, gravityG);
+                        
+                        if (initialEnergy === null) {
+                            setInitialEnergy(energy.total);
+                        } else if (initialEnergy !== 0) {
+                            const drift = ((energy.total - initialEnergy) / initialEnergy) * 100;
+                            setEnergyDrift(drift);
+                        }
+                        
+                        statsRef.current = {
+                            time: timeRef.current,
+                            totalEnergy: energy.total,
+                            bodyCount: bodiesRef.current.length
+                        };
+                        
+                        if (showAnalysis) {
+                            const newDataPoint = {
+                                time: parseFloat(timeRef.current.toFixed(1)),
+                                ke: energy.ke,
+                                pe: energy.pe,
+                                total: energy.total,
+                                x: bodiesRef.current[selectedBodyIndex || 0]?.x || 0,
+                                px: (bodiesRef.current[selectedBodyIndex || 0]?.vx || 0) * 
+                                    (bodiesRef.current[selectedBodyIndex || 0]?.mass || 1)
+                            };
+                            
+                            analysisDataRef.current.push(newDataPoint);
+                            if (analysisDataRef.current.length > 100) {
+                                analysisDataRef.current.shift();
+                            }
+                        }
+                    }
+                } else {
+                    // GPU failed, fall back to CPU
+                    updatePhysics();
+                }
+            } else if (shouldUseWorker) {
                 // Use Web Worker for physics (async)
                 workerPendingRef.current = true;
                 
@@ -1566,7 +1664,7 @@ const App = () => {
         
         frameCountRef.current++;
         requestRef.current = requestAnimationFrame(animate);
-    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, enableCollisions, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showAnalysis, isStepMode, referenceFrame, showCOM, showGrid, useWebWorker, workerReady, workerSupported, workerUpdatePhysics, timeDirection, initialEnergy]);
+    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, enableCollisions, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showAnalysis, isStepMode, referenceFrame, showCOM, showGrid, useWebWorker, workerReady, workerSupported, workerUpdatePhysics, timeDirection, initialEnergy, useGPU, gpuSupported]);
 
     useEffect(() => {
         if (threeLoaded) {
@@ -2011,7 +2109,7 @@ const App = () => {
                 )}
 
                 {/* Bottom Info Bar */}
-                <StatusFooter statsRef={statsRef} physicsMode={physicsMode} enableCollisions={enableCollisions} useWorker={useWebWorker} workerActive={workerReady} />
+                <StatusFooter statsRef={statsRef} physicsMode={physicsMode} enableCollisions={enableCollisions} useWorker={useWebWorker} workerActive={workerReady} useGPU={useGPU} gpuActive={gpuSupported && useGPU} />
 
                 {/* Analysis Panel Overlay - Draggable Window */}
                 {showAnalysis && (
@@ -2373,17 +2471,34 @@ const App = () => {
                     </div>
 
                     <div className="space-y-3">
-                        <label className="flex items-center space-x-2 cursor-pointer">
+                        <label className="flex items-center space-x-2 cursor-pointer" title="Use GPU for parallel physics computation (best for many bodies)">
+                            <input
+                                type="checkbox"
+                                checked={useGPU}
+                                onChange={(e) => setUseGPU(e.target.checked)}
+                                disabled={!gpuSupported || enableCollisions}
+                                className="w-4 h-4 rounded bg-slate-700 border-slate-600 disabled:opacity-50"
+                            />
+                            <span className={`text-xs flex items-center gap-1 ${gpuSupported && !enableCollisions ? 'text-slate-300' : 'text-slate-500'}`}>
+                                <Zap className="w-3 h-3" />
+                                GPU Physics {useGPU && gpuSupported ? '✓' : ''} 
+                                {!gpuSupported && ' (WebGL2 Required)'}
+                                {enableCollisions && gpuSupported && ' (Disable collisions)'}
+                            </span>
+                        </label>
+                        <label className="flex items-center space-x-2 cursor-pointer" title="Offload physics to background thread">
                             <input
                                 type="checkbox"
                                 checked={useWebWorker}
                                 onChange={(e) => setUseWebWorker(e.target.checked)}
-                                disabled={!workerSupported}
+                                disabled={!workerSupported || useGPU}
                                 className="w-4 h-4 rounded bg-slate-700 border-slate-600 disabled:opacity-50"
                             />
-                            <span className={`text-xs ${workerSupported ? 'text-slate-300' : 'text-slate-500'}`}>
-                                Web Worker Physics {workerReady && useWebWorker ? '✓' : ''} 
+                            <span className={`text-xs flex items-center gap-1 ${workerSupported && !useGPU ? 'text-slate-300' : 'text-slate-500'}`}>
+                                <Cpu className="w-3 h-3" />
+                                Web Worker {workerReady && useWebWorker && !useGPU ? '✓' : ''} 
                                 {!workerSupported && ' (Not Supported)'}
+                                {useGPU && workerSupported && ' (GPU active)'}
                             </span>
                         </label>
                         <label className="flex items-center space-x-2 cursor-pointer">
@@ -2848,7 +2963,7 @@ const EnergyDisplay = ({ statsRef }) => {
     return <div className="text-lg font-mono text-emerald-400 truncate">{energy.toFixed(4)}</div>;
 };
 
-const StatusFooter = ({ statsRef, physicsMode, enableCollisions, useWorker, workerActive }) => {
+const StatusFooter = ({ statsRef, physicsMode, enableCollisions, useWorker, workerActive, useGPU, gpuActive }) => {
     const [bodyCount, setBodyCount] = useState(0);
     useEffect(() => {
         const interval = setInterval(() => {
@@ -2860,7 +2975,10 @@ const StatusFooter = ({ statsRef, physicsMode, enableCollisions, useWorker, work
         <div className="absolute bottom-4 left-4 pointer-events-none text-xs text-slate-500 flex gap-4 z-10 bg-slate-900/50 p-2 rounded backdrop-blur-sm border border-slate-800/50">
             <span>Engine: {physicsMode}</span>
             <span>Collisions: {enableCollisions ? 'ON' : 'OFF'}</span>
-            {useWorker && <span className={workerActive ? 'text-green-400' : 'text-yellow-400'}>
+            {useGPU && <span className={gpuActive ? 'text-cyan-400' : 'text-yellow-400'}>
+                GPU: {gpuActive ? 'Active' : 'Pending'}
+            </span>}
+            {useWorker && !useGPU && <span className={workerActive ? 'text-green-400' : 'text-yellow-400'}>
                 Worker: {workerActive ? 'Active' : 'Pending'}
             </span>}
             <span className="text-white font-bold">Active Bodies: {bodyCount}</span>

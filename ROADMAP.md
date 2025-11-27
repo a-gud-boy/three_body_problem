@@ -21,6 +21,8 @@ This document outlines potential features and optimizations for the Three-Body P
 - ✅ **Multiple Scenarios**: Figure-8, Lagrange L4/L5, Sitnikov, 4-Body, Burrau
 - ✅ **Collision Merging**: Approximate mass+momentum conservation on impact
 - ✅ **RK4 Integrator**: High-precision Runge-Kutta 4 option
+- ✅ **Web Worker Physics**: Offload physics to separate thread (~2-3x performance boost)
+- ✅ **GPU Acceleration**: WebGL2-based physics compute for massive parallel force calculations
 
 ### Visualization
 - ✅ **Orbit Controls**: Full mouse/touch camera manipulation
@@ -153,14 +155,19 @@ This document outlines potential features and optimizations for the Three-Body P
   - Automatic fallback to main thread if workers unavailable
   - Status indicator in footer shows worker state
 
-#### 2. GPU Acceleration
+#### 2. GPU Acceleration ✅
 - **Concept**: Use WebGL compute shaders for force calculations
 - **Benefit**: Parallel processing, handle 1000+ bodies
+- **Status**: ✅ Implemented
 - **Implementation**:
-  - Use `gpu.js` or WebGPU
-  - Encode body positions/velocities as textures
-  - Compute forces in parallel
-  - Read back to CPU for rendering
+  - Created `src/utils/gpuPhysics.js` with WebGL2-based GPU physics engine
+  - Uses floating-point textures (RGBA32F) for body state encoding
+  - Fragment shaders compute gravitational forces in parallel
+  - Supports both Euler and RK4 integration methods
+  - Toggle in UI: "GPU Physics" checkbox in Advanced Physics
+  - Automatic fallback if WebGL2 or float textures unavailable
+  - Takes priority over Web Worker when enabled
+  - Status indicator in footer shows GPU state
 
 #### 3. Adaptive Timestep
 - **Concept**: Smaller `dt` when bodies close, larger when far
@@ -362,6 +369,7 @@ Track these to measure feature effectiveness:
 - ✅ Advanced camera modes
 - ✅ Analysis dashboard
 - ✅ State import/export
+- ✅ Web Workers physics (2-3x performance boost)
 
 ### v2.1 (Next Release - Q1 2026)
 - 🚧 Orbit predictor
@@ -370,10 +378,10 @@ Track these to measure feature effectiveness:
 - 🚧 Poincaré sections
 
 ### v2.2 (Q2 2026)
-- 📋 Web Workers physics
 - 📋 Field visualizations
 - 📋 Challenge mode
 - 📋 Historical replay
+- 📋 Adaptive timestep
 
 ### v3.0 (Future - Q3 2026)
 - 📋 Multi-system comparison
