@@ -2,89 +2,139 @@
 
 This document outlines potential features and optimizations for the Three-Body Problem simulation application.
 
+**Last Updated**: 2025-11-28  
+**Status Legend**: ✅ Implemented | 🚧 In Progress | 📋 Planned
+
 ---
 
-## 🎯 New Features
+## ✅ Completed Features
+
+### Physics & Simulation
+- ✅ **Time Reversal**: Run simulation backwards (timeDirection state)
+- ✅ **Frame-by-Frame Stepping**: Step mode with manual frame advancement
+- ✅ **Bookmarking System**: Save/restore simulation snapshots
+- ✅ **Variable Speed Slider**: 0.1x to 4x with quick presets
+- ✅ **Energy Drift Monitoring**: Real-time % deviation tracking
+- ✅ **Center of Mass Tracking**: Visual COM marker with toggle
+- ✅ **Barycentric Frame**: Transform to center-of-mass coordinates
+- ✅ **Body-Centric Camera**: LOCK and COCKPIT modes following bodies
+- ✅ **Multiple Scenarios**: Figure-8, Lagrange L4/L5, Sitnikov, 4-Body, Burrau
+- ✅ **Collision Merging**: Approximate mass+momentum conservation on impact
+- ✅ **RK4 Integrator**: High-precision Runge-Kutta 4 option
+
+### Visualization
+- ✅ **Orbit Controls**: Full mouse/touch camera manipulation
+- ✅ **Velocity Vectors**: Real-time velocity arrow overlays
+- ✅ **Body Labels**: HTML overlays with position tracking
+- ✅ **3D Grid**: XYZ axis reference grid
+- ✅ **Screenshot Export**: High-quality PNG capture
+- ✅ **Glow Effects**: Procedural glow textures per body
+- ✅ **Performance Trails**: Simple/detailed trail rendering modes
+
+### User Experience
+- ✅ **Save/Load System**: JSON export/import of full simulation state
+- ✅ **Keyboard Shortcuts**: Comprehensive hotkey system (Space, R, G, T, C, L, V, F, P, A, H, Esc)
+- ✅ **Fullscreen Mode**: Toggle with F key
+- ✅ **Resizable Panel**: Draggable side panel width adjustment
+- ✅ **Interactive Body Editing**: Click bodies to edit mass/velocity/position
+- ✅ **Drag Mode**: Reposition bodies when paused
+- ✅ **Analysis Dashboard**: Draggable/resizable energy + phase space graphs
+- ✅ **Touch Support**: Pinch-zoom and swipe for mobile devices
+
+---
+
+## 🎯 New Features (Proposed)
 
 ### Physics & Simulation
 
-#### 1. Time Control Suite
-- **Time Reversal**: Run simulation backwards by negating velocities
-- **Frame-by-Frame Stepping**: Advance one physics step at a time
-- **Bookmarking System**: Save interesting moments in simulation
-- **Variable Speed Slider**: Allow 0.1x to 10x simulation speed
-- **Implementation**: Add state management for time direction, step mode
+#### 1. Advanced Analysis Tools 🚧
+- 📋 **Poincaré Sections**: Plot phase space intersections for chaos analysis
+- 📋 **Lyapunov Exponent**: Calculate measure of chaos/sensitivity to initial conditions
+- 📋 **Collision Prediction**: Warn when bodies will collide soon (time estimate)
+- 📋 **Angular Momentum Conservation**: Track and display total L vector
+- **Implementation**: Extend analysis panel with chaos metrics, add warning system
 
-#### 2. Advanced Analysis Tools
-- **Poincaré Sections**: Plot phase space intersections for chaos analysis
-- **Lyapunov Exponent**: Calculate measure of chaos/sensitivity to initial conditions
-- **Energy Drift Monitoring**: Track numerical errors over time
-- **Collision Prediction**: Warn when bodies will collide soon
-- **Center of Mass Tracking**: Visualize barycenter with marker
-- **Implementation**: Add new analysis panel with these metrics
+#### 2. Orbit Predictor
+- 📋 **Trajectory Forecast**: Show predicted future paths (5-10 orbits ahead) with dashed lines
+- 📋 **Temporal Markers**: Display body positions at T+10, T+100 intervals
+- 📋 **Prediction Accuracy**: Color-code by confidence (green=stable, red=chaotic)
+- **Implementation**: Shadow physics state running ahead, render with lower opacity
 
-#### 3. Reference Frame Options
-- **Barycentric Frame**: Keep center of mass at origin
-- **Body-Centric Frame**: Lock camera to specific body
-- **Rotating Frame**: Transform to co-rotating coordinates
-- **Implementation**: Add frame transformation matrix to camera updates
+#### 3. Reference Frame Enhancements
+- 📋 **Rotating Frame**: Co-rotating coordinates for binary systems
+- 📋 **Effective Potential Visualization**: Show centrifugal + gravitational combined field
+- **Implementation**: Add rotation transformation matrix, shader-based field rendering
 
-#### 4. More Scenarios
-- **Lagrange Points Demo**: Show L1-L5 equilibrium points
-- **Figure-8 Orbit**: Famous periodic solution
-- **Horseshoe Orbits**: Saturn's moons-style dynamics
-- **Sitnikov Problem**: Restricted 3-body variation
-- **N-Body Support**: Allow 4, 5, 10+ bodies
-- **Implementation**: Expand `SCENARIOS` object with new configurations
+#### 4. Extended Scenarios
+- 📋 **Horseshoe Orbits**: Saturn's Janus/Epimetheus-style dynamics
+- 📋 **Binary + Planet**: Circumbinary orbit (Tatooine-like system)
+- 📋 **Kozai Cycles**: Inclined 3-body resonance
+- 📋 **N-Body Chaos**: 10-20 body swarm scenarios
+- **Implementation**: Expand `SCENARIOS` with validated initial conditions
 
 ### Visualization
 
 #### 5. Field Visualizations
-- **Gravitational Potential Heatmap**: Color gradient showing gravity strength
-- **Velocity Field Arrows**: Show velocity at points in space
-- **Zero-Velocity Curves**: Hill surfaces (contours where KE = 0)
-- **Angular Momentum Vectors**: Visualize L vector for each body
-- **Implementation**: Add shader-based field rendering or particle system
+- 📋 **Gravitational Potential Heatmap**: Color gradient showing gravity strength in 3D volume
+- 📋 **Zero-Velocity Curves**: Hill surfaces (isosurfaces where KE = 0)
+- 📋 **Escape Velocity Contours**: 3D isosurface where v = v_escape
+- 📋 **Gravitational Lensing**: Shader-based light ray bending near massive bodies
+- **Implementation**: Marching cubes for isosurfaces, fragment shader for lensing
 
-#### 6. Enhanced Camera
-- **Orbit Controls**: Mouse drag to rotate view
-- **Path-Following Mode**: Camera rides along body trajectory
-- **Split-Screen Multi-View**: Multiple simultaneous viewpoints
-- **VR/AR Support**: WebXR integration for immersive experience
-- **Implementation**: Integrate THREE.OrbitControls, add camera presets
+#### 6. Advanced Camera & Views
+- 📋 **Path-Following Mode**: Camera rides smoothly along body trajectory
+- 📋 **Split-Screen Multi-View**: 2-4 simultaneous viewpoints with independent controls
+- 📋 **Guided Tours**: Pre-scripted camera animations showcasing key moments
+- 📋 **VR/AR Support**: WebXR integration for immersive experience
+- **Implementation**: Bezier curve camera paths, viewport splitting, WebXR API
 
-#### 7. Media Export
-- **Video Export**: Capture as WebM/MP4 using MediaRecorder API
-- **GIF Generation**: Create animated loops
-- **High-Res Screenshots**: Export at 4K resolution
-- **Data Export**: CSV/JSON for external analysis (positions, velocities over time)
-- **Implementation**: Use canvas.toBlob() and MediaRecorder API
+#### 7. Enhanced Media Export
+- 📋 **Video Export**: Capture as WebM/MP4 using MediaRecorder API
+- 📋 **GIF Generation**: Create animated loops with configurable frame rate
+- 📋 **4K Screenshots**: Export at ultra-high resolution (3840×2160)
+- 📋 **Data Export**: CSV timeseries for external analysis (positions, velocities, energy)
+- 📋 **Presentation Mode**: Record narrated tour with voiceover
+- **Implementation**: MediaRecorder API, canvas upscaling, CSV serialization
+
+#### 8. Visual Polish
+- 📋 **Procedural Starfield**: Dynamic parallax background with nebula clouds
+- 📋 **Tidal Deformation**: Bodies visually stretch near periapsis (Roche limit demo)
+- 📋 **Thermal Evolution**: Body color changes with temperature (black→red→white)
+- 📋 **Accretion Disks**: Form rotating disk after collision
+- **Implementation**: Shader-based geometry morphing, particle systems
 
 ### User Experience
 
-#### 8. Save/Load System
-- **Browser Storage**: Save states to localStorage
-- **URL Sharing**: Encode configuration in URL hash
-- **File Import/Export**: JSON configuration files
-- **Auto-Save**: Periodic checkpointing
-- **Implementation**: Serialize bodiesRef state, compress with LZString
+#### 9. Enhanced Save/Load
+- 📋 **Browser Storage**: Auto-save to localStorage with recovery on crash
+- 📋 **URL Sharing**: Encode full configuration in shareable URL hash
+- 📋 **Preset Library**: User-created scenario gallery with tags
+- 📋 **Historical Replay**: Full timeline scrubbing like video player
+- **Implementation**: LZString compression, IndexedDB for large states
 
-#### 9. Keyboard Shortcuts
-- `Space`: Play/Pause
-- `R`: Reset to initial conditions
-- `1/2/3`: Select body 1, 2, or 3
-- `Arrow Keys`: Camera movement
-- `+/-`: Zoom in/out
-- `T`: Toggle trails
-- `G`: Toggle grid
-- **Implementation**: Add global keydown listener
+#### 10. Interaction Enhancements
+- 📋 **Body Designer**: Custom body creator with rings, atmospheres, emission
+- 📋 **Mission Planning Mode**: Launch spacecraft with velocity controls, delta-V budget
+- 📋 **Undo/Redo**: Ctrl+Z/Y for state changes (history stack)
+- 📋 **Multi-Select**: Shift+click to select/manipulate multiple bodies
+- 📋 **Keyboard Improvements**: Arrow keys for camera movement, 1/2/3 for body selection
+- **Implementation**: Command pattern for undo, selection set management
 
-#### 10. Sonification
-- **Collision Audio**: Play impact sounds
-- **Pitch Mapping**: Frequency based on kinetic energy
-- **3D Spatial Audio**: Position audio sources at body locations
-- **Musical Mode**: Map orbits to musical scales
-- **Implementation**: Use Web Audio API with PannerNode
+#### 11. Sonification & Audio
+- 📋 **Collision Audio**: Impact sounds based on momentum transfer
+- 📋 **Pitch Mapping**: Frequency proportional to kinetic energy
+- 📋 **3D Spatial Audio**: Web Audio API PannerNode positioned at bodies
+- 📋 **Celestial Music**: Map orbital frequencies to musical scales, MIDI export
+- 📋 **Gravitational Wave "Sound"**: Chirp sound on merger events
+- **Implementation**: Web Audio API with dynamic node graph
+
+#### 12. Gamification & Education
+- 📋 **Challenge Mode**: Objectives like "Achieve stable 3-body orbit for 100 time units"
+- 📋 **Puzzle Scenarios**: Minimum-energy transfer problems with scoring
+- 📋 **AI Orbit Finder**: Genetic algorithm to discover periodic solutions
+- 📋 **Leaderboard**: Share best solutions for challenges
+- 📋 **Interactive Tutorial**: Step-by-step guided walkthrough for new users
+- **Implementation**: Constraint checking, Web Worker for optimization
 
 ---
 
@@ -92,14 +142,16 @@ This document outlines potential features and optimizations for the Three-Body P
 
 ### Computation
 
-#### 1. Web Workers for Physics
+#### 1. Web Workers for Physics ✅
 - **Concept**: Offload `updatePhysics` to separate thread
 - **Benefit**: UI stays responsive, ~2-3x performance boost
+- **Status**: ✅ Implemented
 - **Implementation**: 
-  - Create `physicsWorker.js`
-  - Post message with body state
-  - Worker computes next state, posts back
-  - Main thread updates visuals only
+  - Created `src/workers/physicsWorker.js` with full physics engine
+  - Created `src/hooks/usePhysicsWorker.js` for React integration
+  - Toggle in UI: "Web Worker Physics" checkbox in Advanced Physics
+  - Automatic fallback to main thread if workers unavailable
+  - Status indicator in footer shows worker state
 
 #### 2. GPU Acceleration
 - **Concept**: Use WebGL compute shaders for force calculations
@@ -164,57 +216,80 @@ This document outlines potential features and optimizations for the Three-Body P
 
 ## 🎨 UX & Polish
 
-#### 1. Onboarding Tutorial
-- Interactive walkthrough on first visit
-- Highlight features with tooltips
-- Step-by-step guide overlay
+#### 1. Theming & Appearance 🚧
+- 📋 **Light Mode**: Toggle between dark/light themes
+- 📋 **Color Schemes**: Presets (cyberpunk, retro, scientific, monochrome)
+- 📋 **Custom Backgrounds**: Upload images or use gradient editor
+- 📋 **Font Scaling**: Accessibility option for larger UI text
+- **Implementation**: CSS variables, theme context provider
 
-#### 2. Mobile Support
-- Touch controls for rotation/zoom (pinch, swipe)
-- Responsive layout for small screens
-- Simplified UI with collapsible panels
+#### 2. Accessibility Improvements 🚧
+- 📋 **Enhanced Screen Reader**: ARIA labels for all interactive elements
+- 📋 **High Contrast Mode**: WCAG AAA compliant color ratios
+- 📋 **Motion Reduction**: Respect `prefers-reduced-motion` media query
+- 📋 **Focus Indicators**: Clear keyboard navigation highlights
+- **Implementation**: Semantic HTML, ARIA attributes, CSS media queries
 
-#### 3. Themes
-- Dark mode (current) / Light mode toggle
-- Preset color schemes (cyberpunk, retro, scientific)
-- Custom background images or gradients
+#### 3. Multi-User & Collaboration
+- 📋 **Synchronized Mode**: Share simulation via WebRTC data channels
+- 📋 **Spectator View**: Watch others' simulations in real-time
+- 📋 **Collaborative Scenarios**: Multiple users control different bodies
+- 📋 **Chat Integration**: In-app text chat for discussions
+- **Implementation**: WebRTC or WebSocket server, peer-to-peer state sync
 
-#### 4. Accessibility
-- Full keyboard navigation
-- Screen reader annotations
-- High contrast mode
-- Motion reduction option (respect `prefers-reduced-motion`)
-
-#### 5. Undo/Redo System
-- Track state changes in history stack
-- Ctrl+Z / Ctrl+Y keyboard shortcuts
-- Limit to last 20 states
+#### 4. Advanced Comparison Tools
+- 📋 **Multi-System View**: Run 2-4 simulations side-by-side with different ICs
+- 📋 **Butterfly Effect Demo**: Show chaos divergence from tiny perturbations
+- 📋 **Parameter Sweep**: Animate through range of G or mass values
+- 📋 **Diff Visualization**: Highlight when systems decorrelate
+- **Implementation**: Multiple canvas instances, synchronized time controls
 
 ---
 
-## 🔥 Top 5 Priority Recommendations
+## 🔥 Top 10 Priority Recommendations
 
-Based on **Impact vs Effort**:
+Based on **Impact vs Effort** (sorted by priority):
 
-1. **Web Workers** ⭐⭐⭐⭐⭐
-   - Effort: Medium
-   - Impact: High (2-3x performance, better UX)
+1. **Orbit Predictor** ⭐⭐⭐⭐⭐
+   - Effort: Medium | Impact: Very High (aids understanding, unique feature)
+   - Shows future trajectories, helps visualize stability
    
-2. **Save/Load System** ⭐⭐⭐⭐⭐
-   - Effort: Low
-   - Impact: High (user retention, sharing)
+2. **Video/GIF Export** ⭐⭐⭐⭐⭐
+   - Effort: Low-Medium | Impact: High (shareability, social media)
+   - MediaRecorder API implementation
    
-3. **Time Control (Reverse/Step)** ⭐⭐⭐⭐
-   - Effort: Medium
-   - Impact: Medium-High (very engaging)
+3. **Web Workers for Physics** ⭐⭐⭐⭐⭐ ✅
+   - Effort: Medium | Impact: High (2-3x performance, better UX)
+   - Offload physics to separate thread
+   - **Status**: Implemented
    
-4. **Adaptive Timestep** ⭐⭐⭐⭐
-   - Effort: Medium
-   - Impact: High (accuracy + speed)
+4. **URL Sharing** ⭐⭐⭐⭐⭐
+   - Effort: Low | Impact: High (viral potential, easy sharing)
+   - Encode state in URL hash with LZString compression
    
-5. **Field Visualizations** ⭐⭐⭐⭐
-   - Effort: High
-   - Impact: Very High (educational value)
+5. **Adaptive Timestep** ⭐⭐⭐⭐
+   - Effort: Medium | Impact: High (accuracy + speed)
+   - Dynamic dt based on closest approach distance
+   
+6. **Field Visualizations** ⭐⭐⭐⭐
+   - Effort: High | Impact: Very High (educational, beautiful)
+   - Gravitational potential heatmap, zero-velocity surfaces
+   
+7. **Challenge/Puzzle Mode** ⭐⭐⭐⭐
+   - Effort: Medium | Impact: High (gamification, engagement)
+   - Goal-oriented scenarios with scoring
+   
+8. **Multi-System Comparison** ⭐⭐⭐⭐
+   - Effort: Medium-High | Impact: High (chaos visualization)
+   - Side-by-side simulations with different initial conditions
+   
+9. **Historical Replay** ⭐⭐⭐⭐
+   - Effort: Medium | Impact: Medium-High (storytelling, analysis)
+   - Full timeline scrubbing with annotations
+   
+10. **AI Orbit Finder** ⭐⭐⭐⭐
+    - Effort: High | Impact: Medium-High (research tool, unique)
+    - Genetic algorithm to discover periodic solutions
 
 ---
 
@@ -249,5 +324,64 @@ Based on **Impact vs Effort**:
 
 ---
 
-**Last Updated**: 2025-11-21  
-**Maintained By**: Development Team
+## 🎓 Educational Extensions
+
+- 📋 **Physics Lesson Overlays**: Explain Kepler's laws, conservation laws during simulation
+- 📋 **Comparison with Real Systems**: Load solar system data, compare to actual orbits
+- 📋 **Relativity Mode**: Visual demonstration of time dilation, length contraction (simplified)
+- 📋 **Quantum Uncertainty Clouds**: Probabilistic rendering (educational, not physically accurate)
+
+---
+
+## 🧪 Experimental Features
+
+- 📋 **Gravitational Wave Visualization**: Ripple effect on background grid during mergers
+- 📋 **Magnetic Field Lines**: Add magnetic dipole interactions between bodies
+- 📋 **Stellar Wind/Drag**: External force fields affecting orbits
+- 📋 **Fragmentation Physics**: Bodies break into debris on high-speed collision
+- 📋 **Ring Systems**: Saturn-like rings with particle dynamics
+
+---
+
+## 📈 Success Metrics
+
+Track these to measure feature effectiveness:
+- User engagement time (avg session duration)
+- Scenario exploration (# scenarios tried per session)
+- Export usage (downloads, shares)
+- Performance (FPS, physics step time)
+- Accessibility score (Lighthouse audit)
+- Mobile usage percentage
+
+---
+
+## 🎯 Version Milestones
+
+### v2.0 (Current + Completed Features)
+- ✅ Full time control suite
+- ✅ Advanced camera modes
+- ✅ Analysis dashboard
+- ✅ State import/export
+
+### v2.1 (Next Release - Q1 2026)
+- 🚧 Orbit predictor
+- 🚧 Video/GIF export
+- 🚧 URL sharing
+- 🚧 Poincaré sections
+
+### v2.2 (Q2 2026)
+- 📋 Web Workers physics
+- 📋 Field visualizations
+- 📋 Challenge mode
+- 📋 Historical replay
+
+### v3.0 (Future - Q3 2026)
+- 📋 Multi-system comparison
+- 📋 AI orbit finder
+- 📋 Multi-user collaboration
+- 📋 VR/AR support
+
+---
+
+**Maintained By**: Development Team  
+**Contributors**: Open to community PRs!

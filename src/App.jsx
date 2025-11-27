@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Play, Pause, RotateCcw, Info, Activity, Settings, MousePointer2, Move3d, Globe, Sparkles, Plus, Hand, Merge, Calculator, X, Target, Eye, Video, LineChart as LineChartIcon, Clock, Download, HelpCircle, Upload, Trash2, Tag, Maximize, Minimize, Camera, ArrowRight, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { Play, Pause, RotateCcw, Info, Activity, Settings, MousePointer2, Move3d, Globe, Sparkles, Plus, Hand, Merge, Calculator, X, Target, Eye, Video, LineChart as LineChartIcon, Clock, Download, HelpCircle, Upload, Trash2, Tag, Maximize, Minimize, Camera, ArrowRight, PanelRightClose, PanelRightOpen, Cpu } from 'lucide-react';
+import { usePhysicsWorker } from './hooks/usePhysicsWorker';
 
 const DEFAULT_PANEL_WIDTH = 380;
 const MIN_PANEL_WIDTH = 260;
@@ -180,6 +181,7 @@ const App = () => {
     const [forceUpdateToken, setForceUpdateToken] = useState(0);
     const [showAnalysis, setShowAnalysis] = useState(false);
     const [performanceMode, setPerformanceMode] = useState(true); // Simple trails by default
+    const [useWebWorker, setUseWebWorker] = useState(true); // Offload physics to Web Worker
     const [showGrid, setShowGrid] = useState(false);
     const [showHelp, setShowHelp] = useState(false);
     const [showLabels, setShowLabels] = useState(true);
@@ -247,6 +249,10 @@ const App = () => {
     const dragPlaneRef = useRef(null);
     const draggedBodyIndexRef = useRef(null);
     const hoveredBodyIndexRef = useRef(null);
+
+    // Physics Web Worker
+    const { updatePhysics: workerUpdatePhysics, isReady: workerReady, isSupported: workerSupported } = usePhysicsWorker();
+    const workerPendingRef = useRef(false); // Prevent overlapping worker calls
 
     // --- Keyboard Controls ---
     useEffect(() => {
@@ -1243,7 +1249,119 @@ const App = () => {
         // Only run physics if playing AND not in step mode
         // (step mode requires manual stepping via a button)
         if (isPlaying && !isStepMode) {
-            updatePhysics();
+            // Check if we should use Web Worker
+            const shouldUseWorker = useWebWorker && workerReady && workerSupported && !workerPendingRef.current;
+            
+            if (shouldUseWorker) {
+                // Use Web Worker for physics (async)
+                workerPendingRef.current = true;
+                
+                const config = {
+                    simSpeed,
+                    timeDirection,
+                    gravityG,
+                    physicsMode,
+                    enableCollisions,
+                    skipIndex: draggedBodyIndexRef.current,
+                    currentTime: timeRef.current
+                };
+                
+                workerUpdatePhysics(bodiesRef.current, config, (result) => {
+                    workerPendingRef.current = false;
+                    
+                    // Apply results from worker
+                    const { bodies, stats, removedIndices } = result;
+                    
+                    // Update body positions/velocities
+                    bodies.forEach((b, i) => {
+                        if (bodiesRef.current[i]) {
+                            bodiesRef.current[i].x = b.x;
+                            bodiesRef.current[i].y = b.y;
+                            bodiesRef.current[i].z = b.z;
+                            bodiesRef.current[i].vx = b.vx;
+                            bodiesRef.current[i].vy = b.vy;
+                            bodiesRef.current[i].vz = b.vz;
+                            bodiesRef.current[i].mass = b.mass;
+                        }
+                    });
+                    
+                    // Handle removed bodies (collisions/merges)
+                    if (removedIndices && removedIndices.length > 0) {
+                        removedIndices.forEach(index => {
+                            bodiesRef.current.splice(index, 1);
+                            removeBodyVisuals(index);
+                        });
+                        
+                        // Adjust selected body index if needed
+                        if (selectedBodyIndex !== null) {
+                            if (removedIndices.includes(selectedBodyIndex)) {
+                                setSelectedBodyIndex(null);
+                            } else {
+                                let shift = 0;
+                                removedIndices.forEach(removedIdx => {
+                                    if (removedIdx < selectedBodyIndex) shift++;
+                                });
+                                if (shift > 0) setSelectedBodyIndex(selectedBodyIndex - shift);
+                            }
+                        }
+                    }
+                    
+                    // Update time and stats
+                    timeRef.current = stats.time;
+                    
+                    // Update trails in worker callback
+                    for (let i = 0; i < bodiesRef.current.length; i++) {
+                        if (trailsRef.current[i]) {
+                            trailsRef.current[i].push(new THREE.Vector3(
+                                bodiesRef.current[i].x,
+                                bodiesRef.current[i].y,
+                                bodiesRef.current[i].z
+                            ));
+                            if (trailsRef.current[i].length > trailLength) {
+                                trailsRef.current[i].shift();
+                            }
+                        }
+                    }
+                    
+                    // Throttled stats update
+                    if (frameCountRef.current % 30 === 0) {
+                        // Track energy drift
+                        if (initialEnergy === null) {
+                            setInitialEnergy(stats.total);
+                        } else if (initialEnergy !== 0) {
+                            const drift = ((stats.total - initialEnergy) / initialEnergy) * 100;
+                            setEnergyDrift(drift);
+                        }
+                        
+                        statsRef.current = {
+                            time: stats.time,
+                            totalEnergy: stats.total,
+                            bodyCount: bodiesRef.current.length
+                        };
+                        
+                        // Update Analysis Data
+                        if (showAnalysis) {
+                            const newDataPoint = {
+                                time: parseFloat(stats.time.toFixed(1)),
+                                ke: stats.ke,
+                                pe: stats.pe,
+                                total: stats.total,
+                                x: bodiesRef.current[selectedBodyIndex || 0]?.x || 0,
+                                px: (bodiesRef.current[selectedBodyIndex || 0]?.vx || 0) * 
+                                    (bodiesRef.current[selectedBodyIndex || 0]?.mass || 1)
+                            };
+                            
+                            analysisDataRef.current.push(newDataPoint);
+                            if (analysisDataRef.current.length > 100) {
+                                analysisDataRef.current.shift();
+                            }
+                        }
+                    }
+                });
+            } else {
+                // Fallback to main thread physics
+                updatePhysics();
+            }
         }
 
         // Throttle trail updates (every 4th frame)
@@ -1448,7 +1566,7 @@ const App = () => {
         
         frameCountRef.current++;
         requestRef.current = requestAnimationFrame(animate);
-    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, enableCollisions, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showAnalysis, isStepMode, referenceFrame, showCOM, showGrid]);
+    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, enableCollisions, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showAnalysis, isStepMode, referenceFrame, showCOM, showGrid, useWebWorker, workerReady, workerSupported, workerUpdatePhysics, timeDirection, initialEnergy]);
 
     useEffect(() => {
         if (threeLoaded) {
@@ -1893,7 +2011,7 @@ const App = () => {
                 )}
 
                 {/* Bottom Info Bar */}
-                <StatusFooter statsRef={statsRef} physicsMode={physicsMode} enableCollisions={enableCollisions} />
+                <StatusFooter statsRef={statsRef} physicsMode={physicsMode} enableCollisions={enableCollisions} useWorker={useWebWorker} workerActive={workerReady} />
 
                 {/* Analysis Panel Overlay - Draggable Window */}
                 {showAnalysis && (
@@ -2255,6 +2373,19 @@ const App = () => {
                     </div>
 
                     <div className="space-y-3">
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={useWebWorker}
+                                onChange={(e) => setUseWebWorker(e.target.checked)}
+                                disabled={!workerSupported}
+                                className="w-4 h-4 rounded bg-slate-700 border-slate-600 disabled:opacity-50"
+                            />
+                            <span className={`text-xs ${workerSupported ? 'text-slate-300' : 'text-slate-500'}`}>
+                                Web Worker Physics {workerReady && useWebWorker ? '✓' : ''} 
+                                {!workerSupported && ' (Not Supported)'}
+                            </span>
+                        </label>
                         <label className="flex items-center space-x-2 cursor-pointer">
                             <input
                                 type="checkbox"
@@ -2717,7 +2848,7 @@ const EnergyDisplay = ({ statsRef }) => {
     return <div className="text-lg font-mono text-emerald-400 truncate">{energy.toFixed(4)}</div>;
 };
 
-const StatusFooter = ({ statsRef, physicsMode, enableCollisions }) => {
+const StatusFooter = ({ statsRef, physicsMode, enableCollisions, useWorker, workerActive }) => {
     const [bodyCount, setBodyCount] = useState(0);
     useEffect(() => {
         const interval = setInterval(() => {
@@ -2729,6 +2860,9 @@ const StatusFooter = ({ statsRef, physicsMode, enableCollisions }) => {
         <div className="absolute bottom-4 left-4 pointer-events-none text-xs text-slate-500 flex gap-4 z-10 bg-slate-900/50 p-2 rounded backdrop-blur-sm border border-slate-800/50">
             <span>Engine: {physicsMode}</span>
             <span>Collisions: {enableCollisions ? 'ON' : 'OFF'}</span>
+            {useWorker && <span className={workerActive ? 'text-green-400' : 'text-yellow-400'}>
+                Worker: {workerActive ? 'Active' : 'Pending'}
+            </span>}
             <span className="text-white font-bold">Active Bodies: {bodyCount}</span>
         </div>
     );
