@@ -1,5 +1,21 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Play, Pause, RotateCcw, Info, Activity, Settings, MousePointer2, Move3d, Globe, Sparkles, Plus, Hand, Merge, Calculator, X, Target, Eye, Video, LineChart as LineChartIcon, Clock, Download, HelpCircle, Upload, Trash2, Tag, Maximize, Camera, ArrowRight } from 'lucide-react';
+import { Play, Pause, RotateCcw, Info, Activity, Settings, MousePointer2, Move3d, Globe, Sparkles, Plus, Hand, Merge, Calculator, X, Target, Eye, Video, LineChart as LineChartIcon, Clock, Download, HelpCircle, Upload, Trash2, Tag, Maximize, Minimize, Camera, ArrowRight, PanelRightClose, PanelRightOpen } from 'lucide-react';
+
+const DEFAULT_PANEL_WIDTH = 380;
+const MIN_PANEL_WIDTH = 260;
+const MAX_PANEL_WIDTH = 600;
+const PANEL_STORAGE_KEY = 'tbp-panel-width';
+
+const clampPanelWidth = (value) => Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, value));
+
+const getStoredPanelWidth = () => {
+    if (typeof window === 'undefined') return DEFAULT_PANEL_WIDTH;
+    const stored = parseInt(window.localStorage.getItem(PANEL_STORAGE_KEY) || '', 10);
+    if (!Number.isNaN(stored)) {
+        return clampPanelWidth(stored);
+    }
+    return DEFAULT_PANEL_WIDTH;
+};
 
 // --- Physics Constants & Presets ---
 
@@ -169,6 +185,11 @@ const App = () => {
     const [showLabels, setShowLabels] = useState(true);
     const [showVelocityVectors, setShowVelocityVectors] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [showPanel, setShowPanel] = useState(true);
+    const [panelWidth, setPanelWidth] = useState(() => getStoredPanelWidth());
+    const panelResizeRef = useRef({ isResizing: false, startX: 0, startWidth: 0 });
+    const [isPanelResizing, setIsPanelResizing] = useState(false);
+    const [isLargeScreen, setIsLargeScreen] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 1024));
 
     // Time Control
     const [timeDirection, setTimeDirection] = useState(1); // 1 forward, -1 reverse
@@ -198,6 +219,7 @@ const App = () => {
 
     // --- Refs ---
     const mountRef = useRef(null);
+    const appContainerRef = useRef(null);
     const requestRef = useRef();
     const bodiesRef = useRef([]);
     const trailsRef = useRef([]);
@@ -264,6 +286,9 @@ const App = () => {
                     break;
                 case 'a':
                     setShowAnalysis(prev => !prev);
+                    break;
+                case 'p':
+                    setShowPanel(prev => !prev);
                     break;
                 case '?':
                 case 'h':
@@ -582,7 +607,7 @@ const App = () => {
     // --- Fullscreen ---
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
-            mountRef.current?.requestFullscreen?.();
+            appContainerRef.current?.requestFullscreen?.();
             setIsFullscreen(true);
         } else {
             document.exitFullscreen?.();
@@ -1445,6 +1470,74 @@ const App = () => {
         }
     }, [showCOM]);
 
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.localStorage.setItem(PANEL_STORAGE_KEY, String(panelWidth));
+    }, [panelWidth]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const handleResize = () => {
+            setIsLargeScreen(window.innerWidth >= 1024);
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const handlePointerMove = (event) => {
+            if (!panelResizeRef.current.isResizing) return;
+            const delta = panelResizeRef.current.startX - event.clientX;
+            const nextWidth = clampPanelWidth(panelResizeRef.current.startWidth + delta);
+            setPanelWidth(nextWidth);
+        };
+        const stopResize = () => {
+            if (!panelResizeRef.current.isResizing) return;
+            panelResizeRef.current.isResizing = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            setIsPanelResizing(false);
+        };
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', stopResize);
+        window.addEventListener('pointercancel', stopResize);
+        return () => {
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', stopResize);
+            window.removeEventListener('pointercancel', stopResize);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!showPanel && panelResizeRef.current.isResizing) {
+            panelResizeRef.current.isResizing = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            setIsPanelResizing(false);
+        }
+    }, [showPanel]);
+
+    // Use ResizeObserver to handle canvas resizing (works for panel toggle and window resize)
+    useEffect(() => {
+        if (!mountRef.current || !rendererRef.current || !cameraRef.current) return;
+        
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const { width, height } = entry.contentRect;
+                if (width > 0 && height > 0 && cameraRef.current && rendererRef.current) {
+                    cameraRef.current.aspect = width / height;
+                    cameraRef.current.updateProjectionMatrix();
+                    rendererRef.current.setSize(width, height);
+                }
+            }
+        });
+        
+        resizeObserver.observe(mountRef.current);
+        
+        return () => resizeObserver.disconnect();
+    }, [threeLoaded]);
+
     // --- Interaction ---
     const resetSimulation = useCallback((key) => {
         const scenario = SCENARIOS[key];
@@ -1697,6 +1790,19 @@ const App = () => {
         touchRef.current.lastDistance = 0;
     };
 
+    const handlePanelResizePointerDown = (event) => {
+        if (!isLargeScreen || !showPanel) return;
+        panelResizeRef.current = {
+            isResizing: true,
+            startX: event.clientX,
+            startWidth: panelWidth,
+        };
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        setIsPanelResizing(true);
+        event.preventDefault();
+    };
+
     // --- Export State ---
     const exportState = () => {
         const state = {
@@ -1727,12 +1833,15 @@ const App = () => {
         URL.revokeObjectURL(url);
     };
 
+    const panelStyle = isLargeScreen ? { width: showPanel ? `${panelWidth}px` : '0px' } : undefined;
+    const panelTransitionClass = isPanelResizing ? '' : 'transition-all duration-300';
+
     return (
-        <div className="flex flex-col lg:flex-row h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
+        <div ref={appContainerRef} className="flex flex-col lg:flex-row h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
 
             {/* 3D Viewport */}
             <div
-                className={`flex-1 relative h-[60vh] lg:h-full ${dragMode && !isPlaying ? 'cursor-crosshair' : 'cursor-default'}`}
+                className={`flex-1 min-w-0 relative h-[60vh] lg:h-full ${dragMode && !isPlaying ? 'cursor-crosshair' : 'cursor-default'}`}
                 ref={mountRef}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
@@ -1786,12 +1895,13 @@ const App = () => {
                 {/* Bottom Info Bar */}
                 <StatusFooter statsRef={statsRef} physicsMode={physicsMode} enableCollisions={enableCollisions} />
 
-                {/* Analysis Panel Overlay */}
+                {/* Analysis Panel Overlay - Draggable Window */}
                 {showAnalysis && (
                     <AnalysisPanel
                         dataRef={analysisDataRef}
                         onClose={() => setShowAnalysis(false)}
                         selectedBodyIndex={selectedBodyIndex}
+                        containerRef={mountRef}
                     />
                 )}
 
@@ -1833,6 +1943,9 @@ const App = () => {
                                     <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">F</kbd></div>
                                     <div className="text-slate-300">Toggle fullscreen</div>
                                     
+                                    <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">P</kbd></div>
+                                    <div className="text-slate-300">Toggle side panel</div>
+                                    
                                     <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">A</kbd></div>
                                     <div className="text-slate-300">Toggle analysis panel</div>
                                     
@@ -1872,10 +1985,27 @@ const App = () => {
                 {/* Fullscreen Button */}
                 <button
                     onClick={toggleFullscreen}
-                    className="absolute bottom-4 right-28 p-2 bg-slate-800/80 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors z-10"
-                    title="Toggle Fullscreen (F)"
+                    className={`absolute bottom-4 right-28 p-2 rounded-full transition-colors z-10 ${
+                        isFullscreen 
+                            ? 'bg-blue-600/90 hover:bg-blue-500 text-white' 
+                            : 'bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white'
+                    }`}
+                    title={isFullscreen ? "Exit Fullscreen (F or Esc)" : "Enter Fullscreen (F)"}
                 >
-                    <Maximize className="w-5 h-5" />
+                    {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+                </button>
+
+                {/* Toggle Panel Button */}
+                <button
+                    onClick={() => setShowPanel(prev => !prev)}
+                    className={`absolute bottom-4 right-40 p-2 rounded-full transition-colors z-10 ${
+                        showPanel 
+                            ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white' 
+                            : 'bg-blue-600/90 hover:bg-blue-500 text-white'
+                    }`}
+                    title={showPanel ? "Hide Panel (P)" : "Show Panel (P)"}
+                >
+                    {showPanel ? <PanelRightClose className="w-5 h-5" /> : <PanelRightOpen className="w-5 h-5" />}
                 </button>
 
                 {/* Velocity Vectors Overlay */}
@@ -1890,8 +2020,24 @@ const App = () => {
                 )}
             </div>
 
+            {showPanel && isLargeScreen && (
+                <div
+                    className="hidden lg:flex items-center justify-center w-2 cursor-col-resize bg-slate-900/20 hover:bg-blue-500/40 transition-colors"
+                    onPointerDown={handlePanelResizePointerDown}
+                >
+                    <div className="w-[2px] h-16 bg-white/40 rounded" />
+                </div>
+            )}
+
             {/* Controls Sidebar */}
-            <div className="w-full lg:w-[400px] bg-slate-900 border-l border-slate-800 flex flex-col h-[40vh] lg:h-full overflow-y-auto z-10 shadow-xl">
+            <div
+                className={`bg-slate-900 border-l border-slate-800 flex flex-col overflow-y-auto z-10 shadow-xl flex-shrink-0 ${panelTransitionClass} ${
+                    showPanel
+                        ? 'w-full lg:w-auto h-[40vh] lg:h-full opacity-100'
+                        : 'w-0 h-0 lg:h-full overflow-hidden opacity-0 pointer-events-none'
+                }`}
+                style={panelStyle}
+            >
 
                 {/* Header / Status */}
                 <div className="p-6 border-b border-slate-800">
@@ -2602,12 +2748,21 @@ const CanvasLineChart = ({ dataRef }) => {
 
         const ctx = canvas.getContext('2d');
         const dpr = window.devicePixelRatio || 1;
+        let currentWidth = 0;
+        let currentHeight = 0;
 
         let animationId;
 
         const resize = () => {
             const width = container.clientWidth;
             const height = container.clientHeight;
+            
+            // Skip if size hasn't changed
+            if (width === currentWidth && height === currentHeight) return;
+            if (width <= 0 || height <= 0) return;
+            
+            currentWidth = width;
+            currentHeight = height;
 
             // Set actual size in memory (scaled for retina)
             canvas.width = width * dpr;
@@ -2617,12 +2772,15 @@ const CanvasLineChart = ({ dataRef }) => {
             canvas.style.width = width + 'px';
             canvas.style.height = height + 'px';
 
-            // Scale context to match
+            // Reset and scale context
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.scale(dpr, dpr);
         };
 
+        // Use ResizeObserver to detect container size changes
+        const resizeObserver = new ResizeObserver(() => resize());
+        resizeObserver.observe(container);
         resize();
-        window.addEventListener('resize', resize);
 
         const draw = () => {
             const data = dataRef.current;
@@ -2652,10 +2810,11 @@ const CanvasLineChart = ({ dataRef }) => {
             maxY += margin;
             const paddedRange = maxY - minY;
 
-            const paddingLeft = 60;
-            const paddingBottom = 40;
-            const paddingTop = 20;
-            const paddingRight = 90;
+            // Responsive padding - tighter on small sizes
+            const paddingLeft = Math.max(45, Math.min(60, width * 0.08));
+            const paddingBottom = Math.max(30, Math.min(40, height * 0.15));
+            const paddingTop = Math.max(15, Math.min(20, height * 0.08));
+            const paddingRight = Math.max(10, Math.min(20, width * 0.03));
             const graphWidth = width - paddingLeft - paddingRight;
             const graphHeight = height - paddingTop - paddingBottom;
 
@@ -2743,22 +2902,35 @@ const CanvasLineChart = ({ dataRef }) => {
             drawLine('pe', '#3b82f6');
             drawLine('total', '#eab308');
 
-            // Legend
+            // Legend - inside graph area (top-right corner with background)
+            const legendX = paddingLeft + graphWidth - 75;
+            const legendY = paddingTop + 8;
+            const legendWidth = 70;
+            const legendHeight = 58;
+            
+            // Semi-transparent background
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+            ctx.fillRect(legendX - 5, legendY - 5, legendWidth, legendHeight);
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(legendX - 5, legendY - 5, legendWidth, legendHeight);
+            
             ctx.textAlign = 'left';
+            ctx.font = '9px sans-serif';
             ctx.fillStyle = '#10b981';
-            ctx.fillRect(width - paddingRight + 10, paddingTop + 10, 12, 12);
+            ctx.fillRect(legendX, legendY, 10, 10);
             ctx.fillStyle = '#94a3b8';
-            ctx.fillText('Kinetic', width - paddingRight + 25, paddingTop + 20);
+            ctx.fillText('Kinetic', legendX + 14, legendY + 8);
 
             ctx.fillStyle = '#3b82f6';
-            ctx.fillRect(width - paddingRight + 10, paddingTop + 30, 12, 12);
+            ctx.fillRect(legendX, legendY + 16, 10, 10);
             ctx.fillStyle = '#94a3b8';
-            ctx.fillText('Potential', width - paddingRight + 25, paddingTop + 40);
+            ctx.fillText('Potential', legendX + 14, legendY + 24);
 
             ctx.fillStyle = '#eab308';
-            ctx.fillRect(width - paddingRight + 10, paddingTop + 50, 12, 12);
+            ctx.fillRect(legendX, legendY + 32, 10, 10);
             ctx.fillStyle = '#94a3b8';
-            ctx.fillText('Total', width - paddingRight + 25, paddingTop + 60);
+            ctx.fillText('Total', legendX + 14, legendY + 40);
 
             animationId = requestAnimationFrame(draw);
         };
@@ -2767,13 +2939,13 @@ const CanvasLineChart = ({ dataRef }) => {
 
         return () => {
             cancelAnimationFrame(animationId);
-            window.removeEventListener('resize', resize);
+            resizeObserver.disconnect();
         };
     }, []);
 
     return (
         <div ref={containerRef} className="w-full h-full">
-            <canvas ref={canvasRef} className="rounded" />
+            <canvas ref={canvasRef} className="rounded block" />
         </div>
     );
 };
@@ -2789,12 +2961,21 @@ const CanvasScatterPlot = ({ dataRef, selectedBodyIndex }) => {
 
         const ctx = canvas.getContext('2d');
         const dpr = window.devicePixelRatio || 1;
+        let currentWidth = 0;
+        let currentHeight = 0;
 
         let animationId;
 
         const resize = () => {
             const width = container.clientWidth;
             const height = container.clientHeight;
+            
+            // Skip if size hasn't changed
+            if (width === currentWidth && height === currentHeight) return;
+            if (width <= 0 || height <= 0) return;
+            
+            currentWidth = width;
+            currentHeight = height;
 
             canvas.width = width * dpr;
             canvas.height = height * dpr;
@@ -2807,7 +2988,8 @@ const CanvasScatterPlot = ({ dataRef, selectedBodyIndex }) => {
         };
 
         resize();
-        window.addEventListener('resize', resize);
+        // Use ResizeObserver for container size changes\n        const resizeObserver = new ResizeObserver(() => resize());
+        resizeObserver.observe(container);
 
         const draw = () => {
             const data = dataRef.current;
@@ -2848,10 +3030,12 @@ const CanvasScatterPlot = ({ dataRef, selectedBodyIndex }) => {
 
             const rangeX = maxX - minX || 1;
             const rangePx = maxPx - minPx || 1;
-            const padding = 40;
+            // Responsive padding
+            const paddingX = Math.max(10, Math.min(30, width * 0.06));
+            const paddingY = Math.max(10, Math.min(30, height * 0.08));
 
-            const xScale = x => padding + ((x - minX) / rangeX) * (width - padding - 10);
-            const yScale = px => height - padding - ((px - minPx) / rangePx) * (height - padding - 10);
+            const xScale = x => paddingX + ((x - minX) / rangeX) * (width - paddingX * 2);
+            const yScale = px => height - paddingY - ((px - minPx) / rangePx) * (height - paddingY * 2);
 
             // Draw line connecting points
             ctx.strokeStyle = '#f472b6';
@@ -2888,39 +3072,213 @@ const CanvasScatterPlot = ({ dataRef, selectedBodyIndex }) => {
 
         return () => {
             cancelAnimationFrame(animationId);
-            window.removeEventListener('resize', resize);
+            resizeObserver.disconnect();
         };
     }, [selectedBodyIndex]);
 
     return (
         <div ref={containerRef} className="w-full h-full">
-            <canvas ref={canvasRef} className="rounded" />
+            <canvas ref={canvasRef} className="rounded block" />
         </div>
     );
 };
 
-// Memoize AnalysisPanel
-const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex }) => {
+// Memoize AnalysisPanel - Draggable floating window
+const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, containerRef }) => {
+    const panelRef = useRef(null);
+    const [isCompactLayout, setIsCompactLayout] = useState(false);
+    
+    // Dragging state
+    const [position, setPosition] = useState({ x: 16, y: null }); // x from left, y from bottom (null = use default)
+    const [size, setSize] = useState({ width: null, height: null }); // null = auto
+    const [isDragging, setIsDragging] = useState(false);
+    const [isResizing, setIsResizing] = useState(false);
+    const dragRef = useRef({ startX: 0, startY: 0, startPosX: 0, startPosY: 0 });
+    const resizeRef = useRef({ startX: 0, startY: 0, startW: 0, startH: 0, edge: null });
+
+    // Initialize position on mount
+    useEffect(() => {
+        if (position.y === null && containerRef?.current) {
+            setPosition(prev => ({ ...prev, y: 64 })); // 64px from bottom initially
+        }
+    }, [containerRef]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || !panelRef.current) return;
+        const observer = new ResizeObserver((entries) => {
+            const entry = entries[0];
+            if (!entry) return;
+            setIsCompactLayout(entry.contentRect.width < 500);
+        });
+        observer.observe(panelRef.current);
+        return () => observer.disconnect();
+    }, []);
+
+    // Drag handlers
+    const handleDragStart = (e) => {
+        if (e.target.closest('button') || e.target.closest('.resize-handle')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dragRef.current = {
+            startX: e.clientX,
+            startY: e.clientY,
+            startPosX: position.x,
+            startPosY: position.y
+        };
+        setIsDragging(true);
+        document.body.style.cursor = 'grabbing';
+        document.body.style.userSelect = 'none';
+    };
+
+    const handleResizeStart = (e, edge) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const rect = panelRef.current.getBoundingClientRect();
+        resizeRef.current = {
+            startX: e.clientX,
+            startY: e.clientY,
+            startW: rect.width,
+            startH: rect.height,
+            edge
+        };
+        setIsResizing(true);
+        document.body.style.cursor = edge.includes('e') ? (edge.includes('s') ? 'nwse-resize' : 'ew-resize') : (edge.includes('s') ? 'ns-resize' : 'move');
+        document.body.style.userSelect = 'none';
+    };
+
+    useEffect(() => {
+        if (!isDragging && !isResizing) return;
+
+        const handleMouseMove = (e) => {
+            if (isDragging && containerRef?.current) {
+                const container = containerRef.current.getBoundingClientRect();
+                const panel = panelRef.current?.getBoundingClientRect();
+                if (!panel) return;
+
+                const deltaX = e.clientX - dragRef.current.startX;
+                const deltaY = e.clientY - dragRef.current.startY;
+                
+                let newX = dragRef.current.startPosX + deltaX;
+                let newY = dragRef.current.startPosY - deltaY; // Invert Y since we're positioning from bottom
+                
+                // Clamp to container bounds
+                newX = Math.max(0, Math.min(newX, container.width - panel.width));
+                newY = Math.max(16, Math.min(newY, container.height - panel.height - 16));
+                
+                setPosition({ x: newX, y: newY });
+            }
+            
+            if (isResizing && panelRef.current) {
+                const deltaX = e.clientX - resizeRef.current.startX;
+                const deltaY = e.clientY - resizeRef.current.startY;
+                const edge = resizeRef.current.edge;
+                
+                let newW = resizeRef.current.startW;
+                let newH = resizeRef.current.startH;
+                
+                if (edge.includes('e')) newW = Math.max(400, resizeRef.current.startW + deltaX);
+                if (edge.includes('s')) newH = Math.max(200, resizeRef.current.startH + deltaY);
+                
+                setSize({ width: newW, height: newH });
+            }
+        };
+
+        const handleMouseUp = () => {
+            setIsDragging(false);
+            setIsResizing(false);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isDragging, isResizing, containerRef]);
+
+    const layoutClass = isCompactLayout ? 'flex-col' : 'flex-row';
+    const primarySectionClass = `${isCompactLayout ? 'min-h-[180px]' : 'flex-1'} flex flex-col`;
+    const secondarySectionBase = isCompactLayout
+        ? 'border-t border-slate-700 pt-3 mt-3'
+        : 'border-l border-slate-700 pl-4';
+    const secondarySectionClass = `${isCompactLayout ? 'min-h-[180px]' : 'flex-1'} flex flex-col ${secondarySectionBase}`;
+
+    const panelStyle = {
+        left: `${position.x}px`,
+        bottom: `${position.y ?? 64}px`,
+        ...(size.width && { width: `${size.width}px` }),
+        ...(size.height && { height: `${size.height}px` }),
+    };
+
+    // Stop propagation to prevent camera rotation, but don't block mouseup
+    const blockCameraInteraction = (e) => {
+        e.stopPropagation();
+    };
+
     return (
-        <div className="absolute bottom-16 left-4 right-4 lg:right-[420px] h-64 bg-slate-900/90 border border-slate-700 rounded-lg p-4 shadow-2xl backdrop-blur z-20 flex gap-4 animate-in fade-in slide-in-from-bottom-10">
-            <div className="flex-1 flex flex-col">
-                <h3 className="text-xs font-bold text-slate-300 mb-2 flex items-center gap-2">
-                    <Activity className="w-3 h-3" /> Energy Conservation
-                </h3>
-                <div className="flex-1 min-h-0 bg-slate-950 rounded">
-                    <CanvasLineChart dataRef={dataRef} />
+        <div
+            ref={panelRef}
+            className={`absolute bg-slate-900/95 border border-slate-600 rounded-lg shadow-2xl backdrop-blur-sm z-30 flex ${layoutClass} overflow-hidden`}
+            style={panelStyle}
+            onMouseDown={blockCameraInteraction}
+        >
+            {/* Draggable Title Bar */}
+            <div 
+                className="absolute top-0 left-0 right-0 h-8 bg-slate-800/90 border-b border-slate-700 flex items-center justify-between px-3 cursor-grab active:cursor-grabbing rounded-t-lg"
+                onMouseDown={handleDragStart}
+            >
+                <span className="text-xs font-semibold text-slate-300 select-none flex items-center gap-2">
+                    <Activity className="w-3 h-3 text-blue-400" />
+                    Analysis Dashboard
+                </span>
+                <button 
+                    onClick={onClose} 
+                    className="text-slate-400 hover:text-white hover:bg-slate-700 rounded p-0.5 transition-colors"
+                >
+                    <X className="w-3.5 h-3.5" />
+                </button>
+            </div>
+
+            {/* Content Area */}
+            <div className={`flex ${layoutClass} gap-4 p-4 pt-10 flex-1 min-h-0`}>
+                <div className={primarySectionClass}>
+                    <h3 className="text-xs font-bold text-slate-300 mb-2 flex items-center gap-2">
+                        <Activity className="w-3 h-3" /> Energy Conservation
+                    </h3>
+                    <div className="flex-1 min-h-0 bg-slate-950 rounded">
+                        <CanvasLineChart dataRef={dataRef} />
+                    </div>
+                </div>
+                <div className={secondarySectionClass}>
+                    <h3 className="text-xs font-bold text-slate-300 mb-2 flex items-center gap-2">
+                        <Move3d className="w-3 h-3" /> Phase Space (Body {selectedBodyIndex !== null ? selectedBodyIndex + 1 : 1})
+                        <span className="text-[10px] font-normal text-slate-500 ml-auto">Pos (X) vs Momentum (Px)</span>
+                    </h3>
+                    <div className="flex-1 min-h-0 bg-slate-950 rounded">
+                        <CanvasScatterPlot dataRef={dataRef} selectedBodyIndex={selectedBodyIndex} />
+                    </div>
                 </div>
             </div>
-            <div className="flex-1 flex flex-col border-l border-slate-700 pl-4">
-                <h3 className="text-xs font-bold text-slate-300 mb-2 flex items-center gap-2">
-                    <Move3d className="w-3 h-3" /> Phase Space (Body {selectedBodyIndex !== null ? selectedBodyIndex + 1 : 1})
-                    <span className="text-[10px] font-normal text-slate-500 ml-auto">Pos (X) vs Momentum (Px)</span>
-                </h3>
-                <div className="flex-1 min-h-0 bg-slate-950 rounded">
-                    <CanvasScatterPlot dataRef={dataRef} selectedBodyIndex={selectedBodyIndex} />
-                </div>
+
+            {/* Resize Handles */}
+            <div 
+                className="resize-handle absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize"
+                onMouseDown={(e) => handleResizeStart(e, 'se')}
+            >
+                <svg className="w-3 h-3 text-slate-500 absolute bottom-1 right-1" viewBox="0 0 10 10">
+                    <path d="M9 1L1 9M9 5L5 9M9 9L9 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
             </div>
-            <button onClick={onClose} className="absolute top-2 right-2 text-slate-500 hover:text-white"><X className="w-4 h-4" /></button>
+            <div 
+                className="resize-handle absolute top-8 bottom-0 right-0 w-2 cursor-ew-resize hover:bg-blue-500/20"
+                onMouseDown={(e) => handleResizeStart(e, 'e')}
+            />
+            <div 
+                className="resize-handle absolute bottom-0 left-0 right-4 h-2 cursor-ns-resize hover:bg-blue-500/20"
+                onMouseDown={(e) => handleResizeStart(e, 's')}
+            />
         </div>
     );
 });
