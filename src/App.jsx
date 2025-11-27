@@ -2988,7 +2988,8 @@ const CanvasScatterPlot = ({ dataRef, selectedBodyIndex }) => {
         };
 
         resize();
-        // Use ResizeObserver for container size changes\n        const resizeObserver = new ResizeObserver(() => resize());
+        // Use ResizeObserver for container size changes
+        const resizeObserver = new ResizeObserver(() => resize());
         resizeObserver.observe(container);
 
         const draw = () => {
@@ -3088,20 +3089,23 @@ const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, contain
     const panelRef = useRef(null);
     const [isCompactLayout, setIsCompactLayout] = useState(false);
     
-    // Dragging state
-    const [position, setPosition] = useState({ x: 16, y: null }); // x from left, y from bottom (null = use default)
-    const [size, setSize] = useState({ width: null, height: null }); // null = auto
+    // Position from top-left corner (like normal windows)
+    const [position, setPosition] = useState({ x: 16, y: null }); // null = will initialize on mount
+    const [size, setSize] = useState({ width: 800, height: 320 });
     const [isDragging, setIsDragging] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
-    const dragRef = useRef({ startX: 0, startY: 0, startPosX: 0, startPosY: 0 });
-    const resizeRef = useRef({ startX: 0, startY: 0, startW: 0, startH: 0, edge: null });
+    const dragRef = useRef({ startMouseX: 0, startMouseY: 0, startPosX: 0, startPosY: 0 });
+    const resizeRef = useRef({ startMouseX: 0, startMouseY: 0, startX: 0, startY: 0, startW: 0, startH: 0, edge: null });
 
-    // Initialize position on mount
+    // Initialize position on mount (position near bottom of container)
     useEffect(() => {
         if (position.y === null && containerRef?.current) {
-            setPosition(prev => ({ ...prev, y: 64 })); // 64px from bottom initially
+            const containerHeight = containerRef.current.clientHeight;
+            // Position so bottom of panel is ~64px from container bottom
+            const initialY = Math.max(16, containerHeight - size.height - 64);
+            setPosition(prev => ({ ...prev, y: initialY }));
         }
-    }, [containerRef]);
+    }, [containerRef, size.height]);
 
     useEffect(() => {
         if (typeof window === 'undefined' || !panelRef.current) return;
@@ -3120,8 +3124,8 @@ const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, contain
         e.preventDefault();
         e.stopPropagation();
         dragRef.current = {
-            startX: e.clientX,
-            startY: e.clientY,
+            startMouseX: e.clientX,
+            startMouseY: e.clientY,
             startPosX: position.x,
             startPosY: position.y
         };
@@ -3130,19 +3134,28 @@ const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, contain
         document.body.style.userSelect = 'none';
     };
 
+    const getCursorForEdge = (edge) => {
+        if (edge === 'n' || edge === 's') return 'ns-resize';
+        if (edge === 'e' || edge === 'w') return 'ew-resize';
+        if (edge === 'nw' || edge === 'se') return 'nwse-resize';
+        if (edge === 'ne' || edge === 'sw') return 'nesw-resize';
+        return 'default';
+    };
+
     const handleResizeStart = (e, edge) => {
         e.preventDefault();
         e.stopPropagation();
-        const rect = panelRef.current.getBoundingClientRect();
         resizeRef.current = {
-            startX: e.clientX,
-            startY: e.clientY,
-            startW: rect.width,
-            startH: rect.height,
+            startMouseX: e.clientX,
+            startMouseY: e.clientY,
+            startX: position.x,
+            startY: position.y,
+            startW: size.width,
+            startH: size.height,
             edge
         };
         setIsResizing(true);
-        document.body.style.cursor = edge.includes('e') ? (edge.includes('s') ? 'nwse-resize' : 'ew-resize') : (edge.includes('s') ? 'ns-resize' : 'move');
+        document.body.style.cursor = getCursorForEdge(edge);
         document.body.style.userSelect = 'none';
     };
 
@@ -3152,33 +3165,59 @@ const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, contain
         const handleMouseMove = (e) => {
             if (isDragging && containerRef?.current) {
                 const container = containerRef.current.getBoundingClientRect();
-                const panel = panelRef.current?.getBoundingClientRect();
-                if (!panel) return;
-
-                const deltaX = e.clientX - dragRef.current.startX;
-                const deltaY = e.clientY - dragRef.current.startY;
+                
+                const deltaX = e.clientX - dragRef.current.startMouseX;
+                const deltaY = e.clientY - dragRef.current.startMouseY;
                 
                 let newX = dragRef.current.startPosX + deltaX;
-                let newY = dragRef.current.startPosY - deltaY; // Invert Y since we're positioning from bottom
+                let newY = dragRef.current.startPosY + deltaY;
                 
                 // Clamp to container bounds
-                newX = Math.max(0, Math.min(newX, container.width - panel.width));
-                newY = Math.max(16, Math.min(newY, container.height - panel.height - 16));
+                newX = Math.max(0, Math.min(newX, container.width - size.width));
+                newY = Math.max(0, Math.min(newY, container.height - size.height));
                 
                 setPosition({ x: newX, y: newY });
             }
             
-            if (isResizing && panelRef.current) {
-                const deltaX = e.clientX - resizeRef.current.startX;
-                const deltaY = e.clientY - resizeRef.current.startY;
+            if (isResizing && containerRef?.current) {
+                const deltaX = e.clientX - resizeRef.current.startMouseX;
+                const deltaY = e.clientY - resizeRef.current.startMouseY;
                 const edge = resizeRef.current.edge;
+                const minW = 400;
+                const minH = 200;
                 
+                let newX = resizeRef.current.startX;
+                let newY = resizeRef.current.startY;
                 let newW = resizeRef.current.startW;
                 let newH = resizeRef.current.startH;
                 
-                if (edge.includes('e')) newW = Math.max(400, resizeRef.current.startW + deltaX);
-                if (edge.includes('s')) newH = Math.max(200, resizeRef.current.startH + deltaY);
+                // East edge: expand width to the right
+                if (edge.includes('e')) {
+                    newW = Math.max(minW, resizeRef.current.startW + deltaX);
+                }
                 
+                // West edge: expand width to the left (move x and adjust width)
+                if (edge.includes('w')) {
+                    const maxDelta = resizeRef.current.startW - minW;
+                    const clampedDelta = Math.max(-resizeRef.current.startX, Math.min(deltaX, maxDelta));
+                    newX = resizeRef.current.startX + clampedDelta;
+                    newW = resizeRef.current.startW - clampedDelta;
+                }
+                
+                // South edge: expand height downward
+                if (edge.includes('s')) {
+                    newH = Math.max(minH, resizeRef.current.startH + deltaY);
+                }
+                
+                // North edge: expand height upward (move y and adjust height)
+                if (edge.includes('n')) {
+                    const maxDelta = resizeRef.current.startH - minH;
+                    const clampedDelta = Math.max(-resizeRef.current.startY, Math.min(deltaY, maxDelta));
+                    newY = resizeRef.current.startY + clampedDelta;
+                    newH = resizeRef.current.startH - clampedDelta;
+                }
+                
+                setPosition({ x: newX, y: newY });
                 setSize({ width: newW, height: newH });
             }
         };
@@ -3196,23 +3235,23 @@ const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, contain
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [isDragging, isResizing, containerRef]);
+    }, [isDragging, isResizing, containerRef, size.width, size.height]);
 
     const layoutClass = isCompactLayout ? 'flex-col' : 'flex-row';
-    const primarySectionClass = `${isCompactLayout ? 'min-h-[180px]' : 'flex-1'} flex flex-col`;
+    const primarySectionClass = 'flex-1 flex flex-col min-w-0 min-h-0';
     const secondarySectionBase = isCompactLayout
-        ? 'border-t border-slate-700 pt-3 mt-3'
-        : 'border-l border-slate-700 pl-4';
-    const secondarySectionClass = `${isCompactLayout ? 'min-h-[180px]' : 'flex-1'} flex flex-col ${secondarySectionBase}`;
+        ? 'border-t border-slate-700 pt-3'
+        : 'border-l border-slate-700 pl-3';
+    const secondarySectionClass = `flex-1 flex flex-col min-w-0 min-h-0 ${secondarySectionBase}`;
 
     const panelStyle = {
         left: `${position.x}px`,
-        bottom: `${position.y ?? 64}px`,
-        ...(size.width && { width: `${size.width}px` }),
-        ...(size.height && { height: `${size.height}px` }),
+        top: `${position.y ?? 100}px`,
+        width: `${size.width}px`,
+        height: `${size.height}px`,
     };
 
-    // Stop propagation to prevent camera rotation, but don't block mouseup
+    // Stop propagation to prevent camera rotation
     const blockCameraInteraction = (e) => {
         e.stopPropagation();
     };
@@ -3220,13 +3259,13 @@ const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, contain
     return (
         <div
             ref={panelRef}
-            className={`absolute bg-slate-900/95 border border-slate-600 rounded-lg shadow-2xl backdrop-blur-sm z-30 flex ${layoutClass} overflow-hidden`}
+            className="absolute bg-slate-900/95 border border-slate-600 rounded-lg shadow-2xl backdrop-blur-sm z-30 overflow-hidden"
             style={panelStyle}
             onMouseDown={blockCameraInteraction}
         >
             {/* Draggable Title Bar */}
             <div 
-                className="absolute top-0 left-0 right-0 h-8 bg-slate-800/90 border-b border-slate-700 flex items-center justify-between px-3 cursor-grab active:cursor-grabbing rounded-t-lg"
+                className="absolute top-0 left-0 right-0 h-8 bg-slate-800/90 border-b border-slate-700 flex items-center justify-between px-3 cursor-grab active:cursor-grabbing rounded-t-lg z-10"
                 onMouseDown={handleDragStart}
             >
                 <span className="text-xs font-semibold text-slate-300 select-none flex items-center gap-2">
@@ -3241,8 +3280,10 @@ const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, contain
                 </button>
             </div>
 
-            {/* Content Area */}
-            <div className={`flex ${layoutClass} gap-4 p-4 pt-10 flex-1 min-h-0`}>
+            {/* Content Area - fills remaining space below title bar */}
+            <div 
+                className={`absolute top-8 left-0 right-0 bottom-0 flex ${layoutClass} gap-3 p-3`}
+            >
                 <div className={primarySectionClass}>
                     <h3 className="text-xs font-bold text-slate-300 mb-2 flex items-center gap-2">
                         <Activity className="w-3 h-3" /> Energy Conservation
@@ -3262,22 +3303,40 @@ const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, contain
                 </div>
             </div>
 
-            {/* Resize Handles */}
+            {/* Resize Handles - All edges and corners like a real window */}
+            {/* Corners */}
             <div 
-                className="resize-handle absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize"
+                className="resize-handle absolute bottom-0 right-0 w-3 h-3 cursor-nwse-resize z-20"
                 onMouseDown={(e) => handleResizeStart(e, 'se')}
-            >
-                <svg className="w-3 h-3 text-slate-500 absolute bottom-1 right-1" viewBox="0 0 10 10">
-                    <path d="M9 1L1 9M9 5L5 9M9 9L9 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-            </div>
+            />
             <div 
-                className="resize-handle absolute top-8 bottom-0 right-0 w-2 cursor-ew-resize hover:bg-blue-500/20"
+                className="resize-handle absolute bottom-0 left-0 w-3 h-3 cursor-nesw-resize z-20"
+                onMouseDown={(e) => handleResizeStart(e, 'sw')}
+            />
+            <div 
+                className="resize-handle absolute top-0 right-0 w-3 h-3 cursor-nesw-resize z-20"
+                onMouseDown={(e) => handleResizeStart(e, 'ne')}
+            />
+            <div 
+                className="resize-handle absolute top-0 left-0 w-3 h-3 cursor-nwse-resize z-20"
+                onMouseDown={(e) => handleResizeStart(e, 'nw')}
+            />
+            {/* Edges */}
+            <div 
+                className="resize-handle absolute top-3 bottom-3 right-0 w-1 cursor-ew-resize hover:bg-blue-500/30"
                 onMouseDown={(e) => handleResizeStart(e, 'e')}
             />
             <div 
-                className="resize-handle absolute bottom-0 left-0 right-4 h-2 cursor-ns-resize hover:bg-blue-500/20"
+                className="resize-handle absolute top-3 bottom-3 left-0 w-1 cursor-ew-resize hover:bg-blue-500/30"
+                onMouseDown={(e) => handleResizeStart(e, 'w')}
+            />
+            <div 
+                className="resize-handle absolute bottom-0 left-3 right-3 h-1 cursor-ns-resize hover:bg-blue-500/30"
                 onMouseDown={(e) => handleResizeStart(e, 's')}
+            />
+            <div 
+                className="resize-handle absolute top-0 left-3 right-3 h-1 cursor-ns-resize hover:bg-blue-500/30"
+                onMouseDown={(e) => handleResizeStart(e, 'n')}
             />
         </div>
     );
