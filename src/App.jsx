@@ -1,7 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Play, Pause, RotateCcw, Info, Activity, Settings, MousePointer2, Move3d, Globe, Sparkles, Plus, Hand, Merge, Calculator, X, Target, Eye, Video, LineChart as LineChartIcon, Clock, Download, HelpCircle, Upload, Trash2, Tag, Maximize, Minimize, Camera, ArrowRight, PanelRightClose, PanelRightOpen, Cpu, Zap } from 'lucide-react';
+import { Play, Pause, RotateCcw, Info, Activity, Settings, MousePointer2, Move3d, Globe, Sparkles, Plus, Hand, Merge, Calculator, X, Target, Eye, Video, LineChart as LineChartIcon, Clock, Download, HelpCircle, Upload, Trash2, Tag, Maximize, Minimize, Camera, ArrowRight, PanelRightClose, PanelRightOpen, Cpu } from 'lucide-react';
 import { usePhysicsWorker } from './hooks/usePhysicsWorker';
-import { getGPUPhysics, isGPUSupported } from './utils/gpuPhysics';
 
 const DEFAULT_PANEL_WIDTH = 380;
 const MIN_PANEL_WIDTH = 260;
@@ -52,7 +51,7 @@ const SCENARIOS = {
         g: 1,
         bodies: [], // Generated dynamically
         scale: 100,
-        cameraPos: { r: 300, theta: 0.5, phi: 1.0 }
+        cameraPos: { r: 600, theta: 0.5, phi: 1.0 }
     },
     BURRAU: {
         name: "Pythagorean Problem",
@@ -64,7 +63,7 @@ const SCENARIOS = {
             { x: -1, y: -1, z: 0, vx: 0, vy: 0, vz: 0, mass: 5, color: 0x3b82f6 }
         ],
         scale: 80,
-        cameraPos: { r: 300, theta: 0.2, phi: 0.5 }
+        cameraPos: { r: 500, theta: 0.2, phi: 0.5 }
     },
     LAGRANGE: {
         name: "Lagrange Points (L4/L5)",
@@ -72,23 +71,23 @@ const SCENARIOS = {
         g: 1,
         bodies: [
             { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, mass: 100, color: 0xeab308 }, // Sun (massive)
-            { x: 10, y: 0, z: 0, vx: 0, vy: 3.16, vz: 0, mass: 1, color: 0x3b82f6 }, // Planet (circular orbit)
-            { x: 5, y: 8.66, z: 0, vx: -2.74, vy: 1.58, vz: 0, mass: 0.001, color: 0xff6600 } // Trojan at L4 (60° ahead)
+            { x: 10, y: 0, z: 0, vx: 0, vy: 3.16227766, vz: 0, mass: 1, color: 0x3b82f6 }, // Planet (circular orbit)
+            { x: 5, y: 8.66025404, z: 0, vx: -2.73861279, vy: 1.58113883, vz: 0, mass: 0.001, color: 0xff6600 } // Trojan at L4 (60° ahead)
         ],
         scale: 100,
-        cameraPos: { r: 350, theta: Math.PI / 6, phi: Math.PI / 3 }
+        cameraPos: { r: 2500, theta: Math.PI / 6, phi: Math.PI / 3 }
     },
     SITNIKOV: {
         name: "Sitnikov Problem",
         description: "Two equal masses orbit in the XY plane while a third mass oscillates along the Z-axis perpendicular to their orbit.",
         g: 1,
         bodies: [
-            { x: 1, y: 0, z: 0, vx: 0, vy: 1, vz: 0, mass: 1, color: 0x3b82f6 }, // Binary star 1
-            { x: -1, y: 0, z: 0, vx: 0, vy: -1, vz: 0, mass: 1, color: 0xef4444 }, // Binary star 2
+            { x: 1, y: 0, z: 0, vx: 0, vy: 0.5, vz: 0, mass: 1, color: 0x3b82f6 }, // Binary star 1
+            { x: -1, y: 0, z: 0, vx: 0, vy: -0.5, vz: 0, mass: 1, color: 0xef4444 }, // Binary star 2
             { x: 0, y: 0, z: 3, vx: 0, vy: 0, vz: 0, mass: 0.001, color: 0x22c55e } // Test particle on Z-axis
         ],
         scale: 100,
-        cameraPos: { r: 350, theta: Math.PI / 4, phi: Math.PI / 4 }
+        cameraPos: { r: 550, theta: Math.PI / 4, phi: Math.PI / 4 }
     },
     FOUR_BODY: {
         name: "4-Body Chaos",
@@ -183,8 +182,6 @@ const App = () => {
     const [showAnalysis, setShowAnalysis] = useState(false);
     const [performanceMode, setPerformanceMode] = useState(true); // Simple trails by default
     const [useWebWorker, setUseWebWorker] = useState(true); // Offload physics to Web Worker
-    const [useGPU, setUseGPU] = useState(false); // GPU acceleration (WebGL2 compute)
-    const [gpuSupported, setGpuSupported] = useState(false); // Check on mount
     const [showGrid, setShowGrid] = useState(false);
     const [showHelp, setShowHelp] = useState(false);
     const [showLabels, setShowLabels] = useState(true);
@@ -214,14 +211,6 @@ const App = () => {
         window.selectBody = (index) => setSelectedBodyIndex(index);
     }, []);
 
-    // Check GPU support on mount
-    useEffect(() => {
-        setGpuSupported(isGPUSupported());
-    }, []);
-
-    // GPU Physics Engine ref
-    const gpuPhysicsRef = useRef(null);
-
     // Refs for high-frequency data (to avoid re-renders)
     const statsRef = useRef({ time: 0, totalEnergy: 0, bodyCount: 3 });
     const analysisDataRef = useRef([]);
@@ -239,6 +228,7 @@ const App = () => {
     const timeRef = useRef(0);
     const frameCountRef = useRef(0);
     const gridRef = useRef(null);
+    const gizmoRef = useRef(null);
     const comMarkerRef = useRef(null);
 
     // Gizmo refs (corner axis indicator)
@@ -265,12 +255,17 @@ const App = () => {
     const { updatePhysics: workerUpdatePhysics, isReady: workerReady, isSupported: workerSupported } = usePhysicsWorker();
     const workerPendingRef = useRef(false); // Prevent overlapping worker calls
 
+    const needsRenderRef = useRef(true);
+    const markNeedsRender = useCallback(() => {
+        needsRenderRef.current = true;
+    }, []);
+
     // --- Keyboard Controls ---
     useEffect(() => {
         const handleKeyDown = (e) => {
             // Ignore if typing in an input
             if (e.target.tagName === 'INPUT') return;
-            
+
             switch (e.key.toLowerCase()) {
                 case 'k':
                 case ' ':
@@ -405,7 +400,7 @@ const App = () => {
             roughness: 0.8,
             metalness: 0.2,
             emissive: body.color,
-            emissiveIntensity: 0.1
+            emissiveIntensity: 0.5
         });
         const mesh = new THREE.Mesh(geometry, material);
         scene.add(mesh);
@@ -489,6 +484,7 @@ const App = () => {
 
         // Reset initial energy for drift calculation
         setInitialEnergy(null);
+        markNeedsRender();
     };
 
     const deleteBookmark = (index) => {
@@ -528,6 +524,7 @@ const App = () => {
         bodiesRef.current.push(newBody);
         addBodyVisuals(newBody);
         setStats(prev => ({ ...prev, bodyCount: bodiesRef.current.length }));
+        markNeedsRender();
     };
 
     const handleDeleteBody = (index) => {
@@ -539,6 +536,7 @@ const App = () => {
         bodiesRef.current.splice(index, 1);
         setSelectedBodyIndex(null);
         setStats(prev => ({ ...prev, bodyCount: bodiesRef.current.length }));
+        markNeedsRender();
     };
 
     // --- Import State ---
@@ -549,22 +547,22 @@ const App = () => {
         input.onchange = (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            
+
             const reader = new FileReader();
             reader.onload = (event) => {
                 try {
                     const state = JSON.parse(event.target.result);
-                    
+
                     // Validate structure
                     if (!state.bodies || !Array.isArray(state.bodies)) {
                         throw new Error('Invalid file: missing bodies array');
                     }
-                    
+
                     // Clear existing visuals
                     while (meshRefs.current.length > 0) {
                         removeBodyVisuals(0);
                     }
-                    
+
                     // Load bodies
                     bodiesRef.current = state.bodies.map(b => ({
                         x: b.x || 0, y: b.y || 0, z: b.z || 0,
@@ -572,10 +570,10 @@ const App = () => {
                         mass: b.mass || 1,
                         color: b.color || 0x3b82f6
                     }));
-                    
+
                     // Create visuals
                     bodiesRef.current.forEach(body => addBodyVisuals(body));
-                    
+
                     // Restore settings
                     if (state.gravityG) setGravityG(state.gravityG);
                     if (state.time) timeRef.current = state.time;
@@ -584,15 +582,16 @@ const App = () => {
                         if (state.settings.simSpeed) setSimSpeed(state.settings.simSpeed);
                         if (state.settings.enableCollisions !== undefined) setEnableCollisions(state.settings.enableCollisions);
                     }
-                    
+
                     // Clear trails
                     trailsRef.current = bodiesRef.current.map(() => []);
-                    
+
                     setStats(prev => ({ ...prev, bodyCount: bodiesRef.current.length }));
                     setIsPlaying(false);
                     setSelectedBodyIndex(null);
                     setInitialEnergy(null);
-                    
+                    markNeedsRender();
+
                     alert(`Loaded ${bodiesRef.current.length} bodies from file`);
                 } catch (err) {
                     alert('Failed to load file: ' + err.message);
@@ -606,14 +605,14 @@ const App = () => {
     // --- Screenshot ---
     const takeScreenshot = () => {
         if (!rendererRef.current || !sceneRef.current || !cameraRef.current) return;
-        
+
         // Render one frame to ensure it's up to date
         rendererRef.current.render(sceneRef.current, cameraRef.current);
-        
+
         // Get canvas data
         const canvas = rendererRef.current.domElement;
         const dataURL = canvas.toDataURL('image/png');
-        
+
         // Download
         const a = document.createElement('a');
         a.href = dataURL;
@@ -993,9 +992,10 @@ const App = () => {
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x0f172a);
-        scene.fog = new THREE.FogExp2(0x0f172a, 0.0015);
+        // Reduced fog density to prevent darkening at large distances
+        scene.fog = new THREE.FogExp2(0x0f172a, 0.0002);
 
-        const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 2000);
+        const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 15000);
         camera.position.z = 300;
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
@@ -1003,11 +1003,26 @@ const App = () => {
         renderer.setPixelRatio(window.devicePixelRatio);
         mountRef.current.appendChild(renderer.domElement);
 
-        const ambientLight = new THREE.AmbientLight(0x404040, 2);
+        // --- Grid ---
+        const gridSize = 10000;
+        const gridDivisions = 100;
+        const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x334155, 0x1e293b);
+        scene.add(gridHelper);
+        gridRef.current = gridHelper;
+
+        // High ambient light ensures bodies are always visible regardless of distance
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
         scene.add(ambientLight);
-        const pointLight = new THREE.PointLight(0xffffff, 1.5, 1000);
-        pointLight.position.set(100, 100, 100);
-        scene.add(pointLight);
+
+        // DirectionalLight has NO distance falloff (like sunlight) - perfect for large-scale scenes
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        directionalLight.position.set(1, 1, 1).normalize();
+        scene.add(directionalLight);
+
+        // Secondary light from opposite direction for better depth
+        const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.6);
+        directionalLight2.position.set(-1, -0.5, -1).normalize();
+        scene.add(directionalLight2);
 
         const starGeo = new THREE.BufferGeometry();
         const starCount = 2000;
@@ -1033,97 +1048,97 @@ const App = () => {
         gizmoCamera.position.set(0, 0, 5);
         gizmoSceneRef.current = gizmoScene;
         gizmoCameraRef.current = gizmoCamera;
-        
+
         const gizmoGroup = new THREE.Group();
         const gizmoAxisLength = 1.5;
         const coneRadius = 0.12;
         const coneHeight = 0.35;
-        
+
         // Create axis with arrow (no label - labels added separately)
         const createGizmoAxis = (color, direction) => {
-          const axisGroup = new THREE.Group();
-          
-          // Cylinder for the axis line
-          const cylGeo = new THREE.CylinderGeometry(0.04, 0.04, gizmoAxisLength, 8);
-          const cylMat = new THREE.MeshBasicMaterial({ color });
-          const cyl = new THREE.Mesh(cylGeo, cylMat);
-          
-          // Arrow cone
-          const coneGeo = new THREE.ConeGeometry(coneRadius, coneHeight, 12);
-          const coneMat = new THREE.MeshBasicMaterial({ color });
-          const cone = new THREE.Mesh(coneGeo, coneMat);
-          cone.position.y = gizmoAxisLength / 2 + coneHeight / 2;
-          
-          axisGroup.add(cyl);
-          axisGroup.add(cone);
-          
-          // Rotate to point in correct direction
-          if (direction === 'x') {
-            axisGroup.rotation.z = -Math.PI / 2;
-          } else if (direction === 'z') {
-            axisGroup.rotation.x = Math.PI / 2;
-          }
-          // Y is default (no rotation needed)
-          
-          return axisGroup;
+            const axisGroup = new THREE.Group();
+
+            // Cylinder for the axis line
+            const cylGeo = new THREE.CylinderGeometry(0.04, 0.04, gizmoAxisLength, 8);
+            const cylMat = new THREE.MeshBasicMaterial({ color });
+            const cyl = new THREE.Mesh(cylGeo, cylMat);
+
+            // Arrow cone
+            const coneGeo = new THREE.ConeGeometry(coneRadius, coneHeight, 12);
+            const coneMat = new THREE.MeshBasicMaterial({ color });
+            const cone = new THREE.Mesh(coneGeo, coneMat);
+            cone.position.y = gizmoAxisLength / 2 + coneHeight / 2;
+
+            axisGroup.add(cyl);
+            axisGroup.add(cone);
+
+            // Rotate to point in correct direction
+            if (direction === 'x') {
+                axisGroup.rotation.z = -Math.PI / 2;
+            } else if (direction === 'z') {
+                axisGroup.rotation.x = Math.PI / 2;
+            }
+            // Y is default (no rotation needed)
+
+            return axisGroup;
         };
-        
+
         // Create label sprite (added to gizmoGroup, not rotated axisGroup)
         const createGizmoLabel = (label, colorHex, position) => {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          canvas.width = 64;
-          canvas.height = 64;
-          ctx.font = 'bold 48px Arial';
-          ctx.fillStyle = colorHex;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(label, 32, 32);
-          
-          const texture = new THREE.CanvasTexture(canvas);
-          const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
-          const sprite = new THREE.Sprite(spriteMat);
-          sprite.scale.set(0.5, 0.5, 1);
-          sprite.position.set(...position);
-          
-          return sprite;
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 64;
+            canvas.height = 64;
+            ctx.font = 'bold 48px Arial';
+            ctx.fillStyle = colorHex;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, 32, 32);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+            const sprite = new THREE.Sprite(spriteMat);
+            sprite.scale.set(0.5, 0.5, 1);
+            sprite.position.set(...position);
+
+            return sprite;
         };
-        
+
         // X-axis (Red)
         gizmoGroup.add(createGizmoAxis(0xff4444, 'x'));
         // Y-axis (Green)
         gizmoGroup.add(createGizmoAxis(0x44ff44, 'y'));
         // Z-axis (Blue)
         gizmoGroup.add(createGizmoAxis(0x4488ff, 'z'));
-        
+
         // Add labels at correct world positions (not rotated)
         const labelOffset = gizmoAxisLength / 2 + coneHeight + 0.3;
         gizmoGroup.add(createGizmoLabel('X', '#ff6666', [labelOffset, 0, 0]));
         gizmoGroup.add(createGizmoLabel('Y', '#66ff66', [0, labelOffset, 0]));
         gizmoGroup.add(createGizmoLabel('Z', '#6699ff', [0, 0, labelOffset]));
-        
+
         // Origin sphere
         const gizmoOriginGeo = new THREE.SphereGeometry(0.12, 16, 16);
         const gizmoOriginMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
         const gizmoOriginSphere = new THREE.Mesh(gizmoOriginGeo, gizmoOriginMat);
         gizmoGroup.add(gizmoOriginSphere);
-        
+
         // Add negative axis indicators (small spheres)
         const negIndicatorGeo = new THREE.SphereGeometry(0.06, 8, 8);
         const negX = new THREE.Mesh(negIndicatorGeo, new THREE.MeshBasicMaterial({ color: 0x882222 }));
         negX.position.set(-gizmoAxisLength / 2 - 0.2, 0, 0);
         gizmoGroup.add(negX);
-        
+
         const negY = new THREE.Mesh(negIndicatorGeo, new THREE.MeshBasicMaterial({ color: 0x228822 }));
         negY.position.set(0, -gizmoAxisLength / 2 - 0.2, 0);
         gizmoGroup.add(negY);
-        
+
         const negZ = new THREE.Mesh(negIndicatorGeo, new THREE.MeshBasicMaterial({ color: 0x224488 }));
         negZ.position.set(0, 0, -gizmoAxisLength / 2 - 0.2);
         gizmoGroup.add(negZ);
-        
+
         gizmoScene.add(gizmoGroup);
-        gridRef.current = gizmoGroup;
+        gizmoRef.current = gizmoGroup;
 
         // Create COM Marker (crosshair)
         const comGroup = new THREE.Group();
@@ -1176,7 +1191,7 @@ const App = () => {
 
         return () => {
             window.removeEventListener('resize', handleResize);
-            
+
             // Cancel animation loop
             if (requestRef.current) {
                 cancelAnimationFrame(requestRef.current);
@@ -1215,9 +1230,9 @@ const App = () => {
             }
 
             // Dispose gizmo
-            if (gizmoSceneRef.current && gridRef.current) {
-                gizmoSceneRef.current.remove(gridRef.current);
-                gridRef.current.traverse((child) => {
+            if (gizmoSceneRef.current && gizmoRef.current) {
+                gizmoSceneRef.current.remove(gizmoRef.current);
+                gizmoRef.current.traverse((child) => {
                     if (child.geometry) child.geometry.dispose();
                     if (child.material) {
                         if (child.material.map) child.material.map.dispose();
@@ -1257,103 +1272,28 @@ const App = () => {
         const THREE = window.THREE;
         const scale = SCENARIOS[scenarioKey].scale || 100;
 
+        const idleCamera = !isPlaying
+            && !cameraControlsRef.current.isDragging
+            && draggedBodyIndexRef.current === null
+            && !workerPendingRef.current;
+
+        if (idleCamera && !needsRenderRef.current) {
+            requestRef.current = requestAnimationFrame(animate);
+            return;
+        }
+
+        needsRenderRef.current = false;
+
         // Only run physics if playing AND not in step mode
         // (step mode requires manual stepping via a button)
         if (isPlaying && !isStepMode) {
-            // Check if we should use GPU acceleration (takes priority)
-            const shouldUseGPU = useGPU && gpuSupported && !enableCollisions; // GPU doesn't support collisions yet
-            
             // Check if we should use Web Worker
-            const shouldUseWorker = !shouldUseGPU && useWebWorker && workerReady && workerSupported && !workerPendingRef.current;
-            
-            if (shouldUseGPU) {
-                // Use GPU for physics (synchronous but parallel)
-                if (!gpuPhysicsRef.current) {
-                    gpuPhysicsRef.current = getGPUPhysics();
-                }
-                
-                const gpuEngine = gpuPhysicsRef.current;
-                const config = {
-                    simSpeed,
-                    timeDirection,
-                    gravityG
-                };
-                
-                const updatedBodies = gpuEngine.update(bodiesRef.current, config);
-                
-                if (updatedBodies) {
-                    // Apply GPU results
-                    updatedBodies.forEach((b, i) => {
-                        if (bodiesRef.current[i]) {
-                            bodiesRef.current[i].x = b.x;
-                            bodiesRef.current[i].y = b.y;
-                            bodiesRef.current[i].z = b.z;
-                            bodiesRef.current[i].vx = b.vx;
-                            bodiesRef.current[i].vy = b.vy;
-                            bodiesRef.current[i].vz = b.vz;
-                        }
-                    });
-                    
-                    // Update time
-                    const dt = 0.01 * simSpeed * timeDirection;
-                    timeRef.current += dt;
-                    
-                    // Update trails
-                    for (let i = 0; i < bodiesRef.current.length; i++) {
-                        if (trailsRef.current[i]) {
-                            trailsRef.current[i].push(new THREE.Vector3(
-                                bodiesRef.current[i].x,
-                                bodiesRef.current[i].y,
-                                bodiesRef.current[i].z
-                            ));
-                            if (trailsRef.current[i].length > trailLength) {
-                                trailsRef.current[i].shift();
-                            }
-                        }
-                    }
-                    
-                    // Throttled stats update
-                    if (frameCountRef.current % 30 === 0) {
-                        const energy = gpuEngine.calculateEnergy(bodiesRef.current, gravityG);
-                        
-                        if (initialEnergy === null) {
-                            setInitialEnergy(energy.total);
-                        } else if (initialEnergy !== 0) {
-                            const drift = ((energy.total - initialEnergy) / initialEnergy) * 100;
-                            setEnergyDrift(drift);
-                        }
-                        
-                        statsRef.current = {
-                            time: timeRef.current,
-                            totalEnergy: energy.total,
-                            bodyCount: bodiesRef.current.length
-                        };
-                        
-                        if (showAnalysis) {
-                            const newDataPoint = {
-                                time: parseFloat(timeRef.current.toFixed(1)),
-                                ke: energy.ke,
-                                pe: energy.pe,
-                                total: energy.total,
-                                x: bodiesRef.current[selectedBodyIndex || 0]?.x || 0,
-                                px: (bodiesRef.current[selectedBodyIndex || 0]?.vx || 0) * 
-                                    (bodiesRef.current[selectedBodyIndex || 0]?.mass || 1)
-                            };
-                            
-                            analysisDataRef.current.push(newDataPoint);
-                            if (analysisDataRef.current.length > 100) {
-                                analysisDataRef.current.shift();
-                            }
-                        }
-                    }
-                } else {
-                    // GPU failed, fall back to CPU
-                    updatePhysics();
-                }
-            } else if (shouldUseWorker) {
+            const shouldUseWorker = useWebWorker && workerReady && workerSupported && !workerPendingRef.current;
+
+            if (shouldUseWorker) {
                 // Use Web Worker for physics (async)
                 workerPendingRef.current = true;
-                
+
                 const config = {
                     simSpeed,
                     timeDirection,
@@ -1363,13 +1303,13 @@ const App = () => {
                     skipIndex: draggedBodyIndexRef.current,
                     currentTime: timeRef.current
                 };
-                
+
                 workerUpdatePhysics(bodiesRef.current, config, (result) => {
                     workerPendingRef.current = false;
-                    
+
                     // Apply results from worker
                     const { bodies, stats, removedIndices } = result;
-                    
+
                     // Update body positions/velocities
                     bodies.forEach((b, i) => {
                         if (bodiesRef.current[i]) {
@@ -1382,14 +1322,14 @@ const App = () => {
                             bodiesRef.current[i].mass = b.mass;
                         }
                     });
-                    
+
                     // Handle removed bodies (collisions/merges)
                     if (removedIndices && removedIndices.length > 0) {
                         removedIndices.forEach(index => {
                             bodiesRef.current.splice(index, 1);
                             removeBodyVisuals(index);
                         });
-                        
+
                         // Adjust selected body index if needed
                         if (selectedBodyIndex !== null) {
                             if (removedIndices.includes(selectedBodyIndex)) {
@@ -1403,10 +1343,10 @@ const App = () => {
                             }
                         }
                     }
-                    
+
                     // Update time and stats
                     timeRef.current = stats.time;
-                    
+
                     // Update trails in worker callback
                     for (let i = 0; i < bodiesRef.current.length; i++) {
                         if (trailsRef.current[i]) {
@@ -1420,7 +1360,7 @@ const App = () => {
                             }
                         }
                     }
-                    
+
                     // Throttled stats update
                     if (frameCountRef.current % 30 === 0) {
                         // Track energy drift
@@ -1430,13 +1370,13 @@ const App = () => {
                             const drift = ((stats.total - initialEnergy) / initialEnergy) * 100;
                             setEnergyDrift(drift);
                         }
-                        
+
                         statsRef.current = {
                             time: stats.time,
                             totalEnergy: stats.total,
                             bodyCount: bodiesRef.current.length
                         };
-                        
+
                         // Update Analysis Data
                         if (showAnalysis) {
                             const newDataPoint = {
@@ -1445,10 +1385,10 @@ const App = () => {
                                 pe: stats.pe,
                                 total: stats.total,
                                 x: bodiesRef.current[selectedBodyIndex || 0]?.x || 0,
-                                px: (bodiesRef.current[selectedBodyIndex || 0]?.vx || 0) * 
+                                px: (bodiesRef.current[selectedBodyIndex || 0]?.vx || 0) *
                                     (bodiesRef.current[selectedBodyIndex || 0]?.mass || 1)
                             };
-                            
+
                             analysisDataRef.current.push(newDataPoint);
                             if (analysisDataRef.current.length > 100) {
                                 analysisDataRef.current.shift();
@@ -1481,8 +1421,9 @@ const App = () => {
             const renderZ = (body.z - comOffset.z) * scale;
             meshRefs.current[i].position.set(renderX, renderY, renderZ);
 
-            // Increased base size for better visibility
-            const r = Math.max(6, Math.cbrt(body.mass) * 6);
+            // Increased base size for better visibility, with scenario-specific scaling
+            const visualMult = (scenarioKey === 'LAGRANGE') ? 3.5 : 1;
+            const r = Math.max(8, Math.cbrt(body.mass) * 8) * visualMult;
 
             // --- Visual Logic (Hover/Select/Pulse) ---
             let targetScale = r;
@@ -1500,10 +1441,11 @@ const App = () => {
                 targetEmissive = 0.9; // Increased from 0.6
             }
 
-            // Smooth Scale Transition (Lerp)
+            // Smooth Scale Transition (Lerp) - skip on first frame to avoid "zoom in" effect
             const currentScale = meshRefs.current[i].scale.x;
+            const isFirstFrame = currentScale === 1; // Default scale when mesh is created
             const lerpFactor = 0.2; // fast but smooth
-            const newScale = currentScale + (targetScale - currentScale) * lerpFactor;
+            const newScale = isFirstFrame ? targetScale : currentScale + (targetScale - currentScale) * lerpFactor;
 
             meshRefs.current[i].scale.set(newScale, newScale, newScale);
             meshRefs.current[i].material.color.setHex(body.color);
@@ -1551,7 +1493,7 @@ const App = () => {
                         posAttr = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3);
                         posAttr.setUsage(THREE.DynamicDrawUsage);
                         geometry.setAttribute('position', posAttr);
-                        
+
                         colAttr = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3);
                         colAttr.setUsage(THREE.DynamicDrawUsage);
                         geometry.setAttribute('color', colAttr);
@@ -1634,37 +1576,37 @@ const App = () => {
         }
 
         rendererRef.current.render(sceneRef.current, cameraRef.current);
-        
+
         // Render corner gizmo (Blender-style axis indicator)
-        if (showGrid && gizmoSceneRef.current && gizmoCameraRef.current && gridRef.current) {
+        if (gizmoSceneRef.current && gizmoCameraRef.current && gizmoRef.current) {
             // Sync gizmo rotation with main camera orientation
             const mainCamDir = new THREE.Vector3();
             cameraRef.current.getWorldDirection(mainCamDir);
-            
+
             // Position gizmo camera to look at the gizmo from the same angle as main camera
             gizmoCameraRef.current.position.copy(mainCamDir).multiplyScalar(-5);
             gizmoCameraRef.current.lookAt(0, 0, 0);
-            
+
             // Render gizmo in corner viewport
             const gizmoSize = 120;
             const margin = 20;
             rendererRef.current.setViewport(margin, margin, gizmoSize, gizmoSize);
             rendererRef.current.setScissor(margin, margin, gizmoSize, gizmoSize);
             rendererRef.current.setScissorTest(true);
-            rendererRef.current.setClearColor(0x1a1a2e, 0.8);
+            rendererRef.current.setClearColor(0x000000, 0);
             rendererRef.current.clear();
             rendererRef.current.render(gizmoSceneRef.current, gizmoCameraRef.current);
-            
+
             // Reset viewport to full screen
             const w = mountRef.current.clientWidth;
             const h = mountRef.current.clientHeight;
             rendererRef.current.setViewport(0, 0, w, h);
             rendererRef.current.setScissorTest(false);
         }
-        
+
         frameCountRef.current++;
         requestRef.current = requestAnimationFrame(animate);
-    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, enableCollisions, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showAnalysis, isStepMode, referenceFrame, showCOM, showGrid, useWebWorker, workerReady, workerSupported, workerUpdatePhysics, timeDirection, initialEnergy, useGPU, gpuSupported]);
+    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, enableCollisions, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showAnalysis, isStepMode, referenceFrame, showCOM, showGrid, useWebWorker, workerReady, workerSupported, workerUpdatePhysics, timeDirection, initialEnergy]);
 
     useEffect(() => {
         if (threeLoaded) {
@@ -1737,7 +1679,7 @@ const App = () => {
     // Use ResizeObserver to handle canvas resizing (works for panel toggle and window resize)
     useEffect(() => {
         if (!mountRef.current || !rendererRef.current || !cameraRef.current) return;
-        
+
         const resizeObserver = new ResizeObserver((entries) => {
             for (const entry of entries) {
                 const { width, height } = entry.contentRect;
@@ -1748,9 +1690,9 @@ const App = () => {
                 }
             }
         });
-        
+
         resizeObserver.observe(mountRef.current);
-        
+
         return () => resizeObserver.disconnect();
     }, [threeLoaded]);
 
@@ -1784,9 +1726,14 @@ const App = () => {
             cameraControlsRef.current.phi = scenario.cameraPos.phi;
             cameraControlsRef.current.target = { x: 0, y: 0, z: 0 };
         }
+        markNeedsRender();
     }, []);
 
     useEffect(() => { resetSimulation(scenarioKey); }, []);
+
+    useEffect(() => {
+        markNeedsRender();
+    }, [markNeedsRender, isPlaying, scenarioKey, showGrid, showCOM, showTrails, showLabels, showVelocityVectors, cameraMode, cameraTargetIdx, selectedBodyIndex, referenceFrame, showAnalysis, showHelp, showPanel, panelWidth, performanceMode, enableCollisions, physicsMode, dragMode, forceUpdateToken, useWebWorker, workerReady, workerSupported, isStepMode, simSpeed, gravityG, trailLength, timeDirection]);
 
     const handleScenarioChange = (key) => {
         setScenarioKey(key);
@@ -1850,6 +1797,7 @@ const App = () => {
         cameraControlsRef.current.previousMouse = { x: e.clientX, y: e.clientY };
         if (e.button === 0) cameraControlsRef.current.dragMode = 'ROTATE';
         if (e.button === 2) cameraControlsRef.current.dragMode = 'PAN';
+        markNeedsRender();
     };
 
     const handleMouseMove = (e) => {
@@ -1868,12 +1816,14 @@ const App = () => {
                     hoveredBodyIndexRef.current = index;
                     // Force cursor update
                     mountRef.current.style.cursor = 'pointer';
+                    markNeedsRender();
                 }
             } else {
                 if (hoveredBodyIndexRef.current !== null) {
                     hoveredBodyIndexRef.current = null;
                     // Revert cursor based on current mode
                     mountRef.current.style.cursor = dragMode && !isPlaying ? 'crosshair' : 'default';
+                    markNeedsRender();
                 }
             }
         }
@@ -1917,8 +1867,9 @@ const App = () => {
         if (cameraControlsRef.current.dragMode === 'ROTATE') {
             cameraControlsRef.current.theta -= deltaX * 0.005;
             cameraControlsRef.current.phi -= deltaY * 0.005;
-            // Allow full rotation without gimbal lock - wrap phi to allow going past poles
-            // No clamping needed - camera position calculation handles any phi value
+            // Clamp phi to prevent gimbal lock (camera flipping at poles)
+            const epsilon = 0.01;
+            cameraControlsRef.current.phi = Math.max(epsilon, Math.min(Math.PI - epsilon, cameraControlsRef.current.phi));
         } else if (cameraControlsRef.current.dragMode === 'PAN' && cameraRef.current) {
             const right = new THREE.Vector3();
             const up = new THREE.Vector3();
@@ -1940,12 +1891,17 @@ const App = () => {
 
         // Restore cursor logic on release
         mountRef.current.style.cursor = dragMode && !isPlaying ? 'crosshair' : 'default';
+        markNeedsRender();
     };
 
     const handleWheel = (e) => {
-        const zoomSpeed = 0.1;
-        const newRadius = cameraControlsRef.current.radius + e.deltaY * zoomSpeed;
-        cameraControlsRef.current.radius = Math.max(50, Math.min(2000, newRadius));
+        // Proportional zoom: faster at larger distances for consistent feel
+        const zoomFactor = 0.001;
+        const currentRadius = cameraControlsRef.current.radius;
+        const newRadius = currentRadius * (1 + e.deltaY * zoomFactor);
+        // Extended zoom range for large-scale scenarios like Lagrange
+        cameraControlsRef.current.radius = Math.max(20, Math.min(10000, newRadius));
+        markNeedsRender();
     };
 
     // --- Touch Handlers for Mobile ---
@@ -1973,12 +1929,13 @@ const App = () => {
                 x: e.touches[0].clientX,
                 y: e.touches[0].clientY
             };
+            markNeedsRender();
         }
     };
 
     const handleTouchMove = (e) => {
         e.preventDefault();
-        
+
         if (e.touches.length === 2) {
             // Pinch to zoom
             const newDistance = getTouchDistance(e.touches);
@@ -1987,6 +1944,7 @@ const App = () => {
             const newRadius = cameraControlsRef.current.radius + delta * zoomSpeed;
             cameraControlsRef.current.radius = Math.max(50, Math.min(2000, newRadius));
             touchRef.current.lastDistance = newDistance;
+            markNeedsRender();
         } else if (e.touches.length === 1 && cameraControlsRef.current.isDragging) {
             // Single finger rotate
             const deltaX = e.touches[0].clientX - cameraControlsRef.current.previousMouse.x;
@@ -2004,6 +1962,7 @@ const App = () => {
     const handleTouchEnd = () => {
         cameraControlsRef.current.isDragging = false;
         touchRef.current.lastDistance = 0;
+        markNeedsRender();
     };
 
     const handlePanelResizePointerDown = (event) => {
@@ -2039,7 +1998,7 @@ const App = () => {
             },
             exportedAt: new Date().toISOString()
         };
-        
+
         const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -2105,11 +2064,13 @@ const App = () => {
                         cameraRef={cameraRef}
                         mountRef={mountRef}
                         selectedBodyIndex={selectedBodyIndex}
+                        cameraMode={cameraMode}
+                        cameraTargetIdx={cameraTargetIdx}
                     />
                 )}
 
                 {/* Bottom Info Bar */}
-                <StatusFooter statsRef={statsRef} physicsMode={physicsMode} enableCollisions={enableCollisions} useWorker={useWebWorker} workerActive={workerReady} useGPU={useGPU} gpuActive={gpuSupported && useGPU} />
+                <StatusFooter statsRef={statsRef} physicsMode={physicsMode} enableCollisions={enableCollisions} useWorker={useWebWorker} workerActive={workerReady} />
 
                 {/* Analysis Panel Overlay - Draggable Window */}
                 {showAnalysis && (
@@ -2137,37 +2098,37 @@ const App = () => {
                                 <div className="grid grid-cols-2 gap-2">
                                     <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">Space</kbd> / <kbd className="text-blue-400">K</kbd></div>
                                     <div className="text-slate-300">Play / Pause</div>
-                                    
+
                                     <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">R</kbd></div>
                                     <div className="text-slate-300">Reset simulation</div>
-                                    
+
                                     <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">G</kbd></div>
                                     <div className="text-slate-300">Toggle grid</div>
-                                    
+
                                     <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">T</kbd></div>
                                     <div className="text-slate-300">Toggle trails</div>
-                                    
+
                                     <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">C</kbd></div>
                                     <div className="text-slate-300">Toggle center of mass</div>
-                                    
+
                                     <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">L</kbd></div>
                                     <div className="text-slate-300">Toggle body labels</div>
-                                    
+
                                     <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">V</kbd></div>
                                     <div className="text-slate-300">Toggle velocity vectors</div>
-                                    
+
                                     <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">F</kbd></div>
                                     <div className="text-slate-300">Toggle fullscreen</div>
-                                    
+
                                     <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">P</kbd></div>
                                     <div className="text-slate-300">Toggle side panel</div>
-                                    
+
                                     <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">A</kbd></div>
                                     <div className="text-slate-300">Toggle analysis panel</div>
-                                    
+
                                     <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">H</kbd> / <kbd className="text-blue-400">?</kbd></div>
                                     <div className="text-slate-300">Show this help</div>
-                                    
+
                                     <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">Esc</kbd></div>
                                     <div className="text-slate-300">Close panels</div>
                                 </div>
@@ -2201,11 +2162,10 @@ const App = () => {
                 {/* Fullscreen Button */}
                 <button
                     onClick={toggleFullscreen}
-                    className={`absolute bottom-4 right-28 p-2 rounded-full transition-colors z-10 ${
-                        isFullscreen 
-                            ? 'bg-blue-600/90 hover:bg-blue-500 text-white' 
-                            : 'bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white'
-                    }`}
+                    className={`absolute bottom-4 right-28 p-2 rounded-full transition-colors z-10 ${isFullscreen
+                        ? 'bg-blue-600/90 hover:bg-blue-500 text-white'
+                        : 'bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white'
+                        }`}
                     title={isFullscreen ? "Exit Fullscreen (F or Esc)" : "Enter Fullscreen (F)"}
                 >
                     {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
@@ -2214,11 +2174,10 @@ const App = () => {
                 {/* Toggle Panel Button */}
                 <button
                     onClick={() => setShowPanel(prev => !prev)}
-                    className={`absolute bottom-4 right-40 p-2 rounded-full transition-colors z-10 ${
-                        showPanel 
-                            ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white' 
-                            : 'bg-blue-600/90 hover:bg-blue-500 text-white'
-                    }`}
+                    className={`absolute bottom-4 right-40 p-2 rounded-full transition-colors z-10 ${showPanel
+                        ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white'
+                        : 'bg-blue-600/90 hover:bg-blue-500 text-white'
+                        }`}
                     title={showPanel ? "Hide Panel (P)" : "Show Panel (P)"}
                 >
                     {showPanel ? <PanelRightClose className="w-5 h-5" /> : <PanelRightOpen className="w-5 h-5" />}
@@ -2231,7 +2190,9 @@ const App = () => {
                         meshRefs={meshRefs}
                         cameraRef={cameraRef}
                         mountRef={mountRef}
-                        scale={SCENARIOS[scenarioKey].scale || 100}
+                        scale={SCENARIOS[scenarioKey].scale}
+                        cameraMode={cameraMode}
+                        cameraTargetIdx={cameraTargetIdx}
                     />
                 )}
             </div>
@@ -2247,11 +2208,10 @@ const App = () => {
 
             {/* Controls Sidebar */}
             <div
-                className={`bg-slate-900 border-l border-slate-800 flex flex-col overflow-y-auto z-10 shadow-xl flex-shrink-0 ${panelTransitionClass} ${
-                    showPanel
-                        ? 'w-full lg:w-auto h-[40vh] lg:h-full opacity-100'
-                        : 'w-0 h-0 lg:h-full overflow-hidden opacity-0 pointer-events-none'
-                }`}
+                className={`bg-slate-900 border-l border-slate-800 flex flex-col overflow-y-auto z-10 shadow-xl flex-shrink-0 ${panelTransitionClass} ${showPanel
+                    ? 'w-full lg:w-auto h-[40vh] lg:h-full opacity-100'
+                    : 'w-0 h-0 lg:h-full overflow-hidden opacity-0 pointer-events-none'
+                    }`}
                 style={panelStyle}
             >
 
@@ -2295,6 +2255,22 @@ const App = () => {
                         <Clock className="w-4 h-4 text-amber-400" />
                         <h3 className="text-sm font-semibold text-slate-300">Time Control & Analysis</h3>
                     </div>
+
+                    {/* Play/Pause Button */}
+                    <button
+                        onClick={() => {
+                            if (isStepMode) {
+                                setIsStepMode(false);
+                                setIsPlaying(true);
+                            } else {
+                                setIsPlaying(!isPlaying);
+                            }
+                        }}
+                        className={`w-full flex items-center justify-center space-x-2 py-3 mb-4 rounded-lg font-semibold transition-colors ${isPlaying && !isStepMode ? 'bg-amber-500/10 text-amber-500 border border-amber-500/50' : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20'} `}
+                    >
+                        {isPlaying && !isStepMode ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-current" />}
+                        <span>{isPlaying && !isStepMode ? "Pause" : (isStepMode ? "Resume" : "Start Simulation")}</span>
+                    </button>
 
                     {/* Time Direction & Stepping */}
                     <div className="grid grid-cols-3 gap-2 mb-3">
@@ -2471,34 +2447,17 @@ const App = () => {
                     </div>
 
                     <div className="space-y-3">
-                        <label className="flex items-center space-x-2 cursor-pointer" title="Use GPU for parallel physics computation (best for many bodies)">
-                            <input
-                                type="checkbox"
-                                checked={useGPU}
-                                onChange={(e) => setUseGPU(e.target.checked)}
-                                disabled={!gpuSupported || enableCollisions}
-                                className="w-4 h-4 rounded bg-slate-700 border-slate-600 disabled:opacity-50"
-                            />
-                            <span className={`text-xs flex items-center gap-1 ${gpuSupported && !enableCollisions ? 'text-slate-300' : 'text-slate-500'}`}>
-                                <Zap className="w-3 h-3" />
-                                GPU Physics {useGPU && gpuSupported ? '✓' : ''} 
-                                {!gpuSupported && ' (WebGL2 Required)'}
-                                {enableCollisions && gpuSupported && ' (Disable collisions)'}
-                            </span>
-                        </label>
-                        <label className="flex items-center space-x-2 cursor-pointer" title="Offload physics to background thread">
+                        <label className="flex items-center space-x-2 cursor-pointer">
                             <input
                                 type="checkbox"
                                 checked={useWebWorker}
                                 onChange={(e) => setUseWebWorker(e.target.checked)}
-                                disabled={!workerSupported || useGPU}
+                                disabled={!workerSupported}
                                 className="w-4 h-4 rounded bg-slate-700 border-slate-600 disabled:opacity-50"
                             />
-                            <span className={`text-xs flex items-center gap-1 ${workerSupported && !useGPU ? 'text-slate-300' : 'text-slate-500'}`}>
-                                <Cpu className="w-3 h-3" />
-                                Web Worker {workerReady && useWebWorker && !useGPU ? '✓' : ''} 
+                            <span className={`text-xs ${workerSupported ? 'text-slate-300' : 'text-slate-500'}`}>
+                                Web Worker Physics {workerReady && useWebWorker ? '✓' : ''}
                                 {!workerSupported && ' (Not Supported)'}
-                                {useGPU && workerSupported && ' (GPU active)'}
                             </span>
                         </label>
                         <label className="flex items-center space-x-2 cursor-pointer">
@@ -2594,11 +2553,10 @@ const App = () => {
                                     <button
                                         key={speed}
                                         onClick={() => setSimSpeed(speed)}
-                                        className={`flex-1 text-[10px] py-1 rounded transition-all ${
-                                            Math.abs(simSpeed - speed) < 0.05 
-                                                ? 'bg-green-600 text-white' 
-                                                : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-                                        }`}
+                                        className={`flex-1 text-[10px] py-1 rounded transition-all ${Math.abs(simSpeed - speed) < 0.05
+                                            ? 'bg-green-600 text-white'
+                                            : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                                            }`}
                                     >
                                         {speed}x
                                     </button>
@@ -2612,39 +2570,28 @@ const App = () => {
                 <div className="p-6 border-t border-slate-800 bg-slate-900/50">
                     <div className="flex space-x-3">
                         <button
-                            onClick={() => {
-                                if (isStepMode) {
-                                    setIsStepMode(false);
-                                    setIsPlaying(true);
-                                } else {
-                                    setIsPlaying(!isPlaying);
-                                }
-                            }}
-                            className={`flex-1 flex items-center justify-center space-x-2 py-3 rounded-lg font-semibold transition-colors ${isPlaying && !isStepMode ? 'bg-amber-500/10 text-amber-500 border border-amber-500/50' : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20'} `}
-                        >
-                            {isPlaying && !isStepMode ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-current" />}
-                            <span>{isPlaying && !isStepMode ? "Pause" : (isStepMode ? "Resume" : "Start Simulation")}</span>
-                        </button>
-                        <button
                             onClick={exportState}
-                            className="px-4 py-3 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 hover:text-white transition-colors border border-slate-700"
+                            className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 hover:text-white transition-colors border border-slate-700"
                             title="Export State (JSON)"
                         >
                             <Download className="w-5 h-5" />
+                            <span>Export</span>
                         </button>
                         <button
                             onClick={importState}
-                            className="px-4 py-3 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 hover:text-white transition-colors border border-slate-700"
+                            className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 hover:text-white transition-colors border border-slate-700"
                             title="Import State (JSON)"
                         >
                             <Upload className="w-5 h-5" />
+                            <span>Import</span>
                         </button>
                         <button
                             onClick={() => { setIsPlaying(false); resetSimulation(scenarioKey); }}
-                            className="px-4 py-3 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 hover:text-white transition-colors border border-slate-700"
+                            className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 hover:text-white transition-colors border border-slate-700"
                             title="Reset Scenario"
                         >
                             <RotateCcw className="w-5 h-5" />
+                            <span>Reset</span>
                         </button>
                     </div>
                 </div>
@@ -2797,8 +2744,8 @@ const BodyStatsPanel = ({ bodiesRef, selectedBodyIndex, onClose, onDelete, dragM
                     <h3 className="font-bold text-slate-100">Body {selectedBodyIndex + 1}</h3>
                 </div>
                 <div className="flex items-center space-x-1">
-                    <button 
-                        onClick={() => onDelete(selectedBodyIndex)} 
+                    <button
+                        onClick={() => onDelete(selectedBodyIndex)}
                         className="text-red-400 hover:text-red-300 p-1 hover:bg-red-500/20 rounded transition-colors"
                         title="Delete this body"
                     >
@@ -2963,7 +2910,7 @@ const EnergyDisplay = ({ statsRef }) => {
     return <div className="text-lg font-mono text-emerald-400 truncate">{energy.toFixed(4)}</div>;
 };
 
-const StatusFooter = ({ statsRef, physicsMode, enableCollisions, useWorker, workerActive, useGPU, gpuActive }) => {
+const StatusFooter = ({ statsRef, physicsMode, enableCollisions, useWorker, workerActive }) => {
     const [bodyCount, setBodyCount] = useState(0);
     useEffect(() => {
         const interval = setInterval(() => {
@@ -2975,10 +2922,7 @@ const StatusFooter = ({ statsRef, physicsMode, enableCollisions, useWorker, work
         <div className="absolute bottom-4 left-4 pointer-events-none text-xs text-slate-500 flex gap-4 z-10 bg-slate-900/50 p-2 rounded backdrop-blur-sm border border-slate-800/50">
             <span>Engine: {physicsMode}</span>
             <span>Collisions: {enableCollisions ? 'ON' : 'OFF'}</span>
-            {useGPU && <span className={gpuActive ? 'text-cyan-400' : 'text-yellow-400'}>
-                GPU: {gpuActive ? 'Active' : 'Pending'}
-            </span>}
-            {useWorker && !useGPU && <span className={workerActive ? 'text-green-400' : 'text-yellow-400'}>
+            {useWorker && <span className={workerActive ? 'text-green-400' : 'text-yellow-400'}>
                 Worker: {workerActive ? 'Active' : 'Pending'}
             </span>}
             <span className="text-white font-bold">Active Bodies: {bodyCount}</span>
@@ -3008,11 +2952,11 @@ const CanvasLineChart = ({ dataRef }) => {
         const resize = () => {
             const width = container.clientWidth;
             const height = container.clientHeight;
-            
+
             // Skip if size hasn't changed
             if (width === currentWidth && height === currentHeight) return;
             if (width <= 0 || height <= 0) return;
-            
+
             currentWidth = width;
             currentHeight = height;
 
@@ -3159,14 +3103,14 @@ const CanvasLineChart = ({ dataRef }) => {
             const legendY = paddingTop + 8;
             const legendWidth = 70;
             const legendHeight = 58;
-            
+
             // Semi-transparent background
             ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
             ctx.fillRect(legendX - 5, legendY - 5, legendWidth, legendHeight);
             ctx.strokeStyle = '#334155';
             ctx.lineWidth = 1;
             ctx.strokeRect(legendX - 5, legendY - 5, legendWidth, legendHeight);
-            
+
             ctx.textAlign = 'left';
             ctx.font = '9px sans-serif';
             ctx.fillStyle = '#10b981';
@@ -3221,11 +3165,11 @@ const CanvasScatterPlot = ({ dataRef, selectedBodyIndex }) => {
         const resize = () => {
             const width = container.clientWidth;
             const height = container.clientHeight;
-            
+
             // Skip if size hasn't changed
             if (width === currentWidth && height === currentHeight) return;
             if (width <= 0 || height <= 0) return;
-            
+
             currentWidth = width;
             currentHeight = height;
 
@@ -3340,7 +3284,7 @@ const CanvasScatterPlot = ({ dataRef, selectedBodyIndex }) => {
 const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, containerRef }) => {
     const panelRef = useRef(null);
     const [isCompactLayout, setIsCompactLayout] = useState(false);
-    
+
     // Position from top-left corner (like normal windows)
     const [position, setPosition] = useState({ x: 16, y: null }); // null = will initialize on mount
     const [size, setSize] = useState({ width: 800, height: 320 });
@@ -3417,37 +3361,37 @@ const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, contain
         const handleMouseMove = (e) => {
             if (isDragging && containerRef?.current) {
                 const container = containerRef.current.getBoundingClientRect();
-                
+
                 const deltaX = e.clientX - dragRef.current.startMouseX;
                 const deltaY = e.clientY - dragRef.current.startMouseY;
-                
+
                 let newX = dragRef.current.startPosX + deltaX;
                 let newY = dragRef.current.startPosY + deltaY;
-                
+
                 // Clamp to container bounds
                 newX = Math.max(0, Math.min(newX, container.width - size.width));
                 newY = Math.max(0, Math.min(newY, container.height - size.height));
-                
+
                 setPosition({ x: newX, y: newY });
             }
-            
+
             if (isResizing && containerRef?.current) {
                 const deltaX = e.clientX - resizeRef.current.startMouseX;
                 const deltaY = e.clientY - resizeRef.current.startMouseY;
                 const edge = resizeRef.current.edge;
                 const minW = 400;
                 const minH = 200;
-                
+
                 let newX = resizeRef.current.startX;
                 let newY = resizeRef.current.startY;
                 let newW = resizeRef.current.startW;
                 let newH = resizeRef.current.startH;
-                
+
                 // East edge: expand width to the right
                 if (edge.includes('e')) {
                     newW = Math.max(minW, resizeRef.current.startW + deltaX);
                 }
-                
+
                 // West edge: expand width to the left (move x and adjust width)
                 if (edge.includes('w')) {
                     const maxDelta = resizeRef.current.startW - minW;
@@ -3455,12 +3399,12 @@ const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, contain
                     newX = resizeRef.current.startX + clampedDelta;
                     newW = resizeRef.current.startW - clampedDelta;
                 }
-                
+
                 // South edge: expand height downward
                 if (edge.includes('s')) {
                     newH = Math.max(minH, resizeRef.current.startH + deltaY);
                 }
-                
+
                 // North edge: expand height upward (move y and adjust height)
                 if (edge.includes('n')) {
                     const maxDelta = resizeRef.current.startH - minH;
@@ -3468,7 +3412,7 @@ const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, contain
                     newY = resizeRef.current.startY + clampedDelta;
                     newH = resizeRef.current.startH - clampedDelta;
                 }
-                
+
                 setPosition({ x: newX, y: newY });
                 setSize({ width: newW, height: newH });
             }
@@ -3516,7 +3460,7 @@ const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, contain
             onMouseDown={blockCameraInteraction}
         >
             {/* Draggable Title Bar */}
-            <div 
+            <div
                 className="absolute top-0 left-0 right-0 h-8 bg-slate-800/90 border-b border-slate-700 flex items-center justify-between px-3 cursor-grab active:cursor-grabbing rounded-t-lg z-10"
                 onMouseDown={handleDragStart}
             >
@@ -3524,8 +3468,8 @@ const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, contain
                     <Activity className="w-3 h-3 text-blue-400" />
                     Analysis Dashboard
                 </span>
-                <button 
-                    onClick={onClose} 
+                <button
+                    onClick={onClose}
                     className="text-slate-400 hover:text-white hover:bg-slate-700 rounded p-0.5 transition-colors"
                 >
                     <X className="w-3.5 h-3.5" />
@@ -3533,7 +3477,7 @@ const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, contain
             </div>
 
             {/* Content Area - fills remaining space below title bar */}
-            <div 
+            <div
                 className={`absolute top-8 left-0 right-0 bottom-0 flex ${layoutClass} gap-3 p-3`}
             >
                 <div className={primarySectionClass}>
@@ -3557,36 +3501,36 @@ const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, contain
 
             {/* Resize Handles - All edges and corners like a real window */}
             {/* Corners */}
-            <div 
+            <div
                 className="resize-handle absolute bottom-0 right-0 w-3 h-3 cursor-nwse-resize z-20"
                 onMouseDown={(e) => handleResizeStart(e, 'se')}
             />
-            <div 
+            <div
                 className="resize-handle absolute bottom-0 left-0 w-3 h-3 cursor-nesw-resize z-20"
                 onMouseDown={(e) => handleResizeStart(e, 'sw')}
             />
-            <div 
+            <div
                 className="resize-handle absolute top-0 right-0 w-3 h-3 cursor-nesw-resize z-20"
                 onMouseDown={(e) => handleResizeStart(e, 'ne')}
             />
-            <div 
+            <div
                 className="resize-handle absolute top-0 left-0 w-3 h-3 cursor-nwse-resize z-20"
                 onMouseDown={(e) => handleResizeStart(e, 'nw')}
             />
             {/* Edges */}
-            <div 
+            <div
                 className="resize-handle absolute top-3 bottom-3 right-0 w-1 cursor-ew-resize hover:bg-blue-500/30"
                 onMouseDown={(e) => handleResizeStart(e, 'e')}
             />
-            <div 
+            <div
                 className="resize-handle absolute top-3 bottom-3 left-0 w-1 cursor-ew-resize hover:bg-blue-500/30"
                 onMouseDown={(e) => handleResizeStart(e, 'w')}
             />
-            <div 
+            <div
                 className="resize-handle absolute bottom-0 left-3 right-3 h-1 cursor-ns-resize hover:bg-blue-500/30"
                 onMouseDown={(e) => handleResizeStart(e, 's')}
             />
-            <div 
+            <div
                 className="resize-handle absolute top-0 left-3 right-3 h-1 cursor-ns-resize hover:bg-blue-500/30"
                 onMouseDown={(e) => handleResizeStart(e, 'n')}
             />
@@ -3595,15 +3539,17 @@ const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, contain
 });
 
 // Body Labels Overlay - HTML labels positioned over 3D bodies
-const BodyLabelsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, selectedBodyIndex }) => {
+const BodyLabelsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, selectedBodyIndex, cameraMode, cameraTargetIdx }) => {
     const [labelPositions, setLabelPositions] = useState([]);
 
     useEffect(() => {
         if (!cameraRef.current || !mountRef.current) return;
 
+        let animationFrameId;
+
         const updateLabels = () => {
             if (!meshRefs.current || meshRefs.current.length === 0) {
-                requestAnimationFrame(updateLabels);
+                animationFrameId = requestAnimationFrame(updateLabels);
                 return;
             }
 
@@ -3613,7 +3559,10 @@ const BodyLabelsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, selectedB
 
             meshRefs.current.forEach((mesh, i) => {
                 if (!mesh) return;
-                
+
+                // In cockpit mode, hide the label for the body we're riding
+                if (cameraMode === 'COCKPIT' && i === cameraTargetIdx) return;
+
                 // Get world position of mesh
                 const vector = mesh.position.clone();
                 vector.project(camera);
@@ -3622,8 +3571,9 @@ const BodyLabelsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, selectedB
                 const x = (vector.x * 0.5 + 0.5) * rect.width;
                 const y = (-vector.y * 0.5 + 0.5) * rect.height;
 
-                // Check if in front of camera
-                const visible = vector.z < 1;
+                // Check if in front of camera (z < 1 means in front)
+                // Also check that the position is within reasonable screen bounds
+                const visible = vector.z < 1 && x > -100 && x < rect.width + 100 && y > -100 && y < rect.height + 100;
 
                 positions.push({
                     x,
@@ -3636,12 +3586,12 @@ const BodyLabelsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, selectedB
             });
 
             setLabelPositions(positions);
-            requestAnimationFrame(updateLabels);
+            animationFrameId = requestAnimationFrame(updateLabels);
         };
 
-        const animId = requestAnimationFrame(updateLabels);
-        return () => cancelAnimationFrame(animId);
-    }, [cameraRef, mountRef, meshRefs, bodiesRef]);
+        animationFrameId = requestAnimationFrame(updateLabels);
+        return () => cancelAnimationFrame(animationFrameId);
+    }, [cameraRef, mountRef, meshRefs, bodiesRef, cameraMode, cameraTargetIdx]);
 
     return (
         <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
@@ -3649,11 +3599,10 @@ const BodyLabelsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, selectedB
                 pos.visible && (
                     <div
                         key={pos.index}
-                        className={`absolute transform -translate-x-1/2 text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg transition-opacity ${
-                            selectedBodyIndex === pos.index 
-                                ? 'bg-white text-slate-900 ring-2 ring-blue-400' 
-                                : 'bg-slate-800/80 text-white'
-                        }`}
+                        className={`absolute transform -translate-x-1/2 text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg transition-opacity ${selectedBodyIndex === pos.index
+                            ? 'bg-white text-slate-900 ring-2 ring-blue-400'
+                            : 'bg-slate-800/80 text-white'
+                            }`}
                         style={{
                             left: pos.x,
                             top: pos.y,
@@ -3670,15 +3619,17 @@ const BodyLabelsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, selectedB
 };
 
 // Velocity Vectors Overlay - SVG arrows showing velocity direction/magnitude
-const VelocityVectorsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, scale }) => {
+const VelocityVectorsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, scale, cameraMode, cameraTargetIdx }) => {
     const [vectors, setVectors] = useState([]);
 
     useEffect(() => {
         if (!cameraRef.current || !mountRef.current) return;
 
+        let animationFrameId;
+
         const updateVectors = () => {
             if (!meshRefs.current || meshRefs.current.length === 0 || !bodiesRef.current) {
-                requestAnimationFrame(updateVectors);
+                animationFrameId = requestAnimationFrame(updateVectors);
                 return;
             }
 
@@ -3689,6 +3640,9 @@ const VelocityVectorsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, scal
             bodiesRef.current.forEach((body, i) => {
                 if (!meshRefs.current[i]) return;
 
+                // In cockpit mode, hide the vector for the body we're riding
+                if (cameraMode === 'COCKPIT' && i === cameraTargetIdx) return;
+
                 // Body position in screen coords
                 const startPos = meshRefs.current[i].position.clone();
                 startPos.project(camera);
@@ -3697,39 +3651,37 @@ const VelocityVectorsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, scal
 
                 // Velocity endpoint in world coords (scaled for visibility)
                 const speed = Math.sqrt(body.vx ** 2 + body.vy ** 2 + body.vz ** 2);
-                const velScale = Math.min(50, speed * 30); // Scale velocity for visual
-                
+                // const velScale = Math.min(50, speed * 30); // Original line, not used in diff
+
                 // Create a 3D point offset by velocity
                 const endWorld = meshRefs.current[i].position.clone();
                 endWorld.x += body.vx * scale * 0.5;
                 endWorld.y += body.vy * scale * 0.5;
                 endWorld.z += body.vz * scale * 0.5;
                 endWorld.project(camera);
-                
+
                 const endX = (endWorld.x * 0.5 + 0.5) * rect.width;
                 const endY = (-endWorld.y * 0.5 + 0.5) * rect.height;
 
-                // Check if in front of camera
-                const visible = startPos.z < 1;
-
-                if (visible && speed > 0.001) {
+                // Only show if start point is in front of camera
+                if (startPos.z < 1) {
                     newVectors.push({
-                        index: i,
                         startX, startY,
                         endX, endY,
-                        speed,
-                        color: body.color
+                        color: body.color,
+                        index: i,
+                        speed: speed // Keep speed for text display
                     });
                 }
             });
 
             setVectors(newVectors);
-            requestAnimationFrame(updateVectors);
+            animationFrameId = requestAnimationFrame(updateVectors);
         };
 
-        const animId = requestAnimationFrame(updateVectors);
-        return () => cancelAnimationFrame(animId);
-    }, [cameraRef, mountRef, meshRefs, bodiesRef, scale]);
+        animationFrameId = requestAnimationFrame(updateVectors);
+        return () => cancelAnimationFrame(animationFrameId);
+    }, [cameraRef, mountRef, meshRefs, bodiesRef, scale, cameraMode, cameraTargetIdx]);
 
     return (
         <svg className="absolute inset-0 pointer-events-none z-10 overflow-visible">
