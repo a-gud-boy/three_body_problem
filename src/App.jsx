@@ -181,8 +181,8 @@ const App = () => {
     const [forceUpdateToken, setForceUpdateToken] = useState(0);
     const [showAnalysis, setShowAnalysis] = useState(false);
     const [performanceMode, setPerformanceMode] = useState(true); // Simple trails by default
-    const [useWebWorker, setUseWebWorker] = useState(true); // Offload physics to Web Worker
-    const [showGrid, setShowGrid] = useState(false);
+
+
     const [showHelp, setShowHelp] = useState(false);
     const [showLabels, setShowLabels] = useState(true);
     const [showVelocityVectors, setShowVelocityVectors] = useState(false);
@@ -278,9 +278,7 @@ const App = () => {
                         resetSimulation(scenarioKey);
                     }
                     break;
-                case 'g':
-                    setShowGrid(prev => !prev);
-                    break;
+
                 case 't':
                     setShowTrails(prev => !prev);
                     break;
@@ -1044,6 +1042,7 @@ const App = () => {
 
         // Create Blender-style Axis Gizmo (renders in corner)
         const gizmoScene = new THREE.Scene();
+        gizmoScene.background = new THREE.Color(0x0f172a); // Same as main scene
         const gizmoCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
         gizmoCamera.position.set(0, 0, 5);
         gizmoSceneRef.current = gizmoScene;
@@ -1288,7 +1287,7 @@ const App = () => {
         // (step mode requires manual stepping via a button)
         if (isPlaying && !isStepMode) {
             // Check if we should use Web Worker
-            const shouldUseWorker = useWebWorker && workerReady && workerSupported && !workerPendingRef.current;
+            const shouldUseWorker = workerReady && workerSupported && !workerPendingRef.current;
 
             if (shouldUseWorker) {
                 // Use Web Worker for physics (async)
@@ -1593,8 +1592,7 @@ const App = () => {
             rendererRef.current.setViewport(margin, margin, gizmoSize, gizmoSize);
             rendererRef.current.setScissor(margin, margin, gizmoSize, gizmoSize);
             rendererRef.current.setScissorTest(true);
-            rendererRef.current.setClearColor(0x000000, 0);
-            rendererRef.current.clear();
+            rendererRef.current.clearDepth();
             rendererRef.current.render(gizmoSceneRef.current, gizmoCameraRef.current);
 
             // Reset viewport to full screen
@@ -1606,7 +1604,7 @@ const App = () => {
 
         frameCountRef.current++;
         requestRef.current = requestAnimationFrame(animate);
-    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, enableCollisions, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showAnalysis, isStepMode, referenceFrame, showCOM, showGrid, useWebWorker, workerReady, workerSupported, workerUpdatePhysics, timeDirection, initialEnergy]);
+    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, enableCollisions, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showAnalysis, isStepMode, referenceFrame, showCOM, workerReady, workerSupported, workerUpdatePhysics, timeDirection, initialEnergy]);
 
     useEffect(() => {
         if (threeLoaded) {
@@ -1615,12 +1613,7 @@ const App = () => {
         }
     }, [animate, threeLoaded]);
 
-    // Toggle grid visibility
-    useEffect(() => {
-        if (gridRef.current) {
-            gridRef.current.visible = showGrid;
-        }
-    }, [showGrid]);
+
 
     useEffect(() => {
         if (comMarkerRef.current) {
@@ -1733,7 +1726,7 @@ const App = () => {
 
     useEffect(() => {
         markNeedsRender();
-    }, [markNeedsRender, isPlaying, scenarioKey, showGrid, showCOM, showTrails, showLabels, showVelocityVectors, cameraMode, cameraTargetIdx, selectedBodyIndex, referenceFrame, showAnalysis, showHelp, showPanel, panelWidth, performanceMode, enableCollisions, physicsMode, dragMode, forceUpdateToken, useWebWorker, workerReady, workerSupported, isStepMode, simSpeed, gravityG, trailLength, timeDirection]);
+    }, [markNeedsRender, isPlaying, scenarioKey, showCOM, showTrails, showLabels, showVelocityVectors, cameraMode, cameraTargetIdx, selectedBodyIndex, referenceFrame, showAnalysis, showHelp, showPanel, panelWidth, performanceMode, enableCollisions, physicsMode, dragMode, forceUpdateToken, workerReady, workerSupported, isStepMode, simSpeed, gravityG, trailLength, timeDirection]);
 
     const handleScenarioChange = (key) => {
         setScenarioKey(key);
@@ -1796,7 +1789,7 @@ const App = () => {
         mountRef.current.style.cursor = 'grabbing';
         cameraControlsRef.current.previousMouse = { x: e.clientX, y: e.clientY };
         if (e.button === 0) cameraControlsRef.current.dragMode = 'ROTATE';
-        if (e.button === 2) cameraControlsRef.current.dragMode = 'PAN';
+        else if (e.button === 2) cameraControlsRef.current.dragMode = 'PAN';
         markNeedsRender();
     };
 
@@ -2070,7 +2063,7 @@ const App = () => {
                 )}
 
                 {/* Bottom Info Bar */}
-                <StatusFooter statsRef={statsRef} physicsMode={physicsMode} enableCollisions={enableCollisions} useWorker={useWebWorker} workerActive={workerReady} />
+                <StatusFooter statsRef={statsRef} physicsMode={physicsMode} enableCollisions={enableCollisions} useWorker={true} workerActive={workerReady} />
 
                 {/* Analysis Panel Overlay - Draggable Window */}
                 {showAnalysis && (
@@ -2102,8 +2095,7 @@ const App = () => {
                                     <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">R</kbd></div>
                                     <div className="text-slate-300">Reset simulation</div>
 
-                                    <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">G</kbd></div>
-                                    <div className="text-slate-300">Toggle grid</div>
+
 
                                     <div className="bg-slate-800 px-3 py-2 rounded"><kbd className="text-blue-400">T</kbd></div>
                                     <div className="text-slate-300">Toggle trails</div>
@@ -2308,7 +2300,7 @@ const App = () => {
                     {bookmarks.length > 0 && (
                         <div className="mb-3 bg-slate-800/50 rounded p-2">
                             <div className="text-[10px] text-slate-500 uppercase mb-1">Bookmarks ({bookmarks.length})</div>
-                            <div className="space-y-1 max-h-20 overflow-y-auto">
+                            <div className="space-y-1 max-h-20 overflow-y-auto pr-2">
                                 {bookmarks.map((bookmark, idx) => (
                                     <div key={idx} className="flex items-center justify-between text-xs bg-slate-900 rounded px-2 py-1">
                                         <button
@@ -2319,9 +2311,10 @@ const App = () => {
                                         </button>
                                         <button
                                             onClick={() => deleteBookmark(idx)}
-                                            className="text-red-400 hover:text-red-300 ml-2"
+                                            className="text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded p-0.5 ml-2 transition-colors"
+                                            title="Delete bookmark"
                                         >
-                                            ×
+                                            <Trash2 className="w-3 h-3" />
                                         </button>
                                     </div>
                                 ))}
@@ -2450,34 +2443,13 @@ const App = () => {
                         <label className="flex items-center space-x-2 cursor-pointer">
                             <input
                                 type="checkbox"
-                                checked={useWebWorker}
-                                onChange={(e) => setUseWebWorker(e.target.checked)}
-                                disabled={!workerSupported}
-                                className="w-4 h-4 rounded bg-slate-700 border-slate-600 disabled:opacity-50"
-                            />
-                            <span className={`text-xs ${workerSupported ? 'text-slate-300' : 'text-slate-500'}`}>
-                                Web Worker Physics {workerReady && useWebWorker ? '✓' : ''}
-                                {!workerSupported && ' (Not Supported)'}
-                            </span>
-                        </label>
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                            <input
-                                type="checkbox"
                                 checked={performanceMode}
                                 onChange={(e) => setPerformanceMode(e.target.checked)}
                                 className="w-4 h-4 rounded bg-slate-700 border-slate-600"
                             />
                             <span className="text-xs text-slate-300">Performance Mode (Simple Trails)</span>
                         </label>
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={showGrid}
-                                onChange={(e) => setShowGrid(e.target.checked)}
-                                className="w-4 h-4 rounded bg-slate-700 border-slate-600"
-                            />
-                            <span className="text-xs text-slate-300">Show 3D Grid (X, Y, Z Axes)</span>
-                        </label>
+
                         <label className="flex items-center space-x-2 cursor-pointer">
                             <input
                                 type="checkbox"
