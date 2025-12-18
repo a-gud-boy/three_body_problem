@@ -308,6 +308,7 @@ const App = () => {
 
     // Analysis
     const [showCOM, setShowCOM] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
     const [energyDrift, setEnergyDrift] = useState(0);
     const energyDriftHistoryRef = useRef([]);
     const [initialEnergy, setInitialEnergy] = useState(null);
@@ -412,6 +413,7 @@ const App = () => {
                     break;
                 case 'escape':
                     setShowHelp(false);
+                    setShowSettings(false);
                     setSelectedBodyIndex(null);
                     break;
             }
@@ -2232,7 +2234,148 @@ const App = () => {
                     </div>
                 )}
 
-                {/* Help Button */}
+                {/* Settings Modal */}
+                {showSettings && (
+                    <div
+                        className="absolute inset-0 bg-black/70 flex items-center justify-center z-40 backdrop-blur-md"
+                        onClick={() => setShowSettings(false)}
+                        onKeyDown={(e) => e.key === 'Escape' && setShowSettings(false)}
+                    >
+                        <div
+                            className="bg-[#0f172a] border border-slate-700/50 rounded-2xl p-8 w-full max-w-md mx-4 shadow-2xl"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            {/* Header */}
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <Sparkles className="w-6 h-6 text-emerald-400" />
+                                    Simulation Settings
+                                    <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
+                                </h2>
+                                <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-white transition-colors">
+                                    <X className="w-6 h-6" />
+                                </button>
+                            </div>
+
+                            {/* Checkboxes */}
+                            <div className="space-y-4 mb-6">
+                                <label className="flex items-center space-x-3 cursor-pointer group">
+                                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${performanceMode ? 'bg-emerald-500 border-emerald-500' : 'border-slate-500 group-hover:border-slate-400'}`}>
+                                        {performanceMode && <span className="text-white text-xs font-bold">✓</span>}
+                                    </div>
+                                    <input type="checkbox" checked={performanceMode} onChange={(e) => setPerformanceMode(e.target.checked)} className="hidden" />
+                                    <span className="text-sm text-slate-200">Performance Mode (Simple Trails)</span>
+                                </label>
+
+                                <label className="flex items-center space-x-3 cursor-pointer group">
+                                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${showLabels ? 'bg-emerald-500 border-emerald-500' : 'border-slate-500 group-hover:border-slate-400'}`}>
+                                        {showLabels && <span className="text-white text-xs font-bold">✓</span>}
+                                    </div>
+                                    <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} className="hidden" />
+                                    <span className="text-sm text-slate-200">Show Body Labels</span>
+                                </label>
+
+                                <label className="flex items-center space-x-3 cursor-pointer group">
+                                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${showVelocityVectors ? 'bg-emerald-500 border-emerald-500' : 'border-slate-500 group-hover:border-slate-400'}`}>
+                                        {showVelocityVectors && <span className="text-white text-xs font-bold">✓</span>}
+                                    </div>
+                                    <input type="checkbox" checked={showVelocityVectors} onChange={(e) => setShowVelocityVectors(e.target.checked)} className="hidden" />
+                                    <span className="text-sm text-slate-200">Show Velocity Vectors</span>
+                                </label>
+                            </div>
+
+                            {/* Toggle Buttons */}
+                            <div className="grid grid-cols-2 gap-3 mb-6">
+                                <button
+                                    onClick={() => setDragMode(!dragMode)}
+                                    className={`flex items-center justify-center space-x-2 py-3 px-4 rounded-lg border text-sm font-medium transition-all ${dragMode ? 'bg-slate-700 border-slate-500 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-500'}`}
+                                >
+                                    <Hand className="w-4 h-4" />
+                                    <span>Drag Bodies</span>
+                                </button>
+
+                                <button
+                                    onClick={() => setEnableCollisions(!enableCollisions)}
+                                    className={`flex items-center justify-center space-x-2 py-3 px-4 rounded-lg border text-sm font-medium transition-all ${enableCollisions ? 'bg-slate-700 border-slate-500 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-500'}`}
+                                >
+                                    <Merge className="w-4 h-4" />
+                                    <span>Collision Merge</span>
+                                </button>
+                            </div>
+
+                            {/* Integrator Dropdown */}
+                            <button
+                                onClick={() => setPhysicsMode(physicsMode === 'EULER' ? 'RK4' : 'EULER')}
+                                className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-slate-800/50 border border-slate-700 text-slate-300 hover:border-slate-500 transition-all mb-6"
+                            >
+                                <div className="flex items-center space-x-2">
+                                    <Calculator className="w-4 h-4" />
+                                    <span className="text-sm">Integrator: {physicsMode === 'RK4' ? 'Runge-Kutta 4 (Precision)' : 'Symplectic Euler (Speed)'}</span>
+                                </div>
+                                <span className="text-slate-500">⇅</span>
+                            </button>
+
+                            {/* Divider */}
+                            <div className="border-t border-slate-700 mb-6"></div>
+
+                            {/* Sliders */}
+                            <div className="space-y-5">
+                                <div>
+                                    <div className="flex justify-between text-sm mb-2">
+                                        <span className="text-slate-300">Gravitational Constant (G)</span>
+                                        <span className="text-emerald-400 font-mono font-bold">{gravityG.toFixed(2)}</span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0.1"
+                                        max="5"
+                                        step="0.1"
+                                        value={gravityG}
+                                        onChange={(e) => setGravityG(parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-slate-700 rounded-full appearance-none cursor-pointer accent-emerald-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <div className="flex justify-between text-sm mb-2">
+                                        <span className="text-slate-300">Time Step</span>
+                                        <span className="text-emerald-400 font-mono font-bold">{simSpeed.toFixed(1)}x</span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0.1"
+                                        max="4"
+                                        step="0.1"
+                                        value={simSpeed}
+                                        onChange={(e) => setSimSpeed(parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-slate-700 rounded-full appearance-none cursor-pointer accent-emerald-500"
+                                    />
+                                    {/* Speed Presets */}
+                                    <div className="flex gap-2 mt-3">
+                                        {[0.25, 0.5, 1, 2, 4].map(speed => (
+                                            <button
+                                                key={speed}
+                                                onClick={() => setSimSpeed(speed)}
+                                                className={`flex-1 text-xs py-2 rounded-lg transition-all font-medium ${Math.abs(simSpeed - speed) < 0.05
+                                                    ? 'bg-emerald-600 text-white'
+                                                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                                    }`}
+                                            >
+                                                {speed}x
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="mt-8 text-center text-xs text-slate-500">
+                                Press <kbd className="px-2 py-1 bg-slate-800 rounded text-slate-400 border border-slate-600">Esc</kbd> to close settings
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <button
                     onClick={() => setShowHelp(true)}
                     className="absolute bottom-4 right-4 p-2 bg-slate-800/80 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors z-10"
@@ -2320,6 +2463,13 @@ const App = () => {
                                 title="Toggle Analysis Graphs"
                             >
                                 <LineChartIcon className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => setShowSettings(true)}
+                                className="p-1.5 rounded bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                                title="Open Settings"
+                            >
+                                <Settings className="w-4 h-4" />
                             </button>
                             <TimeDisplay statsRef={statsRef} />
                         </div>
@@ -2569,112 +2719,6 @@ const App = () => {
                             </div>
                         </div>
                     )}
-                </div>
-
-                {/* Advanced Controls */}
-                <div className="p-6 space-y-6 flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
-                        <Settings className="w-4 h-4 text-orange-400" />
-                        <h3 className="text-sm font-semibold text-slate-300">Advanced Physics</h3>
-                    </div>
-
-                    <div className="space-y-3">
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={performanceMode}
-                                onChange={(e) => setPerformanceMode(e.target.checked)}
-                                className="w-4 h-4 rounded bg-slate-700 border-slate-600"
-                            />
-                            <span className="text-xs text-slate-300">Performance Mode (Simple Trails)</span>
-                        </label>
-
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={showLabels}
-                                onChange={(e) => setShowLabels(e.target.checked)}
-                                className="w-4 h-4 rounded bg-slate-700 border-slate-600"
-                            />
-                            <span className="text-xs text-slate-300">Show Body Labels</span>
-                        </label>
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={showVelocityVectors}
-                                onChange={(e) => setShowVelocityVectors(e.target.checked)}
-                                className="w-4 h-4 rounded bg-slate-700 border-slate-600"
-                            />
-                            <span className="text-xs text-slate-300">Show Velocity Vectors</span>
-                        </label>
-                    </div>
-
-                    {/* Toggles Grid */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <button
-                            onClick={() => setDragMode(!dragMode)}
-                            className={`flex items-center justify-center space-x-2 py-3 px-2 rounded border text-xs font-medium transition-all ${dragMode
-                                ? isPlaying
-                                    ? 'bg-orange-900/20 border-orange-900 text-orange-700 cursor-not-allowed opacity-50' // Dimmed when playing
-                                    : 'bg-orange-500/20 border-orange-500 text-orange-400'
-                                : 'bg-slate-800 border-slate-700 text-slate-400'
-                                } `}
-                            title={isPlaying ? "Pause simulation to drag bodies" : "Toggle Drag Mode"}
-                        >
-                            <Hand className="w-4 h-4" /> <span>Drag Bodies</span>
-                        </button>
-
-                        <button
-                            onClick={() => setEnableCollisions(!enableCollisions)}
-                            className={`flex items-center justify-center space-x-2 py-3 px-2 rounded border text-xs font-medium transition-all ${enableCollisions ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-400'
-                                } `}
-                        >
-                            <Merge className="w-4 h-4" /> <span>Collision Merge</span>
-                        </button>
-
-                        <button
-                            onClick={() => setPhysicsMode(physicsMode === 'EULER' ? 'RK4' : 'EULER')}
-                            className={`col-span-2 flex items-center justify-center space-x-2 py-3 px-2 rounded border text-xs font-medium transition-all ${physicsMode === 'RK4' ? 'bg-purple-500/20 border-purple-500 text-purple-400' : 'bg-slate-800 border-slate-700 text-slate-400'
-                                } `}
-                        >
-                            <Calculator className="w-4 h-4" />
-                            <span>Integrator: {physicsMode === 'RK4' ? 'Runge-Kutta 4 (Precision)' : 'Symplectic Euler (Speed)'}</span>
-                        </button>
-                    </div>
-
-                    {/* Sliders */}
-                    <div className="space-y-4 pt-2 border-t border-slate-800">
-                        <div className="space-y-2">
-                            <div className="flex justify-between text-xs text-slate-400">
-                                <span>Gravitational Constant (G)</span>
-                                <span>{gravityG.toFixed(2)}</span>
-                            </div>
-                            <input type="range" min="0.1" max="5" step="0.1" value={gravityG} onChange={(e) => setGravityG(parseFloat(e.target.value))} className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500" />
-                        </div>
-
-                        <div className="space-y-2">
-                            <div className="flex justify-between text-xs text-slate-400">
-                                <span>Time Step</span>
-                                <span>{simSpeed.toFixed(1)}x</span>
-                            </div>
-                            <input type="range" min="0.1" max="4" step="0.1" value={simSpeed} onChange={(e) => setSimSpeed(parseFloat(e.target.value))} className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-green-500" />
-                            {/* Speed Presets */}
-                            <div className="flex gap-1 mt-2">
-                                {[0.25, 0.5, 1, 2, 4].map(speed => (
-                                    <button
-                                        key={speed}
-                                        onClick={() => setSimSpeed(speed)}
-                                        className={`flex-1 text-[10px] py-1 rounded transition-all ${Math.abs(simSpeed - speed) < 0.05
-                                            ? 'bg-green-600 text-white'
-                                            : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-                                            }`}
-                                    >
-                                        {speed}x
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 {/* Footer Actions */}
