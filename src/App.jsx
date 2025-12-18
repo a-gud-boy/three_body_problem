@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Play, Pause, RotateCcw, Info, Activity, Settings, MousePointer2, Move3d, Globe, Sparkles, Plus, Hand, Merge, Calculator, X, Target, Eye, Video, LineChart as LineChartIcon, Clock, Download, HelpCircle, Upload, Trash2, Tag, Maximize, Minimize, Camera, ArrowRight, PanelRightClose, PanelRightOpen, Cpu } from 'lucide-react';
+import { Play, Pause, RotateCcw, Info, Activity, Settings, MousePointer2, Move3d, Globe, Sparkles, Plus, Hand, Merge, Calculator, X, Target, Eye, Video, LineChart as LineChartIcon, Clock, Download, HelpCircle, Upload, Trash2, Tag, Maximize, Minimize, Camera, ArrowRight, PanelRightClose, PanelRightOpen, Cpu, Rewind, SkipForward, Bookmark } from 'lucide-react';
 import { usePhysicsWorker } from './hooks/usePhysicsWorker';
 
 const DEFAULT_PANEL_WIDTH = 380;
@@ -106,17 +106,47 @@ const SCENARIOS = {
 
 // --- Helper Functions ---
 
-const generateRandomBody = () => {
+const generateRandomBody = (existingBodies = []) => {
     const colors = [0xef4444, 0x3b82f6, 0x22c55e, 0xeab308, 0xa855f7, 0xec4899, 0x06b6d4];
+    const MIN_DIST = 2.0;
+
+    let x, y, z, tooClose;
+    let attempts = 0;
+
+    do {
+        x = (Math.random() * 4 - 2);
+        y = (Math.random() * 4 - 2);
+        z = (Math.random() * 4 - 2);
+        tooClose = false;
+
+        for (const body of existingBodies) {
+            const dx = x - body.x;
+            const dy = y - body.y;
+            const dz = z - body.z;
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dist < MIN_DIST) {
+                tooClose = true;
+                break;
+            }
+        }
+        attempts++;
+    } while (tooClose && attempts < 50);
+
     return {
-        x: (Math.random() * 4 - 2), y: (Math.random() * 4 - 2), z: (Math.random() * 4 - 2),
+        x, y, z,
         vx: (Math.random() - 0.5) * 0.8, vy: (Math.random() - 0.5) * 0.8, vz: (Math.random() - 0.5) * 0.8,
         mass: Math.random() * 3 + 0.5,
         color: colors[Math.floor(Math.random() * colors.length)]
     };
 };
 
-const generateRandomBodies = () => [generateRandomBody(), generateRandomBody(), generateRandomBody()];
+const generateRandomBodies = () => {
+    const bodies = [];
+    bodies.push(generateRandomBody(bodies));
+    bodies.push(generateRandomBody(bodies));
+    bodies.push(generateRandomBody(bodies));
+    return bodies;
+};
 
 const createGlowTexture = () => {
     const canvas = document.createElement('canvas');
@@ -164,6 +194,81 @@ const loadThreeScript = (callback) => {
     document.head.appendChild(script);
 };
 
+// --- 3D Helpers ---
+const createCOMMarker = (THREE) => {
+    const group = new THREE.Group();
+
+    // Materials
+    const goldMat = new THREE.MeshStandardMaterial({
+        color: 0xffd700,
+        metalness: 1.0,
+        roughness: 0.3,
+        envMapIntensity: 1.0
+    });
+    const silverMat = new THREE.MeshStandardMaterial({
+        color: 0xeeeeee,
+        metalness: 0.9,
+        roughness: 0.2,
+        flatShading: true
+    });
+    const glassMat = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        metalness: 0.1,
+        roughness: 0.1,
+        transmission: 0.9,
+        transparent: true,
+        opacity: 0.4,
+        thickness: 0.5
+    });
+    const redMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+
+    // 1. Gold Tip (Cone pointing down to origin)
+    // Height 1.5, Radius 0.15
+    const tipGeo = new THREE.ConeGeometry(0.2, 1.5, 32);
+    tipGeo.rotateX(Math.PI); // Point down
+    tipGeo.translate(0, 0.75, 0); // Move base to y=1.5, Tip to 0? No.
+    // Cone centered at 0. Height 1.5. range -0.75 to 0.75.
+    // Rotate X 180: range -0.75 to 0.75 (flipped). Tip at negative?
+    // Cone default: Tip at +height/2 (0.75), Base at -0.75.
+    // Rotate X 180: Tip at -0.75, Base at 0.75.
+    // Translate y + 0.75: Tip at 0, Base at 1.5. Correct.
+    const tip = new THREE.Mesh(tipGeo, goldMat);
+    group.add(tip);
+
+    // 2. Hexagonal Body
+    // Wide hexagonal prism sitting on top of the tip base
+    const bodyGeo = new THREE.CylinderGeometry(1.0, 0.5, 1.2, 6);
+    bodyGeo.translate(0, 1.5 + 0.6, 0); // Base at 1.5. Center at 1.5 + 0.6 = 2.1
+    const body = new THREE.Mesh(bodyGeo, silverMat);
+    group.add(body);
+
+    // 3. Top Cap (Hex)
+    const capGeo = new THREE.CylinderGeometry(1.0, 1.0, 0.1, 6);
+    capGeo.translate(0, 2.75, 0);
+    const cap = new THREE.Mesh(capGeo, silverMat);
+    group.add(cap);
+
+    // 4. Glass Dome
+    const domeGeo = new THREE.SphereGeometry(0.7, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+    domeGeo.translate(0, 2.8, 0);
+    const dome = new THREE.Mesh(domeGeo, glassMat);
+    group.add(dome);
+
+    // 5. Bubble Level (Red disk inside)
+    const levelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.05, 32);
+    levelGeo.translate(0, 2.9, 0);
+    const level = new THREE.Mesh(levelGeo, redMat);
+    group.add(level);
+
+    // 6. "CM" Text Label? (Optional, skipping for simplicity/perf)
+
+    // Scale entire group to be visible but not huge relative to typical body size (radius 5-20)
+    // Current height ~3.5 units.
+    group.scale.set(5, 5, 5); // Make it significant
+
+    return group;
+};
+
 const App = () => {
     // --- State ---
     const [isPlaying, setIsPlaying] = useState(false);
@@ -204,6 +309,7 @@ const App = () => {
     // Analysis
     const [showCOM, setShowCOM] = useState(false);
     const [energyDrift, setEnergyDrift] = useState(0);
+    const energyDriftHistoryRef = useRef([]);
     const [initialEnergy, setInitialEnergy] = useState(null);
 
     // Expose selection for testing
@@ -518,10 +624,15 @@ const App = () => {
 
 
     const handleAddBody = () => {
-        const newBody = generateRandomBody();
+        const newBody = generateRandomBody(bodiesRef.current);
         bodiesRef.current.push(newBody);
         addBodyVisuals(newBody);
         setStats(prev => ({ ...prev, bodyCount: bodiesRef.current.length }));
+
+        // Reset energy baseline for new system state
+        setInitialEnergy(null);
+        energyDriftHistoryRef.current = [];
+
         markNeedsRender();
     };
 
@@ -534,6 +645,11 @@ const App = () => {
         bodiesRef.current.splice(index, 1);
         setSelectedBodyIndex(null);
         setStats(prev => ({ ...prev, bodyCount: bodiesRef.current.length }));
+
+        // Reset energy baseline for new system state
+        setInitialEnergy(null);
+        energyDriftHistoryRef.current = [];
+
         markNeedsRender();
     };
 
@@ -949,6 +1065,8 @@ const App = () => {
             } else if (initialEnergy !== 0) {
                 const drift = ((currentEnergy - initialEnergy) / initialEnergy) * 100;
                 setEnergyDrift(drift);
+                // Track history for sparkline (max 30 points)
+                energyDriftHistoryRef.current = [...energyDriftHistoryRef.current.slice(-29), drift];
             }
 
             statsRef.current = {
@@ -1139,29 +1257,8 @@ const App = () => {
         gizmoScene.add(gizmoGroup);
         gizmoRef.current = gizmoGroup;
 
-        // Create COM Marker (crosshair)
-        const comGroup = new THREE.Group();
-        const axisLength = 20;
-        const axisWidth = 2;
-
-        // X-axis (red)
-        const xGeom = new THREE.BoxGeometry(axisLength, axisWidth, axisWidth);
-        const xMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-        const xAxis = new THREE.Mesh(xGeom, xMat);
-        comGroup.add(xAxis);
-
-        // Y-axis (green)
-        const yGeom = new THREE.BoxGeometry(axisWidth, axisLength, axisWidth);
-        const yMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-        const yAxis = new THREE.Mesh(yGeom, yMat);
-        comGroup.add(yAxis);
-
-        // Z-axis (blue)
-        const zGeom = new THREE.BoxGeometry(axisWidth, axisWidth, axisLength);
-        const zMat = new THREE.MeshBasicMaterial({ color: 0x0000ff });
-        const zAxis = new THREE.Mesh(zGeom, zMat);
-        comGroup.add(zAxis);
-
+        // Create COM Marker (Custom Tool)
+        const comGroup = createCOMMarker(THREE);
         comGroup.visible = showCOM;
         scene.add(comGroup);
         comMarkerRef.current = comGroup;
@@ -1368,6 +1465,8 @@ const App = () => {
                         } else if (initialEnergy !== 0) {
                             const drift = ((stats.total - initialEnergy) / initialEnergy) * 100;
                             setEnergyDrift(drift);
+                            // Track history for sparkline (max 30 points)
+                            energyDriftHistoryRef.current = [...energyDriftHistoryRef.current.slice(-29), drift];
                         }
 
                         statsRef.current = {
@@ -2268,10 +2367,11 @@ const App = () => {
                     <div className="grid grid-cols-3 gap-2 mb-3">
                         <button
                             onClick={() => setTimeDirection(timeDirection * -1)}
-                            className={`text-xs py-2 px-2 rounded border transition-all ${timeDirection === -1 ? 'bg-amber-600 border-amber-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'} `}
+                            className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-lg border transition-all ${timeDirection === -1 ? 'bg-amber-600 border-amber-500 text-white' : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-slate-700'}`}
                             title="Reverse Time"
                         >
-                            ⏮️ Reverse
+                            <Rewind className="w-4 h-4 mb-1" />
+                            <span className="text-[10px]">Reverse</span>
                         </button>
                         <button
                             onClick={() => {
@@ -2282,17 +2382,19 @@ const App = () => {
                                     updatePhysics();
                                 }
                             }}
-                            className={`text-xs py-2 px-2 rounded border transition-all ${isStepMode ? 'bg-amber-600 border-amber-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'} `}
+                            className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-lg border transition-all ${isStepMode ? 'bg-amber-600 border-amber-500 text-white' : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-slate-700'}`}
                             title={isStepMode ? "Click to Step Forward" : "Enter Frame Stepping Mode"}
                         >
-                            {isStepMode ? "⏯️ Next Frame" : "⏭️ Step Mode"}
+                            <SkipForward className="w-4 h-4 mb-1" />
+                            <span className="text-[10px]">{isStepMode ? "Next" : "Step Mode"}</span>
                         </button>
                         <button
                             onClick={saveBookmark}
-                            className="text-xs py-2 px-2 rounded border bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 transition-all"
+                            className="flex flex-col items-center justify-center py-2.5 px-2 rounded-lg border bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-slate-700 transition-all"
                             title="Save Bookmark"
                         >
-                            🔖 Save
+                            <Bookmark className="w-4 h-4 mb-1" />
+                            <span className="text-[10px]">Save</span>
                         </button>
                     </div>
 
@@ -2323,19 +2425,56 @@ const App = () => {
                     )}
 
                     {/* Analysis Metrics */}
-                    <div className="grid grid-cols-2 gap-2 mb-2">
-                        <div className="bg-slate-800/50 p-2 rounded">
-                            <div className="text-[10px] text-slate-500 uppercase">Energy Drift</div>
-                            <div className={`text-sm font-semibold ${Math.abs(energyDrift) > 1 ? 'text-red-400' : 'text-green-400'} `}>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                        {/* Energy Drift with Sparkline */}
+                        <div className="bg-[#0f172a] border border-slate-700/50 p-4 rounded-xl flex flex-col justify-between h-24 relative overflow-hidden group">
+                            <div className="flex items-center justify-between z-10">
+                                <span className="text-[10px] font-bold text-slate-500 tracking-wider uppercase">Energy Drift</span>
+                                <span className="text-[10px] text-slate-600">Stability</span>
+                            </div>
+                            <div className={`text-2xl font-bold z-10 ${Math.abs(energyDrift) > 1 ? 'text-red-400' : 'text-emerald-400'}`}>
                                 {energyDrift.toFixed(4)}%
                             </div>
+
+                            {/* Sparkline Graph (Bottom aligned, subtle) */}
+                            <div className="absolute bottom-0 left-0 right-0 h-10 opacity-30 group-hover:opacity-50 transition-opacity">
+                                <svg className="w-full h-full" viewBox="0 0 100 24" preserveAspectRatio="none">
+                                    {energyDriftHistoryRef.current.length > 1 && (() => {
+                                        const data = energyDriftHistoryRef.current;
+                                        const min = Math.min(...data);
+                                        const max = Math.max(...data);
+                                        const range = max - min || 1;
+                                        const points = data.map((v, i) => {
+                                            const x = (i / (data.length - 1)) * 100;
+                                            const y = 20 - ((v - min) / range) * 16;
+                                            return `${x},${y}`;
+                                        }).join(' ');
+                                        return (
+                                            <polyline
+                                                fill="none"
+                                                stroke="currentColor"
+                                                className={Math.abs(energyDrift) > 1 ? 'text-red-500' : 'text-emerald-500'}
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                points={points}
+                                            />
+                                        );
+                                    })()}
+                                </svg>
+                            </div>
                         </div>
-                        <button
-                            onClick={() => setShowCOM(!showCOM)}
-                            className={`text-xs p-2 rounded border transition-all ${showCOM ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-700'} `}
-                        >
-                            {showCOM ? '✓' : '○'} Show COM
-                        </button>
+
+                        {/* Show COM Toggle */}
+                        <div className="bg-[#0f172a] border border-slate-700/50 p-4 rounded-xl flex items-center justify-between h-24">
+                            <span className="text-sm font-medium text-slate-300">Show COM</span>
+                            <button
+                                onClick={() => setShowCOM(!showCOM)}
+                                className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${showCOM ? 'bg-slate-500' : 'bg-slate-700'}`}
+                            >
+                                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${showCOM ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </button>
+                        </div>
                     </div>
 
 
