@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Play, Pause, RotateCcw, Info, Activity, Settings, MousePointer2, Move3d, Globe, Sparkles, Plus, Hand, Merge, Calculator, X, Target, Eye, Video, LineChart as LineChartIcon, Clock, Download, HelpCircle, Upload, Trash2, Tag, Maximize, Minimize, Camera, ArrowRight, PanelRightClose, PanelRightOpen, Cpu, Rewind, SkipForward, Bookmark } from 'lucide-react';
+import { Play, Pause, RotateCcw, Info, Activity, Settings, MousePointer2, Move3d, Globe, Sparkles, Plus, Hand, Merge, Calculator, X, Target, Eye, Video, LineChart as LineChartIcon, Clock, Download, HelpCircle, Upload, Trash2, Tag, Maximize, Minimize, Camera, ArrowRight, PanelRightClose, PanelRightOpen, Cpu, Rewind, SkipForward, Bookmark, Zap } from 'lucide-react';
 import { usePhysicsWorker } from './hooks/usePhysicsWorker';
 
 const DEFAULT_PANEL_WIDTH = 380;
@@ -280,7 +280,7 @@ const App = () => {
     const [stats, setStats] = useState({ time: 0, totalEnergy: 0, bodyCount: 3 });
     const [threeLoaded, setThreeLoaded] = useState(false);
     const [dragMode, setDragMode] = useState(false);
-    const [enableCollisions, setEnableCollisions] = useState(false);
+    const [collisionMode, setCollisionMode] = useState('off'); // 'off', 'elastic', 'inelastic'
     const [physicsMode, setPhysicsMode] = useState('EULER');
     const [selectedBodyIndex, setSelectedBodyIndex] = useState(null);
     const [forceUpdateToken, setForceUpdateToken] = useState(0);
@@ -305,6 +305,22 @@ const App = () => {
 
     // Reference Frame
     const [referenceFrame, setReferenceFrame] = useState('inertial'); // 'inertial' or 'barycentric'
+    const [isAutoTracking, setIsAutoTracking] = useState(false);
+    const isAutoTrackingRef = useRef(false);
+
+    // Sync ref with state for animation loop
+    useEffect(() => {
+        isAutoTrackingRef.current = isAutoTracking;
+    }, [isAutoTracking]);
+
+    // Reset auto-tracking when switching to Barycentric
+    useEffect(() => {
+        if (referenceFrame === 'barycentric') {
+            setIsAutoTracking(true);
+        } else {
+            setIsAutoTracking(false);
+        }
+    }, [referenceFrame]);
 
     // Analysis
     const [showCOM, setShowCOM] = useState(false);
@@ -696,7 +712,7 @@ const App = () => {
                     if (state.settings) {
                         if (state.settings.physicsMode) setPhysicsMode(state.settings.physicsMode);
                         if (state.settings.simSpeed) setSimSpeed(state.settings.simSpeed);
-                        if (state.settings.enableCollisions !== undefined) setEnableCollisions(state.settings.enableCollisions);
+                        if (state.settings.collisionMode) setCollisionMode(state.settings.collisionMode);
                     }
 
                     // Clear trails
@@ -906,10 +922,10 @@ const App = () => {
             }
         }
 
-        // 2. Collisions (Elastic Bouncing)
-        if (enableCollisions) {
+        // 2. Collisions (mode-based: elastic bounce or inelastic merge)
+        const collidedBodies = new Set(); // Track bodies that collided this frame
+        if (collisionMode !== 'off') {
             const indicesToRemove = new Set();
-            const mergeThreshold = 0.3; // Very close = merge
 
             for (let i = 0; i < bodies.length; i++) {
                 if (indicesToRemove.has(i)) continue;
@@ -928,10 +944,9 @@ const App = () => {
                     const r2 = Math.cbrt(bodies[j].mass) * 0.5;
                     const collisionDist = (r1 + r2);
 
-                    if (dist < collisionDist) {
-                        // Check if they're too close (merge)
-                        if (dist < collisionDist * mergeThreshold) {
-                            // Merge j into i
+                    if (dist < collisionDist && dist > 0.001) {
+                        if (collisionMode === 'inelastic') {
+                            // Perfectly inelastic: Merge bodies (e=0)
                             const m1 = bodies[i].mass;
                             const m2 = bodies[j].mass;
                             const totalM = m1 + m2;
@@ -945,34 +960,28 @@ const App = () => {
                             bodies[i].mass = totalM;
 
                             indicesToRemove.add(j);
-                        } else {
-                            // Elastic collision-bounce off each other
-
-                            // Collision normal (unit vector from i to j)
+                        } else if (collisionMode === 'elastic') {
+                            // Perfectly elastic collision (e=1)
                             const nx = dx / dist;
                             const ny = dy / dist;
                             const nz = dz / dist;
 
-                            // Relative velocity
                             const dvx = bodies[i].vx - bodies[j].vx;
                             const dvy = bodies[i].vy - bodies[j].vy;
                             const dvz = bodies[i].vz - bodies[j].vz;
 
-                            // Relative velocity along collision normal
                             const dvn = dvx * nx + dvy * ny + dvz * nz;
 
-                            // Don't apply collision if bodies are separating
+                            // Only apply if bodies are approaching
                             if (dvn > 0) {
                                 const m1 = bodies[i].mass;
                                 const m2 = bodies[j].mass;
 
-                                // Coefficient of restitution (1.0 = perfectly elastic)
-                                const restitution = 0.95;
+                                // Coefficient of restitution = 1.0 (perfectly elastic)
+                                const restitution = 1.0;
 
-                                // Impulse scalar
                                 const impulse = (-(1 + restitution) * dvn) / (1 / m1 + 1 / m2);
 
-                                // Apply impulse
                                 bodies[i].vx += (impulse / m1) * nx;
                                 bodies[i].vy += (impulse / m1) * ny;
                                 bodies[i].vz += (impulse / m1) * nz;
@@ -981,9 +990,9 @@ const App = () => {
                                 bodies[j].vy -= (impulse / m2) * ny;
                                 bodies[j].vz -= (impulse / m2) * nz;
 
-                                // Separate bodies to avoid overlap
+                                // Separate bodies to prevent overlap
                                 const overlap = collisionDist - dist;
-                                const separation = overlap * 0.5;
+                                const separation = overlap * 0.55;
 
                                 bodies[i].x += nx * separation;
                                 bodies[i].y += ny * separation;
@@ -992,6 +1001,24 @@ const App = () => {
                                 bodies[j].x -= nx * separation;
                                 bodies[j].y -= ny * separation;
                                 bodies[j].z -= nz * separation;
+
+                                // Update last trail point to new separated position to prevent spike
+                                if (trailsRef.current[i] && trailsRef.current[i].length > 0) {
+                                    const lastI = trailsRef.current[i][trailsRef.current[i].length - 1];
+                                    lastI.x = bodies[i].x;
+                                    lastI.y = bodies[i].y;
+                                    lastI.z = bodies[i].z;
+                                }
+                                if (trailsRef.current[j] && trailsRef.current[j].length > 0) {
+                                    const lastJ = trailsRef.current[j][trailsRef.current[j].length - 1];
+                                    lastJ.x = bodies[j].x;
+                                    lastJ.y = bodies[j].y;
+                                    lastJ.z = bodies[j].z;
+                                }
+
+                                // Mark bodies as collided to skip next trail point
+                                collidedBodies.add(i);
+                                collidedBodies.add(j);
                             }
                         }
                     }
@@ -1032,10 +1059,31 @@ const App = () => {
             totalKE += 0.5 * b.mass * (b.vx ** 2 + b.vy ** 2 + b.vz ** 2);
         });
 
-        // Update Trails
+        // Update Trails (skip bodies that just collided to prevent spikes)
+        // Calculate COM offset for Barycentric frame
+        let offsetX = 0, offsetY = 0, offsetZ = 0;
+        if (referenceFrame === 'barycentric') {
+            let totalMass = 0;
+            bodies.forEach(b => {
+                offsetX += b.x * b.mass;
+                offsetY += b.y * b.mass;
+                offsetZ += b.z * b.mass;
+                totalMass += b.mass;
+            });
+            if (totalMass > 0) {
+                offsetX /= totalMass;
+                offsetY /= totalMass;
+                offsetZ /= totalMass;
+            }
+        }
+
         for (let i = 0; i < bodies.length; i++) {
-            if (trailsRef.current[i]) {
-                trailsRef.current[i].push(new window.THREE.Vector3(bodies[i].x, bodies[i].y, bodies[i].z));
+            if (trailsRef.current[i] && !collidedBodies.has(i)) {
+                trailsRef.current[i].push(new window.THREE.Vector3(
+                    bodies[i].x - offsetX,
+                    bodies[i].y - offsetY,
+                    bodies[i].z - offsetZ
+                ));
                 if (trailsRef.current[i].length > trailLength) trailsRef.current[i].shift();
             }
         }
@@ -1397,7 +1445,7 @@ const App = () => {
                     timeDirection,
                     gravityG,
                     physicsMode,
-                    enableCollisions,
+                    collisionMode,
                     skipIndex: draggedBodyIndexRef.current,
                     currentTime: timeRef.current
                 };
@@ -1446,12 +1494,28 @@ const App = () => {
                     timeRef.current = stats.time;
 
                     // Update trails in worker callback
+                    let workerOffsetX = 0, workerOffsetY = 0, workerOffsetZ = 0;
+                    if (referenceFrame === 'barycentric') {
+                        let totalMass = 0;
+                        bodiesRef.current.forEach(b => {
+                            workerOffsetX += b.x * b.mass;
+                            workerOffsetY += b.y * b.mass;
+                            workerOffsetZ += b.z * b.mass;
+                            totalMass += b.mass;
+                        });
+                        if (totalMass > 0) {
+                            workerOffsetX /= totalMass;
+                            workerOffsetY /= totalMass;
+                            workerOffsetZ /= totalMass;
+                        }
+                    }
+
                     for (let i = 0; i < bodiesRef.current.length; i++) {
                         if (trailsRef.current[i]) {
                             trailsRef.current[i].push(new THREE.Vector3(
-                                bodiesRef.current[i].x,
-                                bodiesRef.current[i].y,
-                                bodiesRef.current[i].z
+                                bodiesRef.current[i].x - workerOffsetX,
+                                bodiesRef.current[i].y - workerOffsetY,
+                                bodiesRef.current[i].z - workerOffsetZ
                             ));
                             if (trailsRef.current[i].length > trailLength) {
                                 trailsRef.current[i].shift();
@@ -1569,11 +1633,13 @@ const App = () => {
                     if (performanceMode) {
                         // Performance Mode: Simple line segments (NO spline calculation)
                         smoothPoints = trail.map(p => new THREE.Vector3(p.x * scale, p.y * scale, p.z * scale));
-                        smoothPoints.push(new THREE.Vector3(body.x * scale, body.y * scale, body.z * scale));
+                        // Use renderX/Y/Z which already have COM offset applied for Barycentric mode
+                        smoothPoints.push(new THREE.Vector3(renderX, renderY, renderZ));
                     } else {
                         // Quality Mode: Smooth spline curves (EXPENSIVE)
                         const rawPoints = trail.map(p => new THREE.Vector3(p.x * scale, p.y * scale, p.z * scale));
-                        rawPoints.push(new THREE.Vector3(body.x * scale, body.y * scale, body.z * scale));
+                        // Use renderX/Y/Z which already have COM offset applied for Barycentric mode
+                        rawPoints.push(new THREE.Vector3(renderX, renderY, renderZ));
                         const curve = new THREE.CatmullRomCurve3(rawPoints, false, 'centripetal');
                         const pointsCount = Math.min(trail.length * 3, 500);
                         smoothPoints = curve.getPoints(pointsCount);
@@ -1617,6 +1683,57 @@ const App = () => {
                 }
             }
         });
+
+        // --- Auto-Fit Logic for Barycentric Frame ---
+        if (referenceFrame === 'barycentric' && isAutoTrackingRef.current) {
+            // Re-calculate max distance based on current body positions relative to COM
+            let maxDistSq = 0;
+            const comReal = calculateCOM();
+            const scale = SCENARIOS[scenarioKey].scale || 100;
+
+            // Safety check to prevent crash/NaN propagation
+            if (!isNaN(comReal.x) && !isNaN(comReal.y)) {
+                bodiesRef.current.forEach(b => {
+                    // Skip bodies with invalid positions
+                    if (isNaN(b.x) || isNaN(b.y)) return;
+
+                    const dx = b.x - comReal.x;
+                    const dy = b.y - comReal.y;
+                    const dz = b.z - comReal.z;
+                    const distSq = dx * dx + dy * dy + dz * dz;
+                    if (distSq > maxDistSq) maxDistSq = distSq;
+                });
+
+                // maxDist is in simulation units, multiply by scale to get screen units
+                const maxDistScreen = Math.sqrt(maxDistSq) * scale;
+
+                // Target radius to fit everything, with 2.2x multiplier and HARD CAP of 12000
+                const instantTarget = Math.min(12000, Math.max(50, maxDistScreen * 2.2));
+
+                // Initialize smoothed target if missing
+                if (!cameraControlsRef.current.smoothedTarget) {
+                    cameraControlsRef.current.smoothedTarget = instantTarget;
+                }
+
+                // Hysteresis Logic:
+                // Expand fast to keep bodies in frame (0.1 factor)
+                // Contract VERY slowly to prevent "breathing" wobble during orbits (0.005 factor)
+                if (instantTarget > cameraControlsRef.current.smoothedTarget) {
+                    cameraControlsRef.current.smoothedTarget += (instantTarget - cameraControlsRef.current.smoothedTarget) * 0.1;
+                } else {
+                    cameraControlsRef.current.smoothedTarget += (instantTarget - cameraControlsRef.current.smoothedTarget) * 0.005;
+                }
+
+                // Apply the smoothed target to the actual camera radius
+                const currentRadius = cameraControlsRef.current.radius;
+                cameraControlsRef.current.radius = currentRadius + (cameraControlsRef.current.smoothedTarget - currentRadius) * 0.05;
+
+                // Force center target
+                cameraControlsRef.current.target.x = 0;
+                cameraControlsRef.current.target.y = 0;
+                cameraControlsRef.current.target.z = 0;
+            }
+        }
 
         const { radius, theta, phi, target } = cameraControlsRef.current;
 
@@ -1705,7 +1822,7 @@ const App = () => {
 
         frameCountRef.current++;
         requestRef.current = requestAnimationFrame(animate);
-    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, enableCollisions, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showAnalysis, isStepMode, referenceFrame, showCOM, workerReady, workerSupported, workerUpdatePhysics, timeDirection, initialEnergy]);
+    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, collisionMode, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showAnalysis, isStepMode, referenceFrame, showCOM, workerReady, workerSupported, workerUpdatePhysics, timeDirection, initialEnergy]);
 
     useEffect(() => {
         if (threeLoaded) {
@@ -1790,6 +1907,11 @@ const App = () => {
         return () => resizeObserver.disconnect();
     }, [threeLoaded]);
 
+    // Clear trails on reference frame change
+    useEffect(() => {
+        trailsRef.current = bodiesRef.current.map(() => []);
+    }, [referenceFrame]);
+
     // --- Interaction ---
     const resetSimulation = useCallback((key) => {
         const scenario = SCENARIOS[key];
@@ -1827,7 +1949,7 @@ const App = () => {
 
     useEffect(() => {
         markNeedsRender();
-    }, [markNeedsRender, isPlaying, scenarioKey, showCOM, showTrails, showLabels, showVelocityVectors, cameraMode, cameraTargetIdx, selectedBodyIndex, referenceFrame, showAnalysis, showHelp, showPanel, panelWidth, performanceMode, enableCollisions, physicsMode, dragMode, forceUpdateToken, workerReady, workerSupported, isStepMode, simSpeed, gravityG, trailLength, timeDirection]);
+    }, [markNeedsRender, isPlaying, scenarioKey, showCOM, showTrails, showLabels, showVelocityVectors, cameraMode, cameraTargetIdx, selectedBodyIndex, referenceFrame, showAnalysis, showHelp, showPanel, panelWidth, performanceMode, collisionMode, physicsMode, dragMode, forceUpdateToken, workerReady, workerSupported, isStepMode, simSpeed, gravityG, trailLength, timeDirection]);
 
     const handleScenarioChange = (key) => {
         setScenarioKey(key);
@@ -1844,6 +1966,12 @@ const App = () => {
     };
 
     const handleMouseDown = (e) => {
+        // Disable auto-tracking on interaction ONLY if panning (Right Click)
+        // Rotation (Left Click) is allowed while tracking
+        if (referenceFrame === 'barycentric' && e.button === 2) {
+            setIsAutoTracking(false);
+        }
+
         const mouse = getMouseCoords(e);
         const THREE = window.THREE;
 
@@ -1989,6 +2117,9 @@ const App = () => {
     };
 
     const handleWheel = (e) => {
+        // Disable auto-tracking on interaction
+        if (referenceFrame === 'barycentric') setIsAutoTracking(false);
+
         // Proportional zoom: faster at larger distances for consistent feel
         const zoomFactor = 0.001;
         const currentRadius = cameraControlsRef.current.radius;
@@ -2013,18 +2144,24 @@ const App = () => {
     });
 
     const handleTouchStart = (e) => {
-        if (e.touches.length === 2) {
-            touchRef.current.lastDistance = getTouchDistance(e.touches);
-            touchRef.current.lastCenter = getTouchCenter(e.touches);
-        } else if (e.touches.length === 1) {
+        // Disable auto-tracking on interaction ONLY if zooming (Multitouch)
+        // Rotation (Single touch) is allowed
+        if (referenceFrame === 'barycentric' && e.touches.length > 1) {
+            setIsAutoTracking(false);
+        }
+
+        if (e.touches.length === 1) {
             cameraControlsRef.current.isDragging = true;
             cameraControlsRef.current.dragMode = 'ROTATE';
-            cameraControlsRef.current.previousMouse = {
-                x: e.touches[0].clientX,
-                y: e.touches[0].clientY
-            };
-            markNeedsRender();
+            cameraControlsRef.current.previousMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        } else if (e.touches.length === 2) {
+            cameraControlsRef.current.isDragging = true;
+            cameraControlsRef.current.dragMode = 'ZOOM';
+            touchRef.current.lastDistance = getTouchDistance(e.touches);
+            const center = getTouchCenter(e.touches);
+            cameraControlsRef.current.previousMouse = center;
         }
+        markNeedsRender();
     };
 
     const handleTouchMove = (e) => {
@@ -2086,7 +2223,7 @@ const App = () => {
             })),
             settings: {
                 physicsMode,
-                enableCollisions,
+                collisionMode,
                 simSpeed,
                 trailLength
             },
@@ -2164,7 +2301,7 @@ const App = () => {
                 )}
 
                 {/* Bottom Info Bar */}
-                <StatusFooter statsRef={statsRef} physicsMode={physicsMode} enableCollisions={enableCollisions} useWorker={true} workerActive={workerReady} />
+                <StatusFooter statsRef={statsRef} physicsMode={physicsMode} collisionMode={collisionMode} useWorker={true} workerActive={workerReady} />
 
                 {/* Analysis Panel Overlay - Draggable Window */}
                 {showAnalysis && (
@@ -2284,6 +2421,30 @@ const App = () => {
                                 </label>
                             </div>
 
+                            {/* Reference Frame */}
+                            <div className="mb-6">
+                                <div className="text-xs text-slate-500 uppercase mb-2 font-semibold tracking-wider">Reference Frame</div>
+                                <div className="grid grid-cols-2 gap-2 bg-slate-800/50 p-1 rounded-lg border border-slate-700">
+                                    <button
+                                        onClick={() => setReferenceFrame('inertial')}
+                                        className={`flex items-center justify-center space-x-2 py-2 rounded transition-all text-xs font-medium ${referenceFrame === 'inertial' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                                    >
+                                        <Globe className="w-3 h-3" />
+                                        <span>Inertial (Fixed)</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setReferenceFrame('barycentric')}
+                                        className={`flex items-center justify-center space-x-2 py-2 rounded transition-all text-xs font-medium ${referenceFrame === 'barycentric' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                                    >
+                                        <Target className="w-3 h-3" />
+                                        <span>Barycentric (COM)</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Divider */}
+                            <div className="border-t border-slate-700 mb-6"></div>
+
                             {/* Toggle Buttons */}
                             <div className="grid grid-cols-2 gap-3 mb-6">
                                 <button
@@ -2295,11 +2456,19 @@ const App = () => {
                                 </button>
 
                                 <button
-                                    onClick={() => setEnableCollisions(!enableCollisions)}
-                                    className={`flex items-center justify-center space-x-2 py-3 px-4 rounded-lg border text-sm font-medium transition-all ${enableCollisions ? 'bg-slate-700 border-slate-500 text-white' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-500'}`}
+                                    onClick={() => setCollisionMode(collisionMode === 'elastic' ? 'off' : 'elastic')}
+                                    className={`flex items-center justify-center space-x-2 py-3 px-4 rounded-lg border text-sm font-medium transition-all ${collisionMode === 'elastic' ? 'bg-emerald-600/30 border-emerald-500 text-emerald-400' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-500'}`}
+                                >
+                                    <Zap className="w-4 h-4" />
+                                    <span>Elastic (e=1)</span>
+                                </button>
+
+                                <button
+                                    onClick={() => setCollisionMode(collisionMode === 'inelastic' ? 'off' : 'inelastic')}
+                                    className={`flex items-center justify-center space-x-2 py-3 px-4 rounded-lg border text-sm font-medium transition-all ${collisionMode === 'inelastic' ? 'bg-red-600/30 border-red-500 text-red-400' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-500'}`}
                                 >
                                     <Merge className="w-4 h-4" />
-                                    <span>Collision Merge</span>
+                                    <span>Merge (e=0)</span>
                                 </button>
                             </div>
 
@@ -2383,6 +2552,17 @@ const App = () => {
                 >
                     <HelpCircle className="w-5 h-5" />
                 </button>
+
+                {/* Re-Center Button (Barycentric Mode) */}
+                {referenceFrame === 'barycentric' && !isAutoTracking && (
+                    <button
+                        onClick={() => setIsAutoTracking(true)}
+                        className="absolute bottom-24 right-6 p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-lg z-20 flex items-center justify-center transition-all hover:scale-110"
+                        title="Re-center View (Auto-Fit)"
+                    >
+                        <Target className="w-6 h-6" />
+                    </button>
+                )}
 
                 {/* Screenshot Button */}
                 <button
@@ -2629,24 +2809,7 @@ const App = () => {
 
 
 
-                    {/* Reference Frame */}
-                    <div className="mt-2">
-                        <div className="text-[10px] text-slate-500 uppercase mb-1">Reference Frame</div>
-                        <div className="grid grid-cols-2 gap-2">
-                            <button
-                                onClick={() => setReferenceFrame('inertial')}
-                                className={`text-xs py-1.5 rounded border transition-all ${referenceFrame === 'inertial' ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'} `}
-                            >
-                                Inertial
-                            </button>
-                            <button
-                                onClick={() => setReferenceFrame('barycentric')}
-                                className={`text-xs py-1.5 rounded border transition-all ${referenceFrame === 'barycentric' ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'} `}
-                            >
-                                Barycentric
-                            </button>
-                        </div>
-                    </div>
+
                 </div>
 
                 {/* Scenario Selector */}
@@ -3065,7 +3228,7 @@ const EnergyDisplay = ({ statsRef }) => {
     return <div className="text-lg font-mono text-emerald-400 truncate">{energy.toFixed(4)}</div>;
 };
 
-const StatusFooter = ({ statsRef, physicsMode, enableCollisions, useWorker, workerActive }) => {
+const StatusFooter = ({ statsRef, physicsMode, collisionMode, useWorker, workerActive }) => {
     const [bodyCount, setBodyCount] = useState(0);
     useEffect(() => {
         const interval = setInterval(() => {
@@ -3076,7 +3239,7 @@ const StatusFooter = ({ statsRef, physicsMode, enableCollisions, useWorker, work
     return (
         <div className="absolute bottom-4 left-4 pointer-events-none text-xs text-slate-500 flex gap-4 z-10 bg-slate-900/50 p-2 rounded backdrop-blur-sm border border-slate-800/50">
             <span>Engine: {physicsMode}</span>
-            <span>Collisions: {enableCollisions ? 'ON' : 'OFF'}</span>
+            <span>Collisions: {collisionMode === 'off' ? 'OFF' : collisionMode === 'elastic' ? 'Elastic' : 'Merge'}</span>
             {useWorker && <span className={workerActive ? 'text-green-400' : 'text-yellow-400'}>
                 Worker: {workerActive ? 'Active' : 'Pending'}
             </span>}
