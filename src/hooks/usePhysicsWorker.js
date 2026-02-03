@@ -18,7 +18,7 @@ export function usePhysicsWorker() {
         // Check for Web Worker support
         if (typeof Worker === 'undefined') {
             console.warn('Web Workers not supported, falling back to main thread physics');
-            setIsSupported(false);
+            requestAnimationFrame(() => setIsSupported(false));
             return;
         }
 
@@ -53,7 +53,7 @@ export function usePhysicsWorker() {
             };
         } catch (error) {
             console.error('Failed to create physics worker:', error);
-            setIsSupported(false);
+            requestAnimationFrame(() => setIsSupported(false));
         }
 
         // Cleanup on unmount

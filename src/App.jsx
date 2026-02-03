@@ -217,8 +217,7 @@ const createCOMMarker = (THREE) => {
         roughness: 0.1,
         transmission: 0.9,
         transparent: true,
-        opacity: 0.4,
-        thickness: 0.5
+        opacity: 0.4
     });
     const redMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
 
@@ -275,16 +274,15 @@ const App = () => {
     const [scenarioKey, setScenarioKey] = useState('FIGURE_8');
     const [simSpeed, setSimSpeed] = useState(1);
     const [gravityG, setGravityG] = useState(1);
-    const [trailLength, setTrailLength] = useState(300);
+    const [trailLength] = useState(300);
     const [showTrails, setShowTrails] = useState(true);
-    const [stats, setStats] = useState({ time: 0, totalEnergy: 0, bodyCount: 3 });
     const [threeLoaded, setThreeLoaded] = useState(false);
     const [dragMode, setDragMode] = useState(false);
     const [collisionMode, setCollisionMode] = useState('off'); // 'off', 'elastic', 'inelastic'
     const [physicsMode, setPhysicsMode] = useState('EULER');
     const [selectedBodyIndex, setSelectedBodyIndex] = useState(null);
     const [forceUpdateToken, setForceUpdateToken] = useState(0);
-    const [showAnalysis, setShowAnalysis] = useState(false);
+    const [showProperties, setShowProperties] = useState(true);
     const [performanceMode, setPerformanceMode] = useState(true); // Simple trails by default
 
 
@@ -365,8 +363,6 @@ const App = () => {
     const meshRefs = useRef([]);
     const glowRefs = useRef([]);
     const trailLineRefs = useRef([]);
-    const labelRefs = useRef([]);
-    const velocityArrowRefs = useRef([]);
 
     // Interaction Refs
     const raycasterRef = useRef(null);
@@ -377,6 +373,7 @@ const App = () => {
     // Physics Web Worker
     const { updatePhysics: workerUpdatePhysics, isReady: workerReady, isSupported: workerSupported } = usePhysicsWorker();
     const workerPendingRef = useRef(false); // Prevent overlapping worker calls
+    const resetSimulationRef = useRef(null); // Ref for keyboard handler to avoid TDZ
 
     const needsRenderRef = useRef(true);
     const markNeedsRender = useCallback(() => {
@@ -398,7 +395,7 @@ const App = () => {
                 case 'r':
                     if (!e.ctrlKey && !e.metaKey) {
                         setIsPlaying(false);
-                        resetSimulation(scenarioKey);
+                        if (resetSimulationRef.current) resetSimulationRef.current(scenarioKey);
                     }
                     break;
 
@@ -418,10 +415,8 @@ const App = () => {
                     toggleFullscreen();
                     break;
                 case 'a':
-                    setShowAnalysis(prev => !prev);
-                    break;
                 case 'p':
-                    setShowPanel(prev => !prev);
+                    setShowProperties(prev => !prev);
                     break;
                 case '?':
                 case 'h':
@@ -508,7 +503,7 @@ const App = () => {
         return texture;
     };
 
-    const addBodyVisuals = (body) => {
+    const addBodyVisuals = useCallback((body) => {
         if (!window.THREE || !sceneRef.current) return;
         const THREE = window.THREE;
         const scene = sceneRef.current;
@@ -548,7 +543,7 @@ const App = () => {
         trailLineRefs.current.push(line);
 
         trailsRef.current.push([]);
-    };
+    }, []);
 
     const removeBodyVisuals = (index) => {
         if (!sceneRef.current) return;
@@ -645,7 +640,7 @@ const App = () => {
         const newBody = generateRandomBody(bodiesRef.current);
         bodiesRef.current.push(newBody);
         addBodyVisuals(newBody);
-        setStats(prev => ({ ...prev, bodyCount: bodiesRef.current.length }));
+        statsRef.current = { ...statsRef.current, bodyCount: bodiesRef.current.length };
 
         // Reset energy baseline for new system state
         setInitialEnergy(null);
@@ -654,22 +649,6 @@ const App = () => {
         markNeedsRender();
     };
 
-    const handleDeleteBody = (index) => {
-        if (bodiesRef.current.length <= 2) {
-            alert('Cannot delete: minimum 2 bodies required for simulation');
-            return;
-        }
-        removeBodyVisuals(index);
-        bodiesRef.current.splice(index, 1);
-        setSelectedBodyIndex(null);
-        setStats(prev => ({ ...prev, bodyCount: bodiesRef.current.length }));
-
-        // Reset energy baseline for new system state
-        setInitialEnergy(null);
-        energyDriftHistoryRef.current = [];
-
-        markNeedsRender();
-    };
 
     // --- Import State ---
     const importState = () => {
@@ -718,7 +697,7 @@ const App = () => {
                     // Clear trails
                     trailsRef.current = bodiesRef.current.map(() => []);
 
-                    setStats(prev => ({ ...prev, bodyCount: bodiesRef.current.length }));
+                    statsRef.current = { ...statsRef.current, bodyCount: bodiesRef.current.length };
                     setIsPlaying(false);
                     setSelectedBodyIndex(null);
                     setInitialEnergy(null);
@@ -774,26 +753,8 @@ const App = () => {
 
     // --- Physics & Integration ---
 
-    const getDerivatives = (state, bodies, G, soft) => {
-        return state.map((body, i) => {
-            let ax = 0, ay = 0, az = 0;
-            for (let j = 0; j < state.length; j++) {
-                if (i === j) continue;
-                const dx = state[j].x - body.x;
-                const dy = state[j].y - body.y;
-                const dz = state[j].z - body.z;
-                const distSq = dx * dx + dy * dy + dz * dz + soft * soft;
-                const dist = Math.sqrt(distSq); // We need sqrt for gravity (1/r^2 force)
-                const f = (G * state[j].mass) / distSq;
-                ax += f * (dx / dist);
-                ay += f * (dy / dist);
-                az += f * (dz / dist);
-            }
-            return { dx: body.vx, dy: body.vy, dz: body.vz, dvx: ax, dvy: ay, dvz: az };
-        });
-    };
 
-    const updatePhysics = () => {
+    const updatePhysics = useCallback(() => {
         const bodies = bodiesRef.current;
         const dt = 0.01 * simSpeed * timeDirection; // Apply time direction
         const soft = 0.1;
@@ -1052,7 +1013,6 @@ const App = () => {
         timeRef.current += dt;
 
         let totalKE = 0;
-        let totalPE = 0;
 
         // Kinetic Energy
         bodiesRef.current.forEach(b => {
@@ -1126,7 +1086,7 @@ const App = () => {
             };
 
             // Update Analysis Data Ref (No Re-render)
-            if (showAnalysis) {
+            if (showProperties) {
                 const newDataPoint = {
                     time: parseFloat(timeRef.current.toFixed(1)),
                     ke: totalKE,
@@ -1142,7 +1102,7 @@ const App = () => {
                 }
             }
         }
-    };
+    }, [simSpeed, timeDirection, gravityG, physicsMode, collisionMode, selectedBodyIndex, showProperties, initialEnergy, referenceFrame, trailLength]);
 
     // --- Three.js Lifecycle ---
     useEffect(() => {
@@ -1335,6 +1295,7 @@ const App = () => {
         };
         window.addEventListener('resize', handleResize);
 
+        const currentMount = mountRef.current;
         return () => {
             window.removeEventListener('resize', handleResize);
 
@@ -1399,8 +1360,8 @@ const App = () => {
             }
 
             // Remove canvas and dispose renderer
-            if (mountRef.current && renderer.domElement) {
-                mountRef.current.removeChild(renderer.domElement);
+            if (currentMount && renderer.domElement) {
+                currentMount.removeChild(renderer.domElement);
             }
             renderer.dispose();
 
@@ -1410,7 +1371,7 @@ const App = () => {
             rendererRef.current = null;
         };
 
-    }, [threeLoaded]);
+    }, [threeLoaded, showCOM, addBodyVisuals]);
 
     const animate = useCallback(() => {
         if (!sceneRef.current || !threeLoaded) return;
@@ -1542,7 +1503,7 @@ const App = () => {
                         };
 
                         // Update Analysis Data
-                        if (showAnalysis) {
+                        if (showProperties) {
                             const newDataPoint = {
                                 time: parseFloat(stats.time.toFixed(1)),
                                 ke: stats.ke,
@@ -1822,7 +1783,7 @@ const App = () => {
 
         frameCountRef.current++;
         requestRef.current = requestAnimationFrame(animate);
-    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, collisionMode, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showAnalysis, isStepMode, referenceFrame, showCOM, workerReady, workerSupported, workerUpdatePhysics, timeDirection, initialEnergy]);
+    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, collisionMode, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showProperties, isStepMode, referenceFrame, showCOM, workerReady, workerSupported, workerUpdatePhysics, timeDirection, initialEnergy, performanceMode, updatePhysics]);
 
     useEffect(() => {
         if (threeLoaded) {
@@ -1930,8 +1891,6 @@ const App = () => {
 
         setGravityG(scenario.g);
         timeRef.current = 0;
-        setGravityG(scenario.g);
-        timeRef.current = 0;
         statsRef.current = { time: 0, totalEnergy: 0, bodyCount: bodiesRef.current.length };
         analysisDataRef.current = [];
         setSelectedBodyIndex(null);
@@ -1943,13 +1902,19 @@ const App = () => {
             cameraControlsRef.current.target = { x: 0, y: 0, z: 0 };
         }
         markNeedsRender();
-    }, []);
+    }, [addBodyVisuals, markNeedsRender]);
 
-    useEffect(() => { resetSimulation(scenarioKey); }, []);
+
+    // Sync ref for keyboard handler
+    useEffect(() => {
+        resetSimulationRef.current = resetSimulation;
+    }, [resetSimulation]);
+
+    useEffect(() => { resetSimulation(scenarioKey); }, [resetSimulation, scenarioKey]);
 
     useEffect(() => {
         markNeedsRender();
-    }, [markNeedsRender, isPlaying, scenarioKey, showCOM, showTrails, showLabels, showVelocityVectors, cameraMode, cameraTargetIdx, selectedBodyIndex, referenceFrame, showAnalysis, showHelp, showPanel, panelWidth, performanceMode, collisionMode, physicsMode, dragMode, forceUpdateToken, workerReady, workerSupported, isStepMode, simSpeed, gravityG, trailLength, timeDirection]);
+    }, [markNeedsRender, isPlaying, scenarioKey, showCOM, showTrails, showLabels, showVelocityVectors, cameraMode, cameraTargetIdx, selectedBodyIndex, referenceFrame, showProperties, showHelp, showPanel, panelWidth, performanceMode, collisionMode, physicsMode, dragMode, forceUpdateToken, workerReady, workerSupported, isStepMode, simSpeed, gravityG, trailLength, timeDirection]);
 
     const handleScenarioChange = (key) => {
         setScenarioKey(key);
@@ -2275,17 +2240,18 @@ const App = () => {
                     </p>
                 </div>
 
-                {/* Active Body Stats HUD (Top Right)-Real-time */}
-                {selectedBodyIndex !== null && bodiesRef.current[selectedBodyIndex] && (
-                    <BodyStatsPanel
-                        bodiesRef={bodiesRef}
-                        selectedBodyIndex={selectedBodyIndex}
-                        onClose={() => setSelectedBodyIndex(null)}
-                        onDelete={handleDeleteBody}
-                        dragMode={dragMode}
-                        isPlaying={isPlaying}
-                    />
-                )}
+                <PropertiesPanel
+                    statsRef={statsRef}
+                    bodiesRef={bodiesRef}
+                    selectedBodyIndex={selectedBodyIndex}
+                    setSelectedBodyIndex={setSelectedBodyIndex}
+                    physicsMode={physicsMode}
+                    collisionMode={collisionMode}
+                    useWorker={true}
+                    dataRef={analysisDataRef}
+                    showProperties={showProperties}
+                    setShowProperties={setShowProperties}
+                />
 
                 {/* Body Labels Overlay */}
                 {showLabels && threeLoaded && (
@@ -2297,19 +2263,6 @@ const App = () => {
                         selectedBodyIndex={selectedBodyIndex}
                         cameraMode={cameraMode}
                         cameraTargetIdx={cameraTargetIdx}
-                    />
-                )}
-
-                {/* Bottom Info Bar */}
-                <StatusFooter statsRef={statsRef} physicsMode={physicsMode} collisionMode={collisionMode} useWorker={true} workerActive={workerReady} />
-
-                {/* Analysis Panel Overlay - Draggable Window */}
-                {showAnalysis && (
-                    <AnalysisPanel
-                        dataRef={analysisDataRef}
-                        onClose={() => setShowAnalysis(false)}
-                        selectedBodyIndex={selectedBodyIndex}
-                        containerRef={mountRef}
                     />
                 )}
 
@@ -2638,9 +2591,9 @@ const App = () => {
                         </div>
                         <div className="flex items-center gap-2">
                             <button
-                                onClick={() => setShowAnalysis(!showAnalysis)}
-                                className={`p-1.5 rounded transition-colors ${showAnalysis ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'} `}
-                                title="Toggle Analysis Graphs"
+                                onClick={() => setShowProperties(!showProperties)}
+                                className={`p-1.5 rounded transition-colors ${showProperties ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'} `}
+                                title="Toggle Properties Panel"
                             >
                                 <LineChartIcon className="w-4 h-4" />
                             </button>
@@ -2923,16 +2876,23 @@ export default App;
 
 // Helper component for inline editing
 const EditableValue = ({ field, value, editing, setEditing, editValue, setEditValue, onApply, onLiveUpdate, color = "text-white" }) => {
-    const [isDirty, setIsDirty] = useState(false);
-
-    useEffect(() => {
-        if (editing === field) {
-            setIsDirty(false);
+    // Derived check for changes to avoid state sync issues
+    const handleBlur = () => {
+        let isDirty = false;
+        if (typeof value === 'number') {
+            const numVal = parseFloat(editValue);
+            isDirty = !isNaN(numVal) && numVal !== value;
+        } else {
+            isDirty = editValue !== value;
         }
-    }, [editing, field]);
+        onApply(isDirty);
+    };
 
     const handleKeyDown = (e) => {
-        if (e.key === 'Enter') onApply(isDirty);
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            e.target.blur();
+        }
         if (e.key === 'Escape') setEditing(null);
     };
 
@@ -2944,11 +2904,10 @@ const EditableValue = ({ field, value, editing, setEditing, editValue, setEditVa
                 onChange={(e) => {
                     const val = e.target.value;
                     setEditValue(val);
-                    setIsDirty(true);
                     if (onLiveUpdate) onLiveUpdate(val);
                 }}
                 onKeyDown={handleKeyDown}
-                onBlur={() => onApply(isDirty)}
+                onBlur={handleBlur}
                 autoFocus
                 className="bg-slate-700 text-white px-1 py-0.5 rounded w-full text-center font-semibold"
                 onClick={(e) => e.stopPropagation()}
@@ -2960,87 +2919,104 @@ const EditableValue = ({ field, value, editing, setEditing, editValue, setEditVa
             onClick={(e) => {
                 e.stopPropagation();
                 setEditing(field);
-                setEditValue(typeof value === 'number' ? value.toFixed(2) : value.toString());
+                setEditValue(typeof value === 'number' ? value.toFixed(field === 'mass' ? 3 : 2) : value.toString());
             }}
             className={`${color} font-semibold cursor-pointer hover: bg-slate-700 px-1 py-0.5 rounded transition-colors`}
             title="Click to edit, Enter to apply"
         >
-            {typeof value === 'number' ? value.toFixed(field === 'mass' ? 2 : 2) : value}
+            {typeof value === 'number' ? value.toFixed(field === 'mass' ? 3 : 2) : value}
         </div>
     );
 };
 
-// Real-time Body Stats Panel Component with Inline Editing
-const BodyStatsPanel = ({ bodiesRef, selectedBodyIndex, onClose, onDelete, dragMode, isPlaying }) => {
-    const [stats, setStats] = useState({ mass: 0, speed: 0, vx: 0, vy: 0, vz: 0, x: 0, y: 0, z: 0, color: 0xffffff });
-    const [editing, setEditing] = useState(null); // Track which field is being edited
-    const [editValue, setEditValue] = useState('');
 
+
+// --- Isolated Components for Performance ---
+
+const TimeDisplay = ({ statsRef }) => {
+    const [time, setTime] = useState(0);
     useEffect(() => {
         const interval = setInterval(() => {
-            if (bodiesRef.current[selectedBodyIndex]) {
-                const body = bodiesRef.current[selectedBodyIndex];
-                setStats({
-                    mass: body.mass,
-                    speed: Math.sqrt(body.vx ** 2 + body.vy ** 2 + body.vz ** 2),
-                    vx: body.vx,
-                    vy: body.vy,
-                    vz: body.vz,
-                    x: body.x,
-                    y: body.y,
-                    z: body.z,
-                    color: body.color
-                });
-            }
-        }, 50); // Update 20 times per second
+            if (statsRef.current) setTime(statsRef.current.time);
+        }, 100);
         return () => clearInterval(interval);
-    }, [bodiesRef, selectedBodyIndex]);
+    }, [statsRef]);
+    return <span className="text-xs font-mono text-slate-500">T: {time.toFixed(2)}</span>;
+};
 
-    const onLiveUpdate = (val) => {
-        if (editing && bodiesRef.current[selectedBodyIndex]) {
-            const value = parseFloat(val);
-            if (!isNaN(value)) {
-                const body = bodiesRef.current[selectedBodyIndex];
-                if (editing === 'speed') {
-                    // Scale velocity vector to match new speed
-                    const currentSpeed = Math.sqrt(body.vx ** 2 + body.vy ** 2 + body.vz ** 2);
-                    if (currentSpeed > 0.000001) {
-                        const scale = value / currentSpeed;
-                        body.vx *= scale;
-                        body.vy *= scale;
-                        body.vz *= scale;
-                    } else {
-                        // If speed was 0, set arbitrary direction (x-axis)
-                        body.vx = value;
-                        body.vy = 0;
-                        body.vz = 0;
-                    }
-                } else {
-                    body[editing] = value;
-                }
-            }
+const EnergyDisplay = ({ statsRef }) => {
+    const [energy, setEnergy] = useState(0);
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (statsRef.current) setEnergy(statsRef.current.totalEnergy);
+        }, 200);
+        return () => clearInterval(interval);
+    }, [statsRef]);
+    return <div className="text-lg font-mono text-emerald-400 truncate">{energy.toFixed(4)}</div>;
+};
+
+
+
+// --- Properties Panel ---
+const PropertiesPanel = ({
+    statsRef,
+    bodiesRef,
+    selectedBodyIndex,
+    setSelectedBodyIndex,
+    physicsMode,
+    collisionMode,
+    dataRef,
+    showProperties,
+    setShowProperties
+}) => {
+    const [activeTab, setActiveTab] = useState('system');
+    const [stats, setStats] = useState({ time: 0, totalEnergy: 0, bodyCount: 3, ke: 0, pe: 0 });
+    const [bodyStats, setBodyStats] = useState(null);
+    const [editing, setEditing] = useState(null);
+    const [editValue, setEditValue] = useState('');
+
+    // Switch to Selection tab if a body is selected
+    useEffect(() => {
+        if (selectedBodyIndex !== null) {
+            // Use requestAnimationFrame to avoid synchronous setState during render/effect phase
+            // or simply use the fact that this is side-effect of selection
+            requestAnimationFrame(() => setActiveTab('selection'));
         }
-    };
+    }, [selectedBodyIndex]);
 
+    // Update interval
+    useEffect(() => {
+        const interval = setInterval(() => {
+            // Update System Stats
+            if (statsRef.current) {
+                setStats({ ...statsRef.current });
+            }
+            // Update Body Stats
+            if (selectedBodyIndex !== null && bodiesRef.current && bodiesRef.current[selectedBodyIndex]) {
+                setBodyStats({ ...bodiesRef.current[selectedBodyIndex] });
+            } else {
+                setBodyStats(null);
+            }
+        }, 100);
+        return () => clearInterval(interval);
+    }, [selectedBodyIndex, bodiesRef, statsRef]);
+
+    if (!showProperties) return null;
+
+    // Helper for editing body values
     const applyEdit = (isDirty) => {
-        // Only apply if the user actually changed something (isDirty is true)
-        // This prevents accidental rounding when just clicking and clicking off
         if (isDirty && editing && bodiesRef.current[selectedBodyIndex]) {
             const value = parseFloat(editValue);
             if (!isNaN(value)) {
                 const body = bodiesRef.current[selectedBodyIndex];
                 if (editing === 'speed') {
-                    // Scale velocity vector to match new speed
+                    // Update velocity vector magnitude
                     const currentSpeed = Math.sqrt(body.vx ** 2 + body.vy ** 2 + body.vz ** 2);
-                    if (currentSpeed > 0.000001) {
+                    if (currentSpeed > 1e-6) {
                         const scale = value / currentSpeed;
                         body.vx *= scale;
                         body.vy *= scale;
                         body.vz *= scale;
-                    } else {
-                        body.vx = value;
-                        body.vy = 0;
-                        body.vz = 0;
                     }
                 } else {
                     body[editing] = value;
@@ -3052,198 +3028,134 @@ const BodyStatsPanel = ({ bodiesRef, selectedBodyIndex, onClose, onDelete, dragM
 
     return (
         <div
-            className="absolute top-4 right-4 bg-slate-900/90 border border-slate-700 rounded-lg p-4 w-72 shadow-2xl backdrop-blur z-20 animate-in fade-in slide-in-from-right-4 pointer-events-auto"
-            onClick={(e) => e.stopPropagation()}
+            className="absolute right-0 top-[60px] bottom-0 w-[400px] bg-slate-900/90 backdrop-blur-md border-l border-slate-700 flex flex-col z-30 transition-transform duration-300"
             onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
         >
-            <div className="flex justify-between items-start mb-3 border-b border-slate-700 pb-2">
-                <div className="flex items-center space-x-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#' + stats.color.toString(16).padStart(6, '0') }}></div>
-                    <h3 className="font-bold text-slate-100">Body {selectedBodyIndex + 1}</h3>
-                </div>
-                <div className="flex items-center space-x-1">
-                    <button
-                        onClick={() => onDelete(selectedBodyIndex)}
-                        className="text-red-400 hover:text-red-300 p-1 hover:bg-red-500/20 rounded transition-colors"
-                        title="Delete this body"
-                    >
-                        <Trash2 className="w-4 h-4" />
-                    </button>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white p-1"><X className="w-4 h-4" /></button>
-                </div>
+            {/* Header / Tabs */}
+            <div className="flex border-b border-slate-700">
+                <button
+                    onClick={() => setActiveTab('system')}
+                    className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'system' ? 'text-blue-400 border-b-2 border-blue-400 bg-slate-800/50' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                    System Properties
+                </button>
+                <button
+                    onClick={() => setActiveTab('selection')}
+                    disabled={selectedBodyIndex === null}
+                    className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'selection' ? 'text-blue-400 border-b-2 border-blue-400 bg-slate-800/50' : 'text-slate-400 hover:text-slate-200'} ${selectedBodyIndex === null ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                    Selection
+                </button>
+                <button onClick={() => setShowProperties(false)} className="px-4 text-slate-500 hover:text-white">
+                    <X className="w-5 h-5" />
+                </button>
             </div>
 
-            <div className="space-y-3 text-xs font-mono text-slate-300">
-                <div className="bg-slate-800 p-2 rounded">
-                    <div className="text-slate-500 mb-1">Mass</div>
-                    <EditableValue
-                        field="mass"
-                        value={stats.mass}
-                        editing={editing}
-                        setEditing={setEditing}
-                        editValue={editValue}
-                        setEditValue={setEditValue}
-                        onApply={applyEdit}
-                        onLiveUpdate={onLiveUpdate}
-                    />
-                </div>
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
 
-                <div className="bg-slate-800 p-2 rounded">
-                    <div className="text-slate-500 mb-1 flex justify-between items-center">
-                        <span>Velocity</span>
-                        <Activity className="w-3 h-3" />
-                    </div>
+                {/* SYSTEM TAB */}
+                {activeTab === 'system' && (
+                    <>
+                        {/* Status Section */}
+                        <div className="space-y-4">
+                            <h3 className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-2">Engine Status</h3>
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                                <div className="bg-slate-800 p-2 rounded border border-slate-700">
+                                    <div className="text-slate-400 text-xs">Integrator</div>
+                                    <div className="font-mono text-white">{physicsMode === 'RK4' ? 'Runge-Kutta 4' : 'Euler'}</div>
+                                </div>
+                                <div className="bg-slate-800 p-2 rounded border border-slate-700">
+                                    <div className="text-slate-400 text-xs">Collisions</div>
+                                    <div className={`font-mono font-bold ${collisionMode === 'off' ? 'text-slate-500' : collisionMode === 'elastic' ? 'text-emerald-400' : 'text-red-400'}`}>
+                                        {collisionMode.toUpperCase()}
+                                    </div>
+                                </div>
+                                <div className="bg-slate-800 p-2 rounded border border-slate-700">
+                                    <div className="text-slate-400 text-xs">Active Bodies</div>
+                                    <div className="font-mono text-white">{stats.bodyCount}</div>
+                                </div>
+                                <div className="bg-slate-800 p-2 rounded border border-slate-700">
+                                    <div className="text-slate-400 text-xs">Simulation Time</div>
+                                    <div className="font-mono text-white">{stats.time.toFixed(2)}</div>
+                                </div>
+                            </div>
+                        </div>
 
-                    <div className="flex justify-between items-center mb-2 pb-2 border-b border-slate-700/50">
-                        <span className="text-slate-400">|v| Speed</span>
-                        <span className="text-emerald-400 font-semibold text-sm">{stats.speed.toFixed(2)}</span>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-1 text-center">
-                        <div>
-                            <span className="text-blue-400 mr-1">î</span>
-                            <EditableValue
-                                field="vx"
-                                value={stats.vx}
-                                editing={editing}
-                                setEditing={setEditing}
-                                editValue={editValue}
-                                setEditValue={setEditValue}
-                                onApply={applyEdit}
-                                onLiveUpdate={onLiveUpdate}
-                            />
+                        {/* Energy Graph Section */}
+                        <div className="space-y-2 flex-1 flex flex-col">
+                            <h3 className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-2 flex justify-between">
+                                <span>Energy Analysis</span>
+                                <span className="font-mono normal-case text-emerald-400">{stats.totalEnergy.toFixed(4)} J</span>
+                            </h3>
+                            <div className="flex-1 bg-slate-950 rounded border border-slate-800 overflow-hidden relative">
+                                <CanvasLineChart dataRef={dataRef} />
+                            </div>
                         </div>
-                        <div>
-                            <span className="text-green-400 mr-1">ĵ</span>
-                            <EditableValue
-                                field="vy"
-                                value={stats.vy}
-                                editing={editing}
-                                setEditing={setEditing}
-                                editValue={editValue}
-                                setEditValue={setEditValue}
-                                onApply={applyEdit}
-                                onLiveUpdate={onLiveUpdate}
-                            />
-                        </div>
-                        <div>
-                            <span className="text-red-400 mr-1">k̂</span>
-                            <EditableValue
-                                field="vz"
-                                value={stats.vz}
-                                editing={editing}
-                                setEditing={setEditing}
-                                editValue={editValue}
-                                setEditValue={setEditValue}
-                                onApply={applyEdit}
-                                onLiveUpdate={onLiveUpdate}
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-slate-800 p-2 rounded">
-                    <div className="text-slate-500 mb-1 flex justify-between">
-                        <span>Position (x, y, z)</span>
-                        <Target className="w-3 h-3" />
-                    </div>
-                    <div className="grid grid-cols-3 gap-1 text-center">
-                        <div>
-                            <span className="text-slate-600 mr-1">X</span>
-                            <EditableValue
-                                field="x"
-                                value={stats.x}
-                                editing={editing}
-                                setEditing={setEditing}
-                                editValue={editValue}
-                                setEditValue={setEditValue}
-                                onApply={applyEdit}
-                                onLiveUpdate={onLiveUpdate}
-                            />
-                        </div>
-                        <div>
-                            <span className="text-slate-600 mr-1">Y</span>
-                            <EditableValue
-                                field="y"
-                                value={stats.y}
-                                editing={editing}
-                                setEditing={setEditing}
-                                editValue={editValue}
-                                setEditValue={setEditValue}
-                                onApply={applyEdit}
-                                onLiveUpdate={onLiveUpdate}
-                            />
-                        </div>
-                        <div>
-                            <span className="text-slate-600 mr-1">Z</span>
-                            <EditableValue
-                                field="z"
-                                value={stats.z}
-                                editing={editing}
-                                setEditing={setEditing}
-                                editValue={editValue}
-                                setEditValue={setEditValue}
-                                onApply={applyEdit}
-                                onLiveUpdate={onLiveUpdate}
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {dragMode && !isPlaying && (
-                    <div className="text-[10px] text-center text-orange-400 pt-1 italic">
-                        Drag active: Move body to update pos
-                    </div>
+                    </>
                 )}
 
-                <div className="text-[10px] text-center text-blue-400 pt-1">
-                    💡 Click values to edit • Press Enter to apply
-                </div>
+                {/* SELECTION TAB */}
+                {activeTab === 'selection' && bodyStats && (
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#' + bodyStats.color.toString(16).padStart(6, '0') }}></span>
+                                Body #{selectedBodyIndex + 1}
+                            </h3>
+                            <div className="flex gap-2">
+                                <button onClick={() => setSelectedBodyIndex(null)} className="text-xs bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-white border border-slate-700">Deselect</button>
+                            </div>
+                        </div>
+
+                        {/* Editable Properties */}
+                        <div className="space-y-4">
+                            {/* Position */}
+                            <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                                <div className="text-slate-400 text-xs mb-2 uppercase tracking-wider">Position</div>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {['x', 'y', 'z'].map(axis => (
+                                        <div key={axis}>
+                                            <div className="text-xs text-slate-500 mb-1 uppercase">{axis}</div>
+                                            <EditableValue field={axis} value={bodyStats[axis]} editing={editing} setEditing={setEditing} editValue={editValue} setEditValue={setEditValue} onApply={applyEdit} />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Velocity */}
+                            <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                                <div className="text-slate-400 text-xs mb-2 uppercase tracking-wider flex justify-between">
+                                    <span>Velocity</span>
+                                    <span className="text-emerald-400">{Math.sqrt(bodyStats.vx ** 2 + bodyStats.vy ** 2 + bodyStats.vz ** 2).toFixed(3)} m/s</span>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {['vx', 'vy', 'vz'].map(axis => (
+                                        <div key={axis}>
+                                            <div className="text-xs text-slate-500 mb-1 uppercase">{axis}</div>
+                                            <EditableValue field={axis} value={bodyStats[axis]} editing={editing} setEditing={setEditing} editValue={editValue} setEditValue={setEditValue} onApply={applyEdit} />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Mass */}
+                            <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                                <div className="text-slate-400 text-xs mb-2 uppercase tracking-wider">Physical Properties</div>
+                                <div>
+                                    <div className="text-xs text-slate-500 mb-1">Mass</div>
+                                    <EditableValue field="mass" value={bodyStats.mass} editing={editing} setEditing={setEditing} editValue={editValue} setEditValue={setEditValue} onApply={applyEdit} />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-blue-900/20 border border-blue-800 rounded p-3 text-xs text-blue-200">
+                            💡 Click any number to edit its value. Press Enter to apply.
+                        </div>
+                    </div>
+                )}
             </div>
-        </div>
-    );
-};
-
-// --- Isolated Components for Performance ---
-
-const TimeDisplay = ({ statsRef }) => {
-    const [time, setTime] = useState(0);
-    useEffect(() => {
-        const interval = setInterval(() => {
-            if (statsRef.current) setTime(statsRef.current.time);
-        }, 100);
-        return () => clearInterval(interval);
-    }, []);
-    return <span className="text-xs font-mono text-slate-500">T: {time.toFixed(2)}</span>;
-};
-
-const EnergyDisplay = ({ statsRef }) => {
-    const [energy, setEnergy] = useState(0);
-    useEffect(() => {
-        const interval = setInterval(() => {
-            if (statsRef.current) setEnergy(statsRef.current.totalEnergy);
-        }, 200);
-        return () => clearInterval(interval);
-    }, []);
-    return <div className="text-lg font-mono text-emerald-400 truncate">{energy.toFixed(4)}</div>;
-};
-
-const StatusFooter = ({ statsRef, physicsMode, collisionMode, useWorker, workerActive }) => {
-    const [bodyCount, setBodyCount] = useState(0);
-    useEffect(() => {
-        const interval = setInterval(() => {
-            if (statsRef.current) setBodyCount(statsRef.current.bodyCount);
-        }, 200);
-        return () => clearInterval(interval);
-    }, []);
-    return (
-        <div className="absolute bottom-4 left-4 pointer-events-none text-xs text-slate-500 flex gap-4 z-10 bg-slate-900/50 p-2 rounded backdrop-blur-sm border border-slate-800/50">
-            <span>Engine: {physicsMode}</span>
-            <span>Collisions: {collisionMode === 'off' ? 'OFF' : collisionMode === 'elastic' ? 'Elastic' : 'Merge'}</span>
-            {useWorker && <span className={workerActive ? 'text-green-400' : 'text-yellow-400'}>
-                Worker: {workerActive ? 'Active' : 'Pending'}
-            </span>}
-            <span className="text-white font-bold">Active Bodies: {bodyCount}</span>
         </div>
     );
 };
@@ -3455,7 +3367,7 @@ const CanvasLineChart = ({ dataRef }) => {
             cancelAnimationFrame(animationId);
             resizeObserver.disconnect();
         };
-    }, []);
+    }, [dataRef]);
 
     return (
         <div ref={containerRef} className="w-full h-full">
@@ -3589,7 +3501,7 @@ const CanvasScatterPlot = ({ dataRef, selectedBodyIndex }) => {
             cancelAnimationFrame(animationId);
             resizeObserver.disconnect();
         };
-    }, [selectedBodyIndex]);
+    }, [selectedBodyIndex, dataRef]);
 
     return (
         <div ref={containerRef} className="w-full h-full">
@@ -3599,262 +3511,7 @@ const CanvasScatterPlot = ({ dataRef, selectedBodyIndex }) => {
 };
 
 // Memoize AnalysisPanel - Draggable floating window
-const AnalysisPanel = React.memo(({ dataRef, onClose, selectedBodyIndex, containerRef }) => {
-    const panelRef = useRef(null);
-    const [isCompactLayout, setIsCompactLayout] = useState(false);
 
-    // Position from top-left corner (like normal windows)
-    const [position, setPosition] = useState({ x: 16, y: null }); // null = will initialize on mount
-    const [size, setSize] = useState({ width: 800, height: 320 });
-    const [isDragging, setIsDragging] = useState(false);
-    const [isResizing, setIsResizing] = useState(false);
-    const dragRef = useRef({ startMouseX: 0, startMouseY: 0, startPosX: 0, startPosY: 0 });
-    const resizeRef = useRef({ startMouseX: 0, startMouseY: 0, startX: 0, startY: 0, startW: 0, startH: 0, edge: null });
-
-    // Initialize position on mount (position near bottom of container)
-    useEffect(() => {
-        if (position.y === null && containerRef?.current) {
-            const containerHeight = containerRef.current.clientHeight;
-            // Position so bottom of panel is ~64px from container bottom
-            const initialY = Math.max(16, containerHeight - size.height - 64);
-            setPosition(prev => ({ ...prev, y: initialY }));
-        }
-    }, [containerRef, size.height]);
-
-    useEffect(() => {
-        if (typeof window === 'undefined' || !panelRef.current) return;
-        const observer = new ResizeObserver((entries) => {
-            const entry = entries[0];
-            if (!entry) return;
-            setIsCompactLayout(entry.contentRect.width < 500);
-        });
-        observer.observe(panelRef.current);
-        return () => observer.disconnect();
-    }, []);
-
-    // Drag handlers
-    const handleDragStart = (e) => {
-        if (e.target.closest('button') || e.target.closest('.resize-handle')) return;
-        e.preventDefault();
-        e.stopPropagation();
-        dragRef.current = {
-            startMouseX: e.clientX,
-            startMouseY: e.clientY,
-            startPosX: position.x,
-            startPosY: position.y
-        };
-        setIsDragging(true);
-        document.body.style.cursor = 'grabbing';
-        document.body.style.userSelect = 'none';
-    };
-
-    const getCursorForEdge = (edge) => {
-        if (edge === 'n' || edge === 's') return 'ns-resize';
-        if (edge === 'e' || edge === 'w') return 'ew-resize';
-        if (edge === 'nw' || edge === 'se') return 'nwse-resize';
-        if (edge === 'ne' || edge === 'sw') return 'nesw-resize';
-        return 'default';
-    };
-
-    const handleResizeStart = (e, edge) => {
-        e.preventDefault();
-        e.stopPropagation();
-        resizeRef.current = {
-            startMouseX: e.clientX,
-            startMouseY: e.clientY,
-            startX: position.x,
-            startY: position.y,
-            startW: size.width,
-            startH: size.height,
-            edge
-        };
-        setIsResizing(true);
-        document.body.style.cursor = getCursorForEdge(edge);
-        document.body.style.userSelect = 'none';
-    };
-
-    useEffect(() => {
-        if (!isDragging && !isResizing) return;
-
-        const handleMouseMove = (e) => {
-            if (isDragging && containerRef?.current) {
-                const container = containerRef.current.getBoundingClientRect();
-
-                const deltaX = e.clientX - dragRef.current.startMouseX;
-                const deltaY = e.clientY - dragRef.current.startMouseY;
-
-                let newX = dragRef.current.startPosX + deltaX;
-                let newY = dragRef.current.startPosY + deltaY;
-
-                // Clamp to container bounds
-                newX = Math.max(0, Math.min(newX, container.width - size.width));
-                newY = Math.max(0, Math.min(newY, container.height - size.height));
-
-                setPosition({ x: newX, y: newY });
-            }
-
-            if (isResizing && containerRef?.current) {
-                const deltaX = e.clientX - resizeRef.current.startMouseX;
-                const deltaY = e.clientY - resizeRef.current.startMouseY;
-                const edge = resizeRef.current.edge;
-                const minW = 400;
-                const minH = 200;
-
-                let newX = resizeRef.current.startX;
-                let newY = resizeRef.current.startY;
-                let newW = resizeRef.current.startW;
-                let newH = resizeRef.current.startH;
-
-                // East edge: expand width to the right
-                if (edge.includes('e')) {
-                    newW = Math.max(minW, resizeRef.current.startW + deltaX);
-                }
-
-                // West edge: expand width to the left (move x and adjust width)
-                if (edge.includes('w')) {
-                    const maxDelta = resizeRef.current.startW - minW;
-                    const clampedDelta = Math.max(-resizeRef.current.startX, Math.min(deltaX, maxDelta));
-                    newX = resizeRef.current.startX + clampedDelta;
-                    newW = resizeRef.current.startW - clampedDelta;
-                }
-
-                // South edge: expand height downward
-                if (edge.includes('s')) {
-                    newH = Math.max(minH, resizeRef.current.startH + deltaY);
-                }
-
-                // North edge: expand height upward (move y and adjust height)
-                if (edge.includes('n')) {
-                    const maxDelta = resizeRef.current.startH - minH;
-                    const clampedDelta = Math.max(-resizeRef.current.startY, Math.min(deltaY, maxDelta));
-                    newY = resizeRef.current.startY + clampedDelta;
-                    newH = resizeRef.current.startH - clampedDelta;
-                }
-
-                setPosition({ x: newX, y: newY });
-                setSize({ width: newW, height: newH });
-            }
-        };
-
-        const handleMouseUp = () => {
-            setIsDragging(false);
-            setIsResizing(false);
-            document.body.style.cursor = '';
-            document.body.style.userSelect = '';
-        };
-
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [isDragging, isResizing, containerRef, size.width, size.height]);
-
-    const layoutClass = isCompactLayout ? 'flex-col' : 'flex-row';
-    const primarySectionClass = 'flex-1 flex flex-col min-w-0 min-h-0';
-    const secondarySectionBase = isCompactLayout
-        ? 'border-t border-slate-700 pt-3'
-        : 'border-l border-slate-700 pl-3';
-    const secondarySectionClass = `flex-1 flex flex-col min-w-0 min-h-0 ${secondarySectionBase}`;
-
-    const panelStyle = {
-        left: `${position.x}px`,
-        top: `${position.y ?? 100}px`,
-        width: `${size.width}px`,
-        height: `${size.height}px`,
-    };
-
-    // Stop propagation to prevent camera rotation
-    const blockCameraInteraction = (e) => {
-        e.stopPropagation();
-    };
-
-    return (
-        <div
-            ref={panelRef}
-            className="absolute bg-slate-900/95 border border-slate-600 rounded-lg shadow-2xl backdrop-blur-sm z-30 overflow-hidden"
-            style={panelStyle}
-            onMouseDown={blockCameraInteraction}
-        >
-            {/* Draggable Title Bar */}
-            <div
-                className="absolute top-0 left-0 right-0 h-8 bg-slate-800/90 border-b border-slate-700 flex items-center justify-between px-3 cursor-grab active:cursor-grabbing rounded-t-lg z-10"
-                onMouseDown={handleDragStart}
-            >
-                <span className="text-xs font-semibold text-slate-300 select-none flex items-center gap-2">
-                    <Activity className="w-3 h-3 text-blue-400" />
-                    Analysis Dashboard
-                </span>
-                <button
-                    onClick={onClose}
-                    className="text-slate-400 hover:text-white hover:bg-slate-700 rounded p-0.5 transition-colors"
-                >
-                    <X className="w-3.5 h-3.5" />
-                </button>
-            </div>
-
-            {/* Content Area - fills remaining space below title bar */}
-            <div
-                className={`absolute top-8 left-0 right-0 bottom-0 flex ${layoutClass} gap-3 p-3`}
-            >
-                <div className={primarySectionClass}>
-                    <h3 className="text-xs font-bold text-slate-300 mb-2 flex items-center gap-2">
-                        <Activity className="w-3 h-3" /> Energy Conservation
-                    </h3>
-                    <div className="flex-1 min-h-0 bg-slate-950 rounded">
-                        <CanvasLineChart dataRef={dataRef} />
-                    </div>
-                </div>
-                <div className={secondarySectionClass}>
-                    <h3 className="text-xs font-bold text-slate-300 mb-2 flex items-center gap-2">
-                        <Move3d className="w-3 h-3" /> Phase Space (Body {selectedBodyIndex !== null ? selectedBodyIndex + 1 : 1})
-                        <span className="text-[10px] font-normal text-slate-500 ml-auto">Pos (X) vs Momentum (Px)</span>
-                    </h3>
-                    <div className="flex-1 min-h-0 bg-slate-950 rounded">
-                        <CanvasScatterPlot dataRef={dataRef} selectedBodyIndex={selectedBodyIndex} />
-                    </div>
-                </div>
-            </div>
-
-            {/* Resize Handles - All edges and corners like a real window */}
-            {/* Corners */}
-            <div
-                className="resize-handle absolute bottom-0 right-0 w-3 h-3 cursor-nwse-resize z-20"
-                onMouseDown={(e) => handleResizeStart(e, 'se')}
-            />
-            <div
-                className="resize-handle absolute bottom-0 left-0 w-3 h-3 cursor-nesw-resize z-20"
-                onMouseDown={(e) => handleResizeStart(e, 'sw')}
-            />
-            <div
-                className="resize-handle absolute top-0 right-0 w-3 h-3 cursor-nesw-resize z-20"
-                onMouseDown={(e) => handleResizeStart(e, 'ne')}
-            />
-            <div
-                className="resize-handle absolute top-0 left-0 w-3 h-3 cursor-nwse-resize z-20"
-                onMouseDown={(e) => handleResizeStart(e, 'nw')}
-            />
-            {/* Edges */}
-            <div
-                className="resize-handle absolute top-3 bottom-3 right-0 w-1 cursor-ew-resize hover:bg-blue-500/30"
-                onMouseDown={(e) => handleResizeStart(e, 'e')}
-            />
-            <div
-                className="resize-handle absolute top-3 bottom-3 left-0 w-1 cursor-ew-resize hover:bg-blue-500/30"
-                onMouseDown={(e) => handleResizeStart(e, 'w')}
-            />
-            <div
-                className="resize-handle absolute bottom-0 left-3 right-3 h-1 cursor-ns-resize hover:bg-blue-500/30"
-                onMouseDown={(e) => handleResizeStart(e, 's')}
-            />
-            <div
-                className="resize-handle absolute top-0 left-3 right-3 h-1 cursor-ns-resize hover:bg-blue-500/30"
-                onMouseDown={(e) => handleResizeStart(e, 'n')}
-            />
-        </div>
-    );
-});
 
 // Body Labels Overlay - HTML labels positioned over 3D bodies
 const BodyLabelsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, selectedBodyIndex, cameraMode, cameraTargetIdx }) => {
@@ -3928,7 +3585,7 @@ const BodyLabelsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, selectedB
                         }}
                     >
                         Body {pos.index + 1}
-                        <span className="text-slate-400 ml-1 font-normal">m={pos.mass.toFixed(1)}</span>
+                        <span className="text-slate-400 ml-1 font-normal">m={pos.mass.toFixed(3)}</span>
                     </div>
                 )
             ))}
