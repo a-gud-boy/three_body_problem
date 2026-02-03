@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Play, Pause, RotateCcw, Info, Activity, Settings, MousePointer2, Move3d, Globe, Sparkles, Plus, Hand, Merge, Calculator, X, Target, Eye, Video, LineChart as LineChartIcon, Clock, Download, HelpCircle, Upload, Trash2, Tag, Maximize, Minimize, Camera, ArrowRight, PanelRightClose, PanelRightOpen, Cpu, Rewind, SkipForward, Bookmark, Zap } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Play, Pause, RotateCcw, Info, Activity, Settings, MousePointer2, Move3d, Globe, Sparkles, Plus, Hand, Merge, Calculator, X, Target, Eye, Video, LineChart as LineChartIcon, Clock, Download, HelpCircle, Upload, Trash2, Tag, Maximize, Minimize, Camera, ArrowRight, PanelRightClose, PanelRightOpen, Cpu, Rewind, SkipForward, Bookmark, Zap, Home } from 'lucide-react';
 import { usePhysicsWorker } from './hooks/usePhysicsWorker';
 
 const DEFAULT_PANEL_WIDTH = 380;
@@ -282,7 +283,7 @@ const App = () => {
     const [physicsMode, setPhysicsMode] = useState('EULER');
     const [selectedBodyIndex, setSelectedBodyIndex] = useState(null);
     const [forceUpdateToken, setForceUpdateToken] = useState(0);
-    const [showProperties, setShowProperties] = useState(true);
+    const [showProperties, setShowProperties] = useState(false);
     const [performanceMode, setPerformanceMode] = useState(true); // Simple trails by default
 
 
@@ -290,7 +291,7 @@ const App = () => {
     const [showLabels, setShowLabels] = useState(true);
     const [showVelocityVectors, setShowVelocityVectors] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
-    const [showPanel, setShowPanel] = useState(true);
+    const [showPanel, setShowPanel] = useState(false);
     const [panelWidth, setPanelWidth] = useState(() => getStoredPanelWidth());
     const panelResizeRef = useRef({ isResizing: false, startX: 0, startWidth: 0 });
     const [isPanelResizing, setIsPanelResizing] = useState(false);
@@ -1949,10 +1950,9 @@ const App = () => {
             const object = intersects[0].object;
             const index = meshRefs.current.indexOf(object);
 
-            // ALWAYS select the body if paused (View or Drag mode)
-            if (!isPlaying) {
-                setSelectedBodyIndex(index);
-            }
+            // Select the body and show properties panel
+            setSelectedBodyIndex(index);
+            setShowProperties(true);
 
             // Check if we CAN drag (Paused + Drag Mode + Left Click)
             if (dragMode && !isPlaying && e.button === 0) {
@@ -2227,11 +2227,18 @@ const App = () => {
                 {!threeLoaded && <div className="absolute inset-0 flex items-center justify-center text-blue-400">Loading 3D Engine...</div>}
 
                 {/* Top Left Overlay */}
-                <div className="absolute top-4 left-4 pointer-events-none select-none z-10">
-                    <h1 className="text-2xl font-bold text-slate-200 opacity-90 drop-shadow-lg flex items-center gap-2">
+                <div className="absolute top-4 left-4 z-10">
+                    <Link
+                        to="/"
+                        className="inline-flex items-center gap-2 px-3 py-1.5 mb-3 bg-slate-800/80 hover:bg-slate-700 border border-slate-600/50 rounded-lg text-slate-300 hover:text-white text-sm font-medium transition-all pointer-events-auto backdrop-blur-sm"
+                    >
+                        <Home className="w-4 h-4" />
+                        Back to Hub
+                    </Link>
+                    <h1 className="text-2xl font-bold text-slate-200 opacity-90 drop-shadow-lg flex items-center gap-2 pointer-events-none select-none">
                         Three-Body Problem <span className="text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded">3D</span>
                     </h1>
-                    <p className="text-sm text-slate-400 drop-shadow-md mt-1">
+                    <p className="text-sm text-slate-400 drop-shadow-md mt-1 pointer-events-none select-none">
                         {isPlaying
                             ? "Running... Dragging disabled."
                             : dragMode
@@ -2978,11 +2985,12 @@ const PropertiesPanel = ({
     // Switch to Selection tab if a body is selected
     useEffect(() => {
         if (selectedBodyIndex !== null) {
-            // Use requestAnimationFrame to avoid synchronous setState during render/effect phase
-            // or simply use the fact that this is side-effect of selection
-            requestAnimationFrame(() => setActiveTab('selection'));
+            requestAnimationFrame(() => {
+                setActiveTab('selection');
+                setShowProperties(true);
+            });
         }
-    }, [selectedBodyIndex]);
+    }, [selectedBodyIndex, setShowProperties]);
 
     // Update interval
     useEffect(() => {
