@@ -1,0 +1,220 @@
+/* Compound Builder Styles */
+
+.compound-builder {
+    background: rgba(20, 20, 30, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.builder-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.builder-header h3 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0;
+}
+
+.clear-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.6rem;
+    background: rgba(255, 107, 107, 0.15);
+    border: 1px solid rgba(255, 107, 107, 0.3);
+    border-radius: 6px;
+    color: #ff6b6b;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.clear-btn:hover {
+    background: rgba(255, 107, 107, 0.25);
+}
+
+/* Atom List */
+.atom-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-height: 60px;
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+}
+
+.empty-text {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.85rem;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+
+.atom-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.5rem;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    animation: chipIn 0.2s ease;
+}
+
+@keyframes chipIn {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.atom-chip-symbol {
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.atom-chip-name {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.remove-atom-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: none;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-left: 0.25rem;
+}
+
+.remove-atom-btn:hover {
+    background: rgba(255, 107, 107, 0.3);
+    color: #ff6b6b;
+}
+
+/* Compound Info Panel */
+.compound-info-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.formula-display {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.formula-label {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.formula-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #4dabf7;
+}
+
+.compound-stats {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.stat-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 0.5rem;
+    border-radius: 6px;
+    text-align: center;
+}
+
+.stat-label {
+    font-size: 0.6rem;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+}
+
+.stat-value {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #fff;
+}
+
+/* Composition Breakdown */
+.composition-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.breakdown-label {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+}
+
+.breakdown-bars {
+    display: flex;
+    height: 24px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.breakdown-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(77, 171, 247, 0.4) 0%, rgba(77, 171, 247, 0.2) 100%);
+    border-right: 1px solid rgba(0, 0, 0, 0.3);
+    min-width: 20px;
+    transition: width 0.3s ease;
+}
+
+.breakdown-bar:nth-child(2n) {
+    background: linear-gradient(135deg, rgba(218, 119, 242, 0.4) 0%, rgba(218, 119, 242, 0.2) 100%);
+}
+
+.breakdown-bar:nth-child(3n) {
+    background: linear-gradient(135deg, rgba(105, 219, 124, 0.4) 0%, rgba(105, 219, 124, 0.2) 100%);
+}
+
+.breakdown-bar:last-child {
+    border-right: none;
+}
+
+.bar-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+}

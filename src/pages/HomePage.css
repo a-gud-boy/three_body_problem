@@ -690,6 +690,35 @@
   letter-spacing: 0.03em;
 }
 
+.available-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 6px;
+  font-size: 0.7rem;
+  color: var(--accent-green);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+a.sim-card {
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a.sim-card.available {
+  opacity: 1;
+}
+
+a.sim-card.available:hover {
+  border-color: rgba(16, 185, 129, 0.3);
+  box-shadow: 0 0 30px rgba(16, 185, 129, 0.1);
+}
+
 /* Footer */
 .footer {
   text-align: center;

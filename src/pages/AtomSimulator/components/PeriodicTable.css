@@ -1,0 +1,191 @@
+/* Periodic Table Styles */
+
+.periodic-table-container {
+    background: rgba(20, 20, 30, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1.5rem;
+}
+
+.periodic-table-container.compact {
+    padding: 1rem;
+}
+
+.periodic-table-header {
+    margin-bottom: 1rem;
+}
+
+.periodic-table-header h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0 0 1rem;
+}
+
+.compact .periodic-table-header h2 {
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Category Legend */
+.category-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.legend-color {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+}
+
+.legend-name {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* Periodic Table Grid */
+.periodic-table-grid {
+    display: grid;
+    grid-template-columns: repeat(18, 1fr);
+    grid-template-rows: repeat(9, 1fr);
+    gap: 3px;
+    min-width: 700px;
+}
+
+.periodic-table-grid.compact {
+    gap: 2px;
+    min-width: 500px;
+}
+
+/* Series Placeholders */
+.series-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    color: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 4px;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+/* Element Cell */
+.element-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 2px;
+    min-height: 48px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    background: var(--element-bg);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.element-cell.compact {
+    min-height: 32px;
+    padding: 2px;
+}
+
+.element-cell::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.element-cell:hover {
+    transform: scale(1.1);
+    z-index: 10;
+    border-color: var(--element-color);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3),
+        0 0 15px color-mix(in srgb, var(--element-color) 30%, transparent);
+}
+
+.element-cell:hover::before {
+    opacity: 1;
+}
+
+.element-cell.selected {
+    border-color: var(--element-color);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--element-color) 40%, transparent),
+        0 0 20px color-mix(in srgb, var(--element-color) 20%, transparent);
+}
+
+.element-number {
+    font-size: 0.55rem;
+    color: rgba(255, 255, 255, 0.5);
+    position: absolute;
+    top: 2px;
+    left: 3px;
+}
+
+.compact .element-number {
+    font-size: 0.5rem;
+}
+
+.element-symbol {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--element-color);
+    line-height: 1;
+}
+
+.compact .element-symbol {
+    font-size: 0.8rem;
+}
+
+.element-mass {
+    font-size: 0.5rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin-top: 1px;
+}
+
+/* Series Labels */
+.series-labels {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.5rem;
+    padding-left: 0.5rem;
+}
+
+.series-label {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.4);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+.series-label.lanthanide {
+    background: rgba(229, 153, 247, 0.1);
+    color: #e599f7;
+}
+
+.series-label.actinide {
+    background: rgba(255, 135, 135, 0.1);
+    color: #ff8787;
+}
+
+/* Responsive - allow horizontal scroll */
+.periodic-table-container {
+    overflow-x: auto;
+}
+
+.compact .series-labels {
+    display: none;
+}

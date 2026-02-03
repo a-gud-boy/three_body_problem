@@ -1,0 +1,209 @@
+/* Element Info Styles */
+
+.element-info {
+    background: rgba(20, 20, 30, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1.5rem;
+}
+
+/* Header */
+.element-info-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.element-big-symbol {
+    font-size: 3rem;
+    font-weight: 700;
+    color: var(--category-color);
+    line-height: 1;
+    text-shadow: 0 0 20px color-mix(in srgb, var(--category-color) 40%, transparent);
+}
+
+.element-header-details h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #fff;
+    margin: 0 0 0.5rem;
+}
+
+.element-category-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+
+/* Info Sections */
+.info-section {
+    margin-bottom: 1.5rem;
+}
+
+.info-section:last-child {
+    margin-bottom: 0;
+}
+
+.info-section h3 {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 0.75rem;
+}
+
+/* Property Grid */
+.property-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+}
+
+.property-item {
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+}
+
+.property-label {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.property-value {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #fff;
+}
+
+.property-value.proton {
+    color: #ff6b6b;
+}
+
+.property-value.neutron {
+    color: #868e96;
+}
+
+.property-value.electron {
+    color: #4dabf7;
+}
+
+/* Electron Configuration */
+.electron-config {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+}
+
+.electron-config code {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.85rem;
+    color: #4dabf7;
+}
+
+/* Shell Diagram */
+.shell-diagram {
+    position: relative;
+    height: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.shell-ring {
+    position: absolute;
+    width: var(--ring-size);
+    height: var(--ring-size);
+    border: 1px dashed rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+}
+
+.shell-label {
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.6rem;
+    color: rgba(255, 255, 255, 0.4);
+    background: rgba(20, 20, 30, 0.9);
+    padding: 0 4px;
+}
+
+.shell-nucleus {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, #ff6b6b 0%, #cc5555 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #fff;
+    z-index: 1;
+}
+
+/* Orbital Filling */
+.orbital-filling {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.orbital-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.orbital-name {
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.7);
+    width: 30px;
+}
+
+.orbital-boxes {
+    display: flex;
+    gap: 2px;
+}
+
+.orbital-box {
+    width: 24px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+}
+
+.arrow {
+    font-size: 0.8rem;
+    line-height: 1;
+}
+
+.arrow.up {
+    color: #4dabf7;
+}
+
+.arrow.down {
+    color: #da77f2;
+}
+
+.orbital-count {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin-left: auto;
+}

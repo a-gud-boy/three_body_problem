@@ -65,11 +65,12 @@ function AnimatedBackground() {
 const simulations = [
     {
         id: 'atomic-structure',
-        title: 'Atomic Structure',
-        description: 'Dive into the quantum world and visualize electron probability clouds.',
+        title: 'Atom Simulator',
+        description: 'Visualize atomic structure with Bohr model and electron probability clouds. Build and explore compounds.',
         icon: '⚛️',
         iconBg: 'rgba(59, 130, 246, 0.15)',
-        status: 'coming-soon',
+        status: 'available',
+        path: '/atom-simulator',
     },
     {
         id: 'nuclear-physics',
@@ -205,19 +206,40 @@ function OrbitalAnimation() {
 }
 
 function SimCard({ simulation }) {
-    const { title, description, icon, iconBg, status } = simulation;
+    const { title, description, icon, iconBg, status, path } = simulation;
 
-    return (
-        <div className={`sim-card ${status === 'coming-soon' ? 'disabled' : ''}`}>
+    const content = (
+        <>
             <div className="sim-icon" style={{ background: iconBg }}>
                 {icon}
             </div>
             <h3 className="sim-card-title">{title}</h3>
             <p className="sim-card-desc">{description}</p>
-            <div className="coming-soon-badge">
-                <Lock size={10} />
-                Coming Soon
-            </div>
+            {status === 'coming-soon' ? (
+                <div className="coming-soon-badge">
+                    <Lock size={10} />
+                    Coming Soon
+                </div>
+            ) : (
+                <div className="available-badge">
+                    <Sparkles size={10} />
+                    Available
+                </div>
+            )}
+        </>
+    );
+
+    if (status === 'available' && path) {
+        return (
+            <Link to={path} className="sim-card available">
+                {content}
+            </Link>
+        );
+    }
+
+    return (
+        <div className={`sim-card ${status === 'coming-soon' ? 'disabled' : ''}`}>
+            {content}
         </div>
     );
 }
