@@ -10,20 +10,32 @@
 // Softening parameter to prevent singularities
 const SOFTENING = 0.1;
 
+// Reusable buffer for accelerations to avoid GC
+let accelerationBuffer = new Float32Array(0);
+
 /**
  * Calculate accelerations for all bodies (Euler integrator)
  */
 function calculateAccelerations(bodies, G, coulombK, skipIndex) {
-    const accelerations = new Array(bodies.length);
-    for(let i=0; i<bodies.length; i++) {
-        accelerations[i] = { ax: 0, ay: 0, az: 0 };
+    const requiredSize = bodies.length * 3;
+    if (accelerationBuffer.length < requiredSize) {
+        accelerationBuffer = new Float32Array(requiredSize);
     }
+    // Zero out buffer
+    accelerationBuffer.fill(0, 0, requiredSize);
 
     for (let i = 0; i < bodies.length; i++) {
+        const i3 = i * 3;
+        const b_i = bodies[i];
+        let ax_i = 0;
+        let ay_i = 0;
+        let az_i = 0;
+
         for (let j = i + 1; j < bodies.length; j++) {
-            const dx = bodies[j].x - bodies[i].x;
-            const dy = bodies[j].y - bodies[i].y;
-            const dz = bodies[j].z - bodies[i].z;
+            const b_j = bodies[j];
+            const dx = b_j.x - b_i.x;
+            const dy = b_j.y - b_i.y;
+            const dz = b_j.z - b_i.z;
             const distSq = dx * dx + dy * dy + dz * dz + SOFTENING * SOFTENING;
             const dist = Math.sqrt(distSq);
             const invDist = 1.0 / dist;
@@ -31,50 +43,56 @@ function calculateAccelerations(bodies, G, coulombK, skipIndex) {
             const commonFact = G / distSq * invDist;
 
             let coulombForce = 0;
-            if (coulombK && bodies[i].charge && bodies[j].charge) {
-                 coulombForce = -1 * (coulombK * bodies[i].charge * bodies[j].charge) / distSq;
+            if (coulombK && b_i.charge && b_j.charge) {
+                 coulombForce = -1 * (coulombK * b_i.charge * b_j.charge) / distSq;
             }
 
             // Apply to i
             if (i !== skipIndex) {
-                let termI = bodies[j].mass * commonFact;
+                let termI = b_j.mass * commonFact;
                 if (coulombForce !== 0) {
-                    termI += (coulombForce / bodies[i].mass) * invDist;
+                    termI += (coulombForce / b_i.mass) * invDist;
                 }
-                accelerations[i].ax += termI * dx;
-                accelerations[i].ay += termI * dy;
-                accelerations[i].az += termI * dz;
+                ax_i += termI * dx;
+                ay_i += termI * dy;
+                az_i += termI * dz;
             }
 
             // Apply to j
             if (j !== skipIndex) {
-                let termJ = bodies[i].mass * commonFact;
+                let termJ = b_i.mass * commonFact;
                 if (coulombForce !== 0) {
-                    termJ += (coulombForce / bodies[j].mass) * invDist;
+                    termJ += (coulombForce / b_j.mass) * invDist;
                 }
-                accelerations[j].ax -= termJ * dx;
-                accelerations[j].ay -= termJ * dy;
-                accelerations[j].az -= termJ * dz;
+                const j3 = j * 3;
+                accelerationBuffer[j3] -= termJ * dx;
+                accelerationBuffer[j3 + 1] -= termJ * dy;
+                accelerationBuffer[j3 + 2] -= termJ * dz;
             }
         }
-    }
 
-    return accelerations;
+        if (i !== skipIndex) {
+            accelerationBuffer[i3] += ax_i;
+            accelerationBuffer[i3 + 1] += ay_i;
+            accelerationBuffer[i3 + 2] += az_i;
+        }
+    }
 }
 
 /**
  * Symplectic Euler Integration (velocity then position)
  */
 function integrateEuler(bodies, dt, G, coulombK, skipIndex) {
-    const accelerations = calculateAccelerations(bodies, G, coulombK, skipIndex);
+    calculateAccelerations(bodies, G, coulombK, skipIndex);
 
     for (let i = 0; i < bodies.length; i++) {
         if (i === skipIndex) continue;
 
+        const i3 = i * 3;
         // Update velocity
-        bodies[i].vx += accelerations[i].ax * dt;
-        bodies[i].vy += accelerations[i].ay * dt;
-        bodies[i].vz += accelerations[i].az * dt;
+        bodies[i].vx += accelerationBuffer[i3] * dt;
+        bodies[i].vy += accelerationBuffer[i3 + 1] * dt;
+        bodies[i].vz += accelerationBuffer[i3 + 2] * dt;
 
         // Update position
         bodies[i].x += bodies[i].vx * dt;
