@@ -54,12 +54,16 @@ export default function CompoundVisualizer({ compound, atoms, visualizationMode 
 
     // Prepare data directly from inputs
     const renderData = compound ? compound : (atoms && atoms.length > 0 ? {
-        atoms: atoms.map((a, i) => ({
-            element: a.element.symbol,
-            x: (i % 5) * 1.5 - 3,
-            y: Math.floor(i / 5) * 1.5 - 1,
-            z: 0 // Ignored in 2D
-        })),
+        atoms: atoms.map((a, i) => {
+            const angle = (i / atoms.length) * Math.PI * 2;
+            const radius = atoms.length > 1 ? 1.0 + (atoms.length * 0.1) : 0;
+            return {
+                element: a.element.symbol,
+                x: Math.cos(angle) * radius,
+                y: Math.sin(angle) * radius,
+                z: 0
+            };
+        }),
         bonds: []
     } : null);
 

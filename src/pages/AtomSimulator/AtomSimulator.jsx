@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Atom, FlaskConical, BookOpen, Eye, Layers, Zap } from 'lucide-react';
 import { ELEMENTS, ELEMENT_CATEGORIES, getElementById, getElectronShells, getOrbitalConfiguration } from '../../data/elementsData';
-import { DEMO_COMPOUNDS, getCompoundById } from '../../data/compoundsData';
+import { DEMO_COMPOUNDS, getCompoundById, findMatchingCompound } from '../../data/compoundsData';
 import PeriodicTable from './components/PeriodicTable';
 import AtomVisualizer from './components/AtomVisualizer';
 import ElementInfo from './components/ElementInfo';
@@ -175,12 +175,16 @@ export default function AtomSimulator() {
                             />
                         )}
 
-                        {mode === MODES.COMPOUND && compoundAtoms.length > 0 && (
-                            <CompoundVisualizer
-                                atoms={compoundAtoms}
-                                visualizationMode={visualizationMode}
-                            />
-                        )}
+                        {mode === MODES.COMPOUND && compoundAtoms.length > 0 && (() => {
+                            const matchedCompound = findMatchingCompound(compoundAtoms);
+                            return (
+                                <CompoundVisualizer
+                                    atoms={compoundAtoms}
+                                    compound={matchedCompound}
+                                    visualizationMode={visualizationMode}
+                                />
+                            );
+                        })()}
 
                         {mode === MODES.DEMOS && selectedCompound && (
                             <CompoundVisualizer

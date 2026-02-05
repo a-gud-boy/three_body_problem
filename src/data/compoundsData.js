@@ -339,8 +339,8 @@ export const DEMO_COMPOUNDS = [
         description: 'Desiccant and de-icing agent. Highly hygroscopic.',
         atoms: [
             { element: 'Ca', x: 0, y: 0, z: 0 },
-            { element: 'Cl', x: -2.04, y: 0, z: 0 },
-            { element: 'Cl', x: 2.04, y: 0, z: 0 },
+            { element: 'Cl', x: -1.75, y: 0, z: 0 },
+            { element: 'Cl', x: 1.75, y: 0, z: 0 },
         ],
         bonds: [
             { from: 0, to: 1, order: 1, type: 'ionic' },
@@ -481,4 +481,36 @@ export function generateFormula(atomCounts) {
         const subscript = count.toString().split('').map(d => '₀₁₂₃₄₅₆₇₈₉'[d]).join('');
         return symbol + subscript;
     }).join('');
+}
+
+// Find a matching demo compound based on a list of atoms
+export function findMatchingCompound(atoms) {
+    if (!atoms || atoms.length === 0) return null;
+
+    // Count atoms by element
+    const counts = atoms.reduce((acc, atom) => {
+        const symbol = atom.element.symbol;
+        acc[symbol] = (acc[symbol] || 0) + 1;
+        return acc;
+    }, {});
+
+    // Check against demo compounds
+    return DEMO_COMPOUNDS.find(compound => {
+        // First check total atom count
+        if (compound.atoms.length !== atoms.length) return false;
+
+        // Then check composition
+        const demoCounts = compound.atoms.reduce((acc, atom) => {
+            acc[atom.element] = (acc[atom.element] || 0) + 1;
+            return acc;
+        }, {});
+
+        // Compare counts
+        const demoKeys = Object.keys(demoCounts);
+        const userKeys = Object.keys(counts);
+
+        if (demoKeys.length !== userKeys.length) return false;
+
+        return demoKeys.every(key => demoCounts[key] === counts[key]);
+    });
 }
