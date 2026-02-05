@@ -12,8 +12,8 @@ export const DEMO_COMPOUNDS = [
         description: 'Essential for life. A polar molecule with bent geometry.',
         atoms: [
             { element: 'O', x: 0, y: 0, z: 0 },
-            { element: 'H', x: -0.96, y: 0, z: 0 },
-            { element: 'H', x: 0.24, y: 0.93, z: 0 },
+            { element: 'H', x: -0.88, y: 0, z: 0 },
+            { element: 'H', x: 0.22, y: 0.85, z: 0 },
         ],
         bonds: [
             { from: 0, to: 1, order: 1 },
@@ -36,8 +36,8 @@ export const DEMO_COMPOUNDS = [
         description: 'Greenhouse gas. Linear molecule with double bonds.',
         atoms: [
             { element: 'C', x: 0, y: 0, z: 0 },
-            { element: 'O', x: -1.16, y: 0, z: 0 },
-            { element: 'O', x: 1.16, y: 0, z: 0 },
+            { element: 'O', x: -1.17, y: 0, z: 0 },
+            { element: 'O', x: 1.17, y: 0, z: 0 },
         ],
         bonds: [
             { from: 0, to: 1, order: 2 },
@@ -60,7 +60,7 @@ export const DEMO_COMPOUNDS = [
         description: 'Table salt. Ionic compound forming cubic crystals.',
         atoms: [
             { element: 'Na', x: 0, y: 0, z: 0 },
-            { element: 'Cl', x: 2.36, y: 0, z: 0 },
+            { element: 'Cl', x: 1.75, y: 0, z: 0 },
         ],
         bonds: [
             { from: 0, to: 1, order: 1, type: 'ionic' },
@@ -81,10 +81,10 @@ export const DEMO_COMPOUNDS = [
         description: 'Simplest hydrocarbon. Tetrahedral geometry.',
         atoms: [
             { element: 'C', x: 0, y: 0, z: 0 },
-            { element: 'H', x: 0, y: 1.1, z: 0 },
-            { element: 'H', x: 1.1, y: 0, z: 0 },
-            { element: 'H', x: 0, y: -1.1, z: 0 },
-            { element: 'H', x: -1.1, y: 0, z: 0 },
+            { element: 'H', x: 0, y: 0.88, z: 0 },
+            { element: 'H', x: 0.88, y: 0, z: 0 },
+            { element: 'H', x: 0, y: -0.88, z: 0 },
+            { element: 'H', x: -0.88, y: 0, z: 0 },
         ],
         bonds: [
             { from: 0, to: 1, order: 1 },
@@ -109,9 +109,9 @@ export const DEMO_COMPOUNDS = [
         description: 'Pungent gas. Trigonal pyramidal geometry.',
         atoms: [
             { element: 'N', x: 0, y: -0.2, z: 0 },
-            { element: 'H', x: 0, y: 0.8, z: 0 },
-            { element: 'H', x: -0.9, y: 0.6, z: 0 },
-            { element: 'H', x: 0.9, y: 0.6, z: 0 },
+            { element: 'H', x: 0, y: 0.68, z: 0 },
+            { element: 'H', x: -0.66, y: 0.38, z: 0 },
+            { element: 'H', x: 0.66, y: 0.38, z: 0 },
         ],
         bonds: [
             { from: 0, to: 1, order: 1 },
@@ -134,8 +134,8 @@ export const DEMO_COMPOUNDS = [
         type: 'covalent',
         description: 'Essential for respiration. Double bond between atoms.',
         atoms: [
-            { element: 'O', x: -0.6, y: 0, z: 0 },
-            { element: 'O', x: 0.6, y: 0, z: 0 },
+            { element: 'O', x: -0.59, y: 0, z: 0 },
+            { element: 'O', x: 0.59, y: 0, z: 0 },
         ],
         bonds: [
             { from: 0, to: 1, order: 2 },
@@ -155,8 +155,8 @@ export const DEMO_COMPOUNDS = [
         type: 'covalent',
         description: '78% of atmosphere. Triple bond makes it very stable.',
         atoms: [
-            { element: 'N', x: -0.55, y: 0, z: 0 },
-            { element: 'N', x: 0.55, y: 0, z: 0 },
+            { element: 'N', x: -0.59, y: 0, z: 0 },
+            { element: 'N', x: 0.59, y: 0, z: 0 },
         ],
         bonds: [
             { from: 0, to: 1, order: 3 },
@@ -176,10 +176,10 @@ export const DEMO_COMPOUNDS = [
         type: 'covalent',
         description: 'Antiseptic and bleaching agent. Non-planar structure.',
         atoms: [
-            { element: 'O', x: -0.7, y: 0, z: 0 },
-            { element: 'O', x: 0.7, y: 0, z: 0 },
-            { element: 'H', x: -1.0, y: 0.9, z: 0 },
-            { element: 'H', x: 1.0, y: -0.9, z: 0 },
+            { element: 'O', x: -0.59, y: 0, z: 0 },
+            { element: 'O', x: 0.59, y: 0, z: 0 },
+            { element: 'H', x: -0.86, y: 0.83, z: 0 },
+            { element: 'H', x: 0.86, y: -0.83, z: 0 },
         ],
         bonds: [
             { from: 0, to: 1, order: 1 },
@@ -199,10 +199,10 @@ export const DEMO_COMPOUNDS = [
         formula: 'HCl',
         formulaRaw: 'HCl',
         type: 'covalent',
-        description: 'Strong acid. Found in gastric juice.',
+        description: 'Strong acid found in stomach. Polar covalent bond.',
         atoms: [
-            { element: 'H', x: -0.64, y: 0, z: 0 },
-            { element: 'Cl', x: 0.64, y: 0, z: 0 },
+            { element: 'Cl', x: 0, y: 0, z: 0 },
+            { element: 'H', x: -1.17, y: 0, z: 0 },
         ],
         bonds: [
             { from: 0, to: 1, order: 1 },
@@ -220,17 +220,17 @@ export const DEMO_COMPOUNDS = [
         formula: 'C₂H₅OH',
         formulaRaw: 'C2H5OH',
         type: 'covalent',
-        description: 'Drinking alcohol. Used as fuel and solvent.',
+        description: 'Alcohol found in beverages. Volatile and flammable.',
         atoms: [
-            { element: 'C', x: -0.75, y: 0, z: 0 },
-            { element: 'C', x: 0.75, y: 0, z: 0 },
-            { element: 'O', x: 1.8, y: -0.8, z: 0 }, // Bent down
-            { element: 'H', x: -1.5, y: 0, z: 0 }, // Side H
-            { element: 'H', x: -0.75, y: 1.1, z: 0 }, // Top H
-            { element: 'H', x: -0.75, y: -1.1, z: 0 }, // Bottom H
-            { element: 'H', x: 0.75, y: 1.1, z: 0 }, // Top H
-            { element: 'H', x: 0.75, y: -1.1, z: 0 }, // Bottom H
-            { element: 'H', x: 2.5, y: -0.8, z: 0 }, // OH Hydrogen
+            { element: 'C', x: -0.59, y: 0, z: 0 },
+            { element: 'C', x: 0.59, y: 0, z: 0 },
+            { element: 'O', x: 1.51, y: -0.7, z: 0 }, // Bent down
+            { element: 'H', x: -1.47, y: 0, z: 0 }, // Side H
+            { element: 'H', x: -0.59, y: 0.88, z: 0 }, // Top H
+            { element: 'H', x: -0.59, y: -0.88, z: 0 }, // Bottom H
+            { element: 'H', x: 0.59, y: 0.88, z: 0 }, // Top H
+            { element: 'H', x: 0.59, y: -0.88, z: 0 }, // Bottom H
+            { element: 'H', x: 2.39, y: -0.7, z: 0 }, // OH Hydrogen
         ],
         bonds: [
             { from: 0, to: 1, order: 1 },
@@ -258,18 +258,18 @@ export const DEMO_COMPOUNDS = [
         description: 'Simple sugar. Primary energy source for cells.',
         atoms: [
             // Simplified linear backbone with attached hydrogens (Fisher Projection style 2D)
-            { element: 'C', x: -2.5, y: 0, z: 0 }, { element: 'H', x: -2.5, y: -1.1, z: 0 }, { element: 'O', x: -2.5, y: 1.2, z: 0 }, // C1=O
-            { element: 'C', x: -1.5, y: 0, z: 0 }, { element: 'H', x: -1.5, y: -1.1, z: 0 }, { element: 'O', x: -1.5, y: 1.2, z: 0 }, // C2-OH
-            { element: 'C', x: -0.5, y: 0, z: 0 }, { element: 'H', x: -0.5, y: 1.1, z: 0 }, { element: 'O', x: -0.5, y: -1.2, z: 0 }, // C3-OH (flipped)
-            { element: 'C', x: 0.5, y: 0, z: 0 }, { element: 'H', x: 0.5, y: -1.1, z: 0 }, { element: 'O', x: 0.5, y: 1.2, z: 0 }, // C4-OH
-            { element: 'C', x: 1.5, y: 0, z: 0 }, { element: 'H', x: 1.5, y: -1.1, z: 0 }, { element: 'O', x: 1.5, y: 1.2, z: 0 }, // C5-OH
-            { element: 'C', x: 2.5, y: 0, z: 0 }, { element: 'H', x: 2.5, y: -1.1, z: 0 }, { element: 'H', x: 3.3, y: 0, z: 0 }, { element: 'O', x: 2.5, y: 1.2, z: 0 }, // C6-OH
+            { element: 'C', x: -2.93, y: 0, z: 0 }, { element: 'H', x: -2.93, y: -0.88, z: 0 }, { element: 'O', x: -2.93, y: 1.17, z: 0 }, // C1=O
+            { element: 'C', x: -1.76, y: 0, z: 0 }, { element: 'H', x: -1.76, y: -0.88, z: 0 }, { element: 'O', x: -1.76, y: 1.17, z: 0 }, // C2-OH
+            { element: 'C', x: -0.59, y: 0, z: 0 }, { element: 'H', x: -0.59, y: 0.88, z: 0 }, { element: 'O', x: -0.59, y: -1.17, z: 0 }, // C3-OH (flipped)
+            { element: 'C', x: 0.59, y: 0, z: 0 }, { element: 'H', x: 0.59, y: -0.88, z: 0 }, { element: 'O', x: 0.59, y: 1.17, z: 0 }, // C4-OH
+            { element: 'C', x: 1.76, y: 0, z: 0 }, { element: 'H', x: 1.76, y: -0.88, z: 0 }, { element: 'O', x: 1.76, y: 1.17, z: 0 }, // C5-OH
+            { element: 'C', x: 2.93, y: 0, z: 0 }, { element: 'H', x: 2.93, y: -0.88, z: 0 }, { element: 'H', x: 3.81, y: 0, z: 0 }, { element: 'O', x: 2.93, y: 1.17, z: 0 }, // C6-OH
             // Hydroxyl protons
-            { element: 'H', x: -1.5, y: 1.9, z: 0 },
-            { element: 'H', x: -0.5, y: -1.9, z: 0 },
-            { element: 'H', x: 0.5, y: 1.9, z: 0 },
-            { element: 'H', x: 1.5, y: 1.9, z: 0 },
-            { element: 'H', x: 2.5, y: 1.9, z: 0 },
+            { element: 'H', x: -1.76, y: 1.76, z: 0 }, // approx
+            { element: 'H', x: -0.59, y: -1.76, z: 0 },
+            { element: 'H', x: 0.59, y: 1.76, z: 0 },
+            { element: 'H', x: 1.76, y: 1.76, z: 0 },
+            { element: 'H', x: 2.93, y: 1.76, z: 0 },
         ],
         bonds: [
             // Backbone C-C
@@ -308,12 +308,12 @@ export const DEMO_COMPOUNDS = [
         description: 'Strong industrial acid. Used in batteries and fertilizers.',
         atoms: [
             { element: 'S', x: 0, y: 0, z: 0 },
-            { element: 'O', x: 0, y: 1.7, z: 0 },
-            { element: 'O', x: 0, y: -1.7, z: 0 },
-            { element: 'O', x: 1.7, y: 0, z: 0 },
-            { element: 'O', x: -1.7, y: 0, z: 0 },
-            { element: 'H', x: 2.7, y: 0, z: 0 },
-            { element: 'H', x: -2.7, y: 0, z: 0 },
+            { element: 'O', x: 0, y: 1.46, z: 0 },
+            { element: 'O', x: 0, y: -1.46, z: 0 },
+            { element: 'O', x: 1.46, y: 0, z: 0 },
+            { element: 'O', x: -1.46, y: 0, z: 0 },
+            { element: 'H', x: 2.34, y: 0, z: 0 },
+            { element: 'H', x: -2.34, y: 0, z: 0 },
         ],
         bonds: [
             { from: 0, to: 1, order: 2 },
@@ -339,8 +339,8 @@ export const DEMO_COMPOUNDS = [
         description: 'Desiccant and de-icing agent. Highly hygroscopic.',
         atoms: [
             { element: 'Ca', x: 0, y: 0, z: 0 },
-            { element: 'Cl', x: -2.0, y: 0, z: 0 },
-            { element: 'Cl', x: 2.0, y: 0, z: 0 },
+            { element: 'Cl', x: -2.04, y: 0, z: 0 },
+            { element: 'Cl', x: 2.04, y: 0, z: 0 },
         ],
         bonds: [
             { from: 0, to: 1, order: 1, type: 'ionic' },
@@ -361,9 +361,9 @@ export const DEMO_COMPOUNDS = [
         type: 'ionic',
         description: 'Bleach. Strong oxidizing and disinfecting agent.',
         atoms: [
-            { element: 'Na', x: -2.0, y: 0, z: 0 },
+            { element: 'Na', x: -1.75, y: 0, z: 0 },
             { element: 'Cl', x: 0, y: 0, z: 0 },
-            { element: 'O', x: 1.5, y: 0, z: 0 },
+            { element: 'O', x: 1.46, y: 0, z: 0 },
         ],
         bonds: [
             { from: 0, to: 1, order: 1, type: 'ionic' },
@@ -384,18 +384,18 @@ export const DEMO_COMPOUNDS = [
         type: 'covalent',
         description: 'Aromatic hydrocarbon. Hexagonal ring structure.',
         atoms: [
-            { element: 'C', x: 1.4, y: 0, z: 0 },
-            { element: 'C', x: 0.7, y: 1.21, z: 0 },
-            { element: 'C', x: -0.7, y: 1.21, z: 0 },
-            { element: 'C', x: -1.4, y: 0, z: 0 },
-            { element: 'C', x: -0.7, y: -1.21, z: 0 },
-            { element: 'C', x: 0.7, y: -1.21, z: 0 },
-            { element: 'H', x: 2.5, y: 0, z: 0 },
-            { element: 'H', x: 1.25, y: 2.16, z: 0 },
-            { element: 'H', x: -1.25, y: 2.16, z: 0 },
-            { element: 'H', x: -2.5, y: 0, z: 0 },
-            { element: 'H', x: -1.25, y: -2.16, z: 0 },
-            { element: 'H', x: 1.25, y: -2.16, z: 0 },
+            { element: 'C', x: 1.17, y: 0, z: 0 },
+            { element: 'C', x: 0.58, y: 1.01, z: 0 },
+            { element: 'C', x: -0.58, y: 1.01, z: 0 },
+            { element: 'C', x: -1.17, y: 0, z: 0 },
+            { element: 'C', x: -0.58, y: -1.01, z: 0 },
+            { element: 'C', x: 0.58, y: -1.01, z: 0 },
+            { element: 'H', x: 2.05, y: 0, z: 0 },
+            { element: 'H', x: 1.02, y: 1.77, z: 0 },
+            { element: 'H', x: -1.02, y: 1.77, z: 0 },
+            { element: 'H', x: -2.05, y: 0, z: 0 },
+            { element: 'H', x: -1.02, y: -1.77, z: 0 },
+            { element: 'H', x: 1.02, y: -1.77, z: 0 },
         ],
         bonds: [
             { from: 0, to: 1, order: 1.5 }, // Aromatic bonds
