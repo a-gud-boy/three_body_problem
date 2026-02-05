@@ -3530,7 +3530,13 @@ const CanvasScatterPlot = ({ dataRef, selectedBodyIndex }) => {
 
 // Body Labels Overlay - HTML labels positioned over 3D bodies
 const BodyLabelsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, selectedBodyIndex, cameraMode, cameraTargetIdx }) => {
-    const [labelPositions, setLabelPositions] = useState([]);
+    // Optimization: Avoid state updates every frame.
+    // We only trigger re-render if the number of bodies changes (e.g. scenario reset).
+    const [bodyCount, setBodyCount] = useState(0);
+    const labelElementsRef = useRef([]);
+    const currentBodyCountRef = useRef(0);
+    // Scratch vector to avoid per-frame allocations
+    const tempVector = useRef(new THREE.Vector3());
 
     useEffect(() => {
         if (!cameraRef.current || !mountRef.current) return;
@@ -3538,44 +3544,71 @@ const BodyLabelsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, selectedB
         let animationFrameId;
 
         const updateLabels = () => {
-            if (!meshRefs.current || meshRefs.current.length === 0) {
+            const meshes = meshRefs.current;
+            const bodies = bodiesRef.current;
+
+            if (!meshes || meshes.length === 0 || !bodies) {
                 animationFrameId = requestAnimationFrame(updateLabels);
                 return;
             }
 
+            // 1. Sync body count (triggers re-render if changed)
+            if (meshes.length !== currentBodyCountRef.current) {
+                currentBodyCountRef.current = meshes.length;
+                setBodyCount(meshes.length);
+            }
+
             const camera = cameraRef.current;
             const rect = mountRef.current.getBoundingClientRect();
-            const positions = [];
+            const width = rect.width;
+            const height = rect.height;
 
-            meshRefs.current.forEach((mesh, i) => {
-                if (!mesh) return;
+            meshes.forEach((mesh, i) => {
+                const labelEl = labelElementsRef.current[i];
+                const body = bodies[i];
+                if (!labelEl || !mesh || !body) return;
 
                 // In cockpit mode, hide the label for the body we're riding
-                if (cameraMode === 'COCKPIT' && i === cameraTargetIdx) return;
+                if (cameraMode === 'COCKPIT' && i === cameraTargetIdx) {
+                    labelEl.style.display = 'none';
+                    return;
+                }
 
-                // Get world position of mesh
-                const vector = mesh.position.clone();
-                vector.project(camera);
+                // Get world position
+                // Use shared vector to avoid allocation
+                tempVector.current.copy(mesh.position).project(camera);
 
                 // Convert to screen coordinates
-                const x = (vector.x * 0.5 + 0.5) * rect.width;
-                const y = (-vector.y * 0.5 + 0.5) * rect.height;
+                const x = (tempVector.current.x * 0.5 + 0.5) * width;
+                const y = (-tempVector.current.y * 0.5 + 0.5) * height;
 
                 // Check if in front of camera (z < 1 means in front)
-                // Also check that the position is within reasonable screen bounds
-                const visible = vector.z < 1 && x > -100 && x < rect.width + 100 && y > -100 && y < rect.height + 100;
+                const visible = tempVector.current.z < 1 && x > -100 && x < width + 100 && y > -100 && y < height + 100;
 
-                positions.push({
-                    x,
-                    y: y - 30, // Offset above the body
-                    visible,
-                    index: i,
-                    mass: bodiesRef.current[i]?.mass || 1,
-                    color: bodiesRef.current[i]?.color || 0xffffff
-                });
+                if (visible) {
+                    labelEl.style.display = 'block';
+                    // Use transform for performance (triggers compositor only)
+                    labelEl.style.transform = `translate(${x}px, ${y - 30}px) translateX(-50%)`;
+
+                    // Handle Stale Data (e.g., after scenario reset without component unmount)
+                    // We check data attributes to avoid layout thrashing
+                    const massStr = body.mass.toFixed(3);
+                    if (labelEl.dataset.mass !== massStr) {
+                        labelEl.dataset.mass = massStr;
+                        const span = labelEl.querySelector('span');
+                        if (span) span.textContent = `m=${massStr}`;
+                    }
+
+                    const colorHex = body.color.toString(16).padStart(6, '0');
+                    if (labelEl.dataset.color !== colorHex) {
+                        labelEl.dataset.color = colorHex;
+                        labelEl.style.borderLeftColor = `#${colorHex}`;
+                    }
+                } else {
+                    labelEl.style.display = 'none';
+                }
             });
 
-            setLabelPositions(positions);
             animationFrameId = requestAnimationFrame(updateLabels);
         };
 
@@ -3583,30 +3616,47 @@ const BodyLabelsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, selectedB
         return () => cancelAnimationFrame(animationFrameId);
     }, [cameraRef, mountRef, meshRefs, bodiesRef, cameraMode, cameraTargetIdx]);
 
+    // Initial render / Re-render when body count changes
+    // eslint-disable-next-line
+    const bodies = bodiesRef.current || [];
+
     return (
         <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
-            {labelPositions.map((pos) => (
-                pos.visible && (
+            {Array.from({ length: bodyCount }).map((_, i) => {
+                const body = bodies[i];
+                // Fallback values if body not yet synced
+                const mass = body ? body.mass : 1;
+                const color = body ? body.color : 0xffffff;
+                const massStr = mass.toFixed(3);
+                const colorHex = color.toString(16).padStart(6, '0');
+                const isSelected = selectedBodyIndex === i;
+
+                return (
                     <div
-                        key={pos.index}
-                        className={`absolute transform -translate-x-1/2 text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg transition-opacity ${selectedBodyIndex === pos.index
+                        key={i}
+                        ref={el => labelElementsRef.current[i] = el}
+                        data-mass={massStr}
+                        data-color={colorHex}
+                        className={`absolute text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg transition-opacity ${isSelected
                             ? 'bg-white text-slate-900 ring-2 ring-blue-400'
                             : 'bg-slate-800/80 text-white'
                             }`}
                         style={{
-                            left: pos.x,
-                            top: pos.y,
-                            borderLeft: `3px solid #${pos.color.toString(16).padStart(6, '0')}`
+                            display: 'none', // Initially hidden, shown by loop
+                            left: 0,
+                            top: 0,
+                            borderLeft: `3px solid #${colorHex}`
                         }}
                     >
-                        Body {pos.index + 1}
-                        <span className="text-slate-400 ml-1 font-normal">m={pos.mass.toFixed(3)}</span>
+                        Body {i + 1}
+                        <span className="text-slate-400 ml-1 font-normal">m={massStr}</span>
                     </div>
-                )
-            ))}
+                );
+            })}
         </div>
     );
 };
+
 
 // Velocity Vectors Overlay - SVG arrows showing velocity direction/magnitude
 const VelocityVectorsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, scale, cameraMode, cameraTargetIdx }) => {
