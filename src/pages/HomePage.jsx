@@ -100,6 +100,15 @@ const simulations = [
         path: '/fluid-dynamics',
     },
     {
+        id: 'experimental-fluid',
+        title: 'Water Ripples (WebGPU)',
+        description: 'Next-gen fluid simulation using WebGPU Compute Shaders. Interactive water surface with real-time wave propagation.',
+        icon: '🌊',
+        iconBg: 'rgba(124, 58, 237, 0.15)',
+        status: 'available',
+        path: '/experimental-fluid',
+    },
+    {
         id: 'wave-interference',
         title: 'Wave Interference',
         description: 'Interactive ripple tank. Experiment with diffraction, refraction, and interference patterns.',
