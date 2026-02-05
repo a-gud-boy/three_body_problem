@@ -415,6 +415,17 @@ export default function ElectromagneticPage() {
                 const points = traceFieldLine(startPoint, -1, 'positive');
 
                 if (points.length > 2) {
+                    // Check if we hit a positive charge. If so, this line is redundant
+                    // (already drawn by the positive charge's outgoing line).
+                    const lastPoint = points[points.length - 1];
+                    const hitPositive = positiveCharges.some(p => {
+                        const dx = lastPoint.x - p.x;
+                        const dy = lastPoint.y - p.y;
+                        const dz = lastPoint.z - p.z;
+                        return (dx*dx + dy*dy + dz*dz) < (CHARGE_RADIUS * 2.5) ** 2;
+                    });
+                    if (hitPositive) return;
+
                     points.reverse(); // Reverse so gradient goes toward charge (IN)
 
                     const geometry = new THREE.BufferGeometry().setFromPoints(points);
