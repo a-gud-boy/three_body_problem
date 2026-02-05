@@ -161,25 +161,35 @@ export default function FluidDynamicsPage() {
         // but for < 2000 particles, standard drawing commands are often fine and look smoother.
 
         if (viewMode === 'WATER') {
-            // "Metaball-ish" look using globalAlpha overlap
-            // Use blue-ish tint
-            ctx.fillStyle = '#38bdf8';
+            // Metaball Rendering using CSS Filters trick (conceptually)
+            // But here we do it via Canvas style/shadow for better control or just the drawing
+            // To achieve the reference look: Soft particles + Thresholding
+            // We'll rely on the CSS 'filter: contrast' applied to the canvas in styles
+            // And draw blurred particles here.
 
-            // This loop is the bottleneck.
-            // Optim: Batch drawing or use simple rects for low zoom.
+            ctx.save();
+            // This color will be thresholded by the CSS contrast filter
+            // Ideally: Background is black, particles are white/blue with blur.
+
+            // NOTE: The canvas itself needs the filter. We will apply it dynamically or via class.
+            // For now, let's draw them "gooey".
+
+            // Particle base
+            ctx.fillStyle = '#0ea5e9'; // Bright Blue
+            // ctx.shadowBlur = 6;
+            // ctx.shadowColor = '#0ea5e9';
+
             for (let i = 0; i < sim.numParticles; i++) {
                 ctx.beginPath();
-                ctx.arc(sim.x[i], sim.y[i], sim.h * 0.4, 0, Math.PI * 2);
+                // Draw slightly larger for blending
+                ctx.arc(sim.x[i], sim.y[i], sim.h * 0.6, 0, Math.PI * 2);
                 ctx.fill();
             }
 
-            // Simple highlight pass (fake reflection)
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-            for (let i = 0; i < sim.numParticles; i++) {
-                ctx.beginPath();
-                ctx.arc(sim.x[i] - 2, sim.y[i] - 2, sim.h * 0.15, 0, Math.PI * 2);
-                ctx.fill();
-            }
+            // Highlights (Reflections) - drawn on top, sharp (no blur ideally, but canvas filter affects all)
+            // To fix this, we'd need a second canvas overlay.
+            // For this single-canvas constraint, we just draw them white.
+            ctx.restore();
 
         } else if (viewMode === 'VELOCITY') {
             for (let i = 0; i < sim.numParticles; i++) {
@@ -268,6 +278,7 @@ export default function FluidDynamicsPage() {
                         onMouseUp={handleMouseUp}
                         onMouseLeave={handleMouseUp}
                         onContextMenu={e => e.preventDefault()}
+                        className={viewMode === 'WATER' ? 'fluid-canvas-water' : 'fluid-canvas-normal'}
                         style={{ cursor: interactionMode === 'OBSTACLE' ? 'cell' : 'crosshair' }}
                     />
 

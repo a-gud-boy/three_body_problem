@@ -8,12 +8,12 @@ export default class FluidSimulator {
         this.numParticles = 0;
 
         // Physics Constants
-        this.h = 16; // Smoothing Radius
+        this.h = 22; // Increased Smoothing Radius for better connectivity
         this.h2 = this.h * this.h;
         this.h9 = Math.pow(this.h, 9);
 
         // Tunable Parameters
-        this.restDensity = 0.0004;
+        this.restDensity = 0.0002; // Adjusted for new H
         this.stiffness = 3000;
         this.viscosity = 200;
         this.gravity = 0.5;
