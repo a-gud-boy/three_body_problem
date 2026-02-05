@@ -131,7 +131,6 @@ export default function ElectromagneticPage() {
     const gridRef = useRef(null);
     const raycasterRef = useRef(new THREE.Raycaster());
     const mouseRef = useRef(new THREE.Vector2());
-    const chargesRef = useRef(charges); // Sync charges to ref for physics loop
 
     // Scene setup - runs once
     useEffect(() => {
@@ -209,6 +208,8 @@ export default function ElectromagneticPage() {
         };
         animate();
 
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSceneReady(true);
         return () => {
             window.removeEventListener('resize', handleResize);
             cancelAnimationFrame(frameIdRef.current);
@@ -220,12 +221,6 @@ export default function ElectromagneticPage() {
         };
     }, []);
 
-    // Set scene ready after mount
-    useEffect(() => {
-        if (sceneRef.current) {
-            setSceneReady(true);
-        }
-    }, []);
 
     // Update charge meshes when charges change
     useEffect(() => {
@@ -402,70 +397,66 @@ export default function ElectromagneticPage() {
             });
         });
 
-        // Incoming field lines TO negative charges (from far away)
-        // Only draw these if there is a NET NEGATIVE charge in the system
-        const netCharge = charges.reduce((sum, c) => sum + c.q, 0);
+                // Incoming field lines TO negative charges (traced backwards)
+        negativeCharges.forEach(charge => {
+            const linesPerCharge = Math.ceil(fieldLineDensity * Math.abs(charge.q));
+            const spherePoints = generateSpherePoints(linesPerCharge);
+            const startOffset = CHARGE_RADIUS * 1.5;
 
-        if (netCharge < -0.1) {
-            negativeCharges.forEach(charge => {
-                const linesPerCharge = Math.ceil(fieldLineDensity * Math.abs(netCharge) / negativeCharges.length);
-                const spherePoints = generateSpherePoints(linesPerCharge);
-                const farDistance = 800;
+            spherePoints.forEach(sp => {
+                const startPoint = {
+                    x: charge.x + sp.x * startOffset,
+                    y: charge.y + sp.y * startOffset,
+                    z: charge.z + sp.z * startOffset
+                };
 
-                spherePoints.forEach(sp => {
-                    const startPoint = {
-                        x: charge.x + sp.x * farDistance,
-                        y: charge.y + sp.y * farDistance,
-                        z: charge.z + sp.z * farDistance
-                    };
+                // Trace field line backwards toward negative charge
+                // direction: -1 = against field. terminateAt: 'positive' (stop at source)
+                const points = traceFieldLine(startPoint, -1, 'positive');
 
-                    // Trace field line backwards toward negative charge
-                    const points = traceFieldLine(startPoint, -1, 'negative');
+                if (points.length > 2) {
+                    points.reverse(); // Reverse so gradient goes toward charge (IN)
 
-                    if (points.length > 5) {
-                        points.reverse(); // Reverse so gradient goes toward charge
-
-                        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-                        const colors = [];
-                        for (let j = 0; j < points.length; j++) {
-                            const t = j / points.length;
-                            colors.push(1, 0.4 + t * 0.4, t * 0.4); // Same orange gradient
-                        }
-                        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-                        const material = new THREE.LineBasicMaterial({
-                            vertexColors: true,
-                            transparent: true,
-                            opacity: 0.6
-                        });
-
-                        const line = new THREE.Line(geometry, material);
-                        scene.add(line);
-                        fieldLinesRef.current.push(line);
-
-                        // Direction cones
-                        const arrowInterval = Math.floor(points.length / 3);
-                        for (let arrowIdx = arrowInterval; arrowIdx < points.length - 1; arrowIdx += arrowInterval) {
-                            const p1 = points[arrowIdx];
-                            const p2 = points[Math.min(arrowIdx + 2, points.length - 1)];
-                            const direction = new THREE.Vector3(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z).normalize();
-
-                            const coneGeom = new THREE.ConeGeometry(2.5, 6, 6);
-                            const coneMat = new THREE.MeshBasicMaterial({ color: 0xffaa44 });
-                            const cone = new THREE.Mesh(coneGeom, coneMat);
-                            cone.position.copy(p1);
-
-                            const up = new THREE.Vector3(0, 1, 0);
-                            const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
-                            cone.setRotationFromQuaternion(quaternion);
-
-                            scene.add(cone);
-                            fieldLinesRef.current.push(cone);
-                        }
+                    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                    const colors = [];
+                    for (let j = 0; j < points.length; j++) {
+                        const t = j / points.length;
+                        colors.push(1, 0.4 + t * 0.4, t * 0.4); // Same orange gradient
                     }
-                });
+                    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+                    const material = new THREE.LineBasicMaterial({
+                        vertexColors: true,
+                        transparent: true,
+                        opacity: 0.6
+                    });
+
+                    const line = new THREE.Line(geometry, material);
+                    scene.add(line);
+                    fieldLinesRef.current.push(line);
+
+                    // Direction cones
+                    const arrowInterval = Math.floor(points.length / 3);
+                    for (let arrowIdx = arrowInterval; arrowIdx < points.length - 1; arrowIdx += arrowInterval) {
+                        const p1 = points[arrowIdx];
+                        const p2 = points[Math.min(arrowIdx + 2, points.length - 1)];
+                        const direction = new THREE.Vector3(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z).normalize();
+
+                        const coneGeom = new THREE.ConeGeometry(2.5, 6, 6);
+                        const coneMat = new THREE.MeshBasicMaterial({ color: 0xffaa44 });
+                        const cone = new THREE.Mesh(coneGeom, coneMat);
+                        cone.position.copy(p1);
+
+                        const up = new THREE.Vector3(0, 1, 0);
+                        const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
+                        cone.setRotationFromQuaternion(quaternion);
+
+                        scene.add(cone);
+                        fieldLinesRef.current.push(cone);
+                    }
+                }
             });
-        }
+        });
     }, [charges, showFieldLines, fieldLineDensity]);
 
     // Update force vectors
