@@ -100,6 +100,15 @@ const simulations = [
         path: '/fluid-dynamics',
     },
     {
+        id: 'experimental-fluid',
+        title: 'Experimental Fluid',
+        description: 'High-fidelity GPGPU wave equation simulation with interactive water surface.',
+        icon: '🌊',
+        iconBg: 'rgba(56, 189, 248, 0.15)',
+        status: 'available',
+        path: '/experimental-fluid',
+    },
+    {
         id: 'wave-interference',
         title: 'Wave Interference',
         description: 'Interactive ripple tank. Experiment with diffraction, refraction, and interference patterns.',
