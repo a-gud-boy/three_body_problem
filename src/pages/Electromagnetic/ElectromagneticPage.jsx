@@ -508,16 +508,16 @@ export default function ElectromagneticPage() {
             });
 
             const forceMag = Math.sqrt(fx * fx + fy * fy + fz * fz);
-            if (forceMag < 0.01) return; // Lower threshold to show more arrows
+            if (forceMag < 0.005) return; // Lower threshold to show more arrows
 
             const dir = new THREE.Vector3(fx, fy, fz).normalize();
-            const length = Math.min(60, Math.max(20, forceMag * 0.3)); // Ensure minimum visible length
+            const length = Math.min(100, Math.max(30, forceMag * 0.6)); // Increased size for visibility
             const color = charge.q > 0 ? 0xffaa00 : 0x00aaff;
 
             const arrow = new THREE.ArrowHelper(
                 dir,
                 new THREE.Vector3(positions[i].x, positions[i].y, positions[i].z),
-                length, color, length * 0.4, length * 0.2 // Larger head for visibility
+                length, color, length * 0.3, length * 0.25 // Larger/wider head for visibility
             );
             scene.add(arrow);
             forceArrowsRef.current.push(arrow);
