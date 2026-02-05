@@ -3,6 +3,9 @@ import HomePage from './pages/HomePage';
 import ThreeBodyPage from './pages/ThreeBody/ThreeBodyPage';
 import AtomSimulator from './pages/AtomSimulator/AtomSimulator';
 import ElectromagneticPage from './pages/Electromagnetic/ElectromagneticPage';
+import DoublePendulumPage from './pages/DoublePendulum/DoublePendulumPage';
+import FluidDynamicsPage from './pages/FluidDynamics/FluidDynamicsPage';
+import ConceptPage from './pages/Concept/ConceptPage';
 
 const router = createBrowserRouter([
     {
@@ -20,6 +23,18 @@ const router = createBrowserRouter([
     {
         path: '/electromagnetic',
         element: <ElectromagneticPage />,
+    },
+    {
+        path: '/double-pendulum',
+        element: <DoublePendulumPage />,
+    },
+    {
+        path: '/fluid-dynamics',
+        element: <FluidDynamicsPage />,
+    },
+    {
+        path: '/concept/:id',
+        element: <ConceptPage />,
     },
 ], {
     basename: '/three_body_problem',

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Sparkles, Lock } from 'lucide-react';
+import { ArrowRight, Sparkles, Lock, Lightbulb } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import './HomePage.css';
 
@@ -73,22 +73,6 @@ const simulations = [
         path: '/atom-simulator',
     },
     {
-        id: 'nuclear-physics',
-        title: 'Nuclear Physics',
-        description: 'Simulate nuclear decay chains and reactor dynamics.',
-        icon: '☢️',
-        iconBg: 'rgba(249, 115, 22, 0.15)',
-        status: 'coming-soon',
-    },
-    {
-        id: 'molecular-dynamics',
-        title: 'Molecular Dynamics',
-        description: 'Watch molecules interact and proteins fold in 3D space.',
-        icon: '🧬',
-        iconBg: 'rgba(236, 72, 153, 0.15)',
-        status: 'coming-soon',
-    },
-    {
         id: 'electromagnetic-fields',
         title: 'Electromagnetic Fields',
         description: 'Visualize electric and magnetic field lines in complex setups.',
@@ -96,6 +80,42 @@ const simulations = [
         iconBg: 'rgba(6, 182, 212, 0.15)',
         status: 'available',
         path: '/electromagnetic',
+    },
+    {
+        id: 'double-pendulum',
+        title: 'Double Pendulum',
+        description: 'Explore the classic chaotic system. Trace paths, analyze phase space, and observe the butterfly effect.',
+        icon: '⚖️',
+        iconBg: 'rgba(234, 179, 8, 0.15)',
+        status: 'available',
+        path: '/double-pendulum',
+    },
+    {
+        id: 'fluid-dynamics',
+        title: 'Fluid Dynamics (SPH)',
+        description: 'Interactive particle-based fluid simulation. Pour, stir, and play with viscosity.',
+        icon: '💧',
+        iconBg: 'rgba(14, 165, 233, 0.15)',
+        status: 'available',
+        path: '/fluid-dynamics',
+    },
+    {
+        id: 'wave-interference',
+        title: 'Wave Interference',
+        description: 'Ripple tank simulation concepts demonstrating wave propagation and interference.',
+        icon: '🌊',
+        iconBg: 'rgba(139, 92, 246, 0.15)',
+        status: 'concept',
+        path: '/concept/wave-interference',
+    },
+    {
+        id: 'soft-body',
+        title: 'Soft Body Simulation',
+        description: 'Mass-spring systems concepts for simulating deformable objects and cloth.',
+        icon: '🧶',
+        iconBg: 'rgba(236, 72, 153, 0.15)',
+        status: 'concept',
+        path: '/concept/soft-body',
     },
 ];
 
@@ -209,6 +229,41 @@ function OrbitalAnimation() {
 function SimCard({ simulation }) {
     const { title, description, icon, iconBg, status, path } = simulation;
 
+    let badge;
+    if (status === 'coming-soon') {
+        badge = (
+            <div className="coming-soon-badge">
+                <Lock size={10} />
+                Coming Soon
+            </div>
+        );
+    } else if (status === 'concept') {
+        badge = (
+            <div className="concept-badge" style={{
+                background: 'rgba(255, 255, 255, 0.1)',
+                color: '#94a3b8',
+                padding: '0.25rem 0.5rem',
+                borderRadius: '999px',
+                fontSize: '0.65rem',
+                fontWeight: '600',
+                textTransform: 'uppercase',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem'
+            }}>
+                <Lightbulb size={10} />
+                Concept
+            </div>
+        );
+    } else {
+        badge = (
+            <div className="available-badge">
+                <Sparkles size={10} />
+                Available
+            </div>
+        );
+    }
+
     const content = (
         <>
             <div className="sim-icon" style={{ background: iconBg }}>
@@ -216,21 +271,11 @@ function SimCard({ simulation }) {
             </div>
             <h3 className="sim-card-title">{title}</h3>
             <p className="sim-card-desc">{description}</p>
-            {status === 'coming-soon' ? (
-                <div className="coming-soon-badge">
-                    <Lock size={10} />
-                    Coming Soon
-                </div>
-            ) : (
-                <div className="available-badge">
-                    <Sparkles size={10} />
-                    Available
-                </div>
-            )}
+            {badge}
         </>
     );
 
-    if (status === 'available' && path) {
+    if ((status === 'available' || status === 'concept') && path) {
         return (
             <Link to={path} className="sim-card available">
                 {content}
@@ -239,7 +284,7 @@ function SimCard({ simulation }) {
     }
 
     return (
-        <div className={`sim-card ${status === 'coming-soon' ? 'disabled' : ''}`}>
+        <div className="sim-card disabled">
             {content}
         </div>
     );
