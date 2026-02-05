@@ -109,6 +109,40 @@ export default function AtomVisualizer({
 }
 
 // Draw Bohr Model (classical)
+// Cache for electron sprites to avoid repeated gradient creation
+const electronSpriteCache = {};
+
+function getElectronSprite(color) {
+    if (electronSpriteCache[color]) {
+        return electronSpriteCache[color];
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 16;
+    canvas.height = 16;
+    const ctx = canvas.getContext("2d");
+
+    // Electron glow
+    const gradient = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(0.5, `${color}66`);
+    gradient.addColorStop(1, "transparent");
+
+    ctx.beginPath();
+    ctx.arc(8, 8, 8, 0, Math.PI * 2);
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    // Electron core
+    ctx.beginPath();
+    ctx.arc(8, 8, 3, 0, Math.PI * 2);
+    ctx.fillStyle = "#fff";
+    ctx.fill();
+
+    electronSpriteCache[color] = canvas;
+    return canvas;
+}
+
 function drawBohrModel(ctx, cx, cy, maxRadius, element, shells, color, time) {
     const activeShells = shells.filter(s => s > 0);
     const numShells = activeShells.length;
@@ -145,22 +179,9 @@ function drawBohrModel(ctx, cx, cy, maxRadius, element, shells, color, time) {
             const x = cx + Math.cos(angle) * radius;
             const y = cy + Math.sin(angle) * radius;
 
-            // Electron glow
-            const gradient = ctx.createRadialGradient(x, y, 0, x, y, 8);
-            gradient.addColorStop(0, color);
-            gradient.addColorStop(0.5, `${color}66`);
-            gradient.addColorStop(1, 'transparent');
-
-            ctx.beginPath();
-            ctx.arc(x, y, 8, 0, Math.PI * 2);
-            ctx.fillStyle = gradient;
-            ctx.fill();
-
-            // Electron core
-            ctx.beginPath();
-            ctx.arc(x, y, 3, 0, Math.PI * 2);
-            ctx.fillStyle = '#fff';
-            ctx.fill();
+            // Electron glow and core (optimized)
+            const sprite = getElectronSprite(color);
+            ctx.drawImage(sprite, x - 8, y - 8);
         }
     });
 }
