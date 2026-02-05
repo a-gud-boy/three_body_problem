@@ -2,6 +2,48 @@
 // Common molecules with structure data for visualization
 
 export const DEMO_COMPOUNDS = [
+    {
+        id: 'h2',
+        name: 'Hydrogen Gas',
+        formula: 'H₂',
+        formulaRaw: 'H2',
+        type: 'covalent',
+        description: 'Lightest and most abundant element in the universe.',
+        atoms: [
+            { element: 'H', x: -0.30, y: 0, z: 0 },
+            { element: 'H', x: 0.30, y: 0, z: 0 },
+        ],
+        bonds: [
+            { from: 0, to: 1, order: 1 },
+        ],
+        properties: {
+            molecularWeight: 2.016,
+            meltingPoint: -259.1,
+            boilingPoint: -252.9,
+            state: 'gas',
+        },
+    },
+    {
+        id: 'cl2',
+        name: 'Chlorine Gas',
+        formula: 'Cl₂',
+        formulaRaw: 'Cl2',
+        type: 'covalent',
+        description: 'Yellow-green gas. Strong oxidizing agent.',
+        atoms: [
+            { element: 'Cl', x: -0.88, y: 0, z: 0 },
+            { element: 'Cl', x: 0.88, y: 0, z: 0 },
+        ],
+        bonds: [
+            { from: 0, to: 1, order: 1 },
+        ],
+        properties: {
+            molecularWeight: 70.9,
+            meltingPoint: -101.5,
+            boilingPoint: -34.0,
+            state: 'gas',
+        },
+    },
     // Simple Molecules
     {
         id: 'h2o',
@@ -425,7 +467,7 @@ export const COMPOUND_CATEGORIES = {
     'simple': {
         name: 'Simple Molecules',
         description: 'Basic molecules with few atoms',
-        compounds: ['h2o', 'co2', 'o2', 'n2', 'hcl'],
+        compounds: ['h2', 'cl2', 'h2o', 'co2', 'o2', 'n2', 'hcl'],
     },
     'organic': {
         name: 'Organic Compounds',
