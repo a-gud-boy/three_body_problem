@@ -14,8 +14,8 @@ export default function SoftBodyPage() {
     const [stats, setStats] = useState({ particles: 0, springs: 0 });
     const [params, setParams] = useState({
         gravity: 0.5,
-        stiffness: 0.2,
-        damping: 0.5
+        stiffness: 1.0,
+        damping: 0.5 // Unused in PBD currently, but kept for future or mapped to friction
     });
 
     const mouseRef = useRef({
@@ -81,7 +81,8 @@ export default function SoftBodyPage() {
         };
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
-    }, [loadPreset]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Sync Params
     useEffect(() => {
@@ -91,8 +92,6 @@ export default function SoftBodyPage() {
             for(const s of simulatorRef.current.springs) {
                 // eslint-disable-next-line react-hooks/immutability
                 s.stiffness = params.stiffness;
-                // eslint-disable-next-line react-hooks/immutability
-                s.damping = params.damping;
             }
         }
     }, [params]);
