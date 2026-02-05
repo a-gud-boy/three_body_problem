@@ -104,6 +104,74 @@ function calculateField(point, charges) {
 }
 
 // ============== MAIN COMPONENT ==============
+
+// Generate symmetric 3D spherical distribution of starting points
+// Uses regular latitude-longitude pattern for symmetric appearance
+function generateSpherePoints(count) {
+    const points = [];
+    // Calculate number of latitude bands
+    const latBands = Math.max(2, Math.ceil(Math.sqrt(count)));
+    const lonPoints = Math.ceil(count / latBands);
+
+    for (let lat = 0; lat < latBands; lat++) {
+        // Latitude from -PI/2 to PI/2 (avoiding exact poles for better distribution)
+        const theta = ((lat + 0.5) / latBands) * Math.PI - Math.PI / 2;
+        const cosTheta = Math.cos(theta);
+        const sinTheta = Math.sin(theta);
+
+        // Number of longitude points scales with latitude (fewer near poles)
+        const numLon = Math.max(1, Math.round(lonPoints * cosTheta));
+
+        for (let lon = 0; lon < numLon; lon++) {
+            const phi = (lon / numLon) * Math.PI * 2;
+            points.push({
+                x: Math.cos(phi) * cosTheta,
+                y: sinTheta,
+                z: Math.sin(phi) * cosTheta
+            });
+        }
+    }
+    return points;
+}
+
+// Helper to trace a field line
+// direction: 1 = follow field (from positive), -1 = against field (toward negative)
+// terminateAt: 'negative', 'positive', or 'any'
+function traceFieldLine(startPoint, direction, charges, terminateAt = 'any') {
+    const points = [];
+    let current = { ...startPoint };
+
+    for (let step = 0; step < FIELD_LINE_SEGMENTS; step++) {
+        points.push(new THREE.Vector3(current.x, current.y, current.z));
+
+        const field = calculateField(current, charges);
+        const mag = Math.sqrt(field.x ** 2 + field.y ** 2 + field.z ** 2);
+
+        if (mag < 0.001) break; // Very weak field
+
+        // Check if near target charge type (for termination)
+        if (step > 5) {
+            const nearTarget = charges.some(c => {
+                const d = Math.sqrt((current.x - c.x) ** 2 + (current.y - c.y) ** 2 + (current.z - c.z) ** 2);
+                if (d > CHARGE_RADIUS * 1.5) return false;
+                if (terminateAt === 'negative') return c.q < 0;
+                if (terminateAt === 'positive') return c.q > 0;
+                return true; // 'any'
+            });
+            if (nearTarget) break;
+        }
+
+        // Smoother, consistent step size
+        const stepSize = FIELD_LINE_STEP;
+        current.x += direction * (field.x / mag) * stepSize;
+        current.y += direction * (field.y / mag) * stepSize;
+        current.z += direction * (field.z / mag) * stepSize;
+
+        // Extended bounds for better coverage
+        if (Math.abs(current.x) > 1000 || Math.abs(current.y) > 1000 || Math.abs(current.z) > 1000) break;
+    }
+    return points;
+}
 export default function ElectromagneticPage() {
     const [charges, setCharges] = useState(SCENARIOS.DIPOLE.charges);
     const [currentScenario, setCurrentScenario] = useState('DIPOLE');
@@ -131,6 +199,174 @@ export default function ElectromagneticPage() {
     const gridRef = useRef(null);
     const raycasterRef = useRef(new THREE.Raycaster());
     const mouseRef = useRef(new THREE.Vector2());
+
+    // Real-time field line update
+    const updateFieldLines = useCallback(() => {
+        const scene = sceneRef.current;
+        if (!scene || !showFieldLines) {
+            // If hidden, clear lines
+            fieldLinesRef.current.forEach(line => {
+                scene.remove(line);
+                line.geometry?.dispose();
+                line.material?.dispose();
+            });
+            fieldLinesRef.current = [];
+            return;
+        }
+
+        // Get current charges from meshes
+        let currentCharges = chargeMeshesRef.current.map(mesh => ({
+            x: mesh.position.x,
+            y: mesh.position.y,
+            z: mesh.position.z,
+            q: mesh.userData.charge
+        }));
+
+        // Fallback to state if meshes not ready (though meshes should be ready if scene is)
+        if (currentCharges.length === 0 && charges.length > 0) {
+             currentCharges = charges;
+        }
+
+        // Remove old field lines
+        fieldLinesRef.current.forEach(line => {
+            scene.remove(line);
+            line.geometry?.dispose();
+            line.material?.dispose();
+        });
+        fieldLinesRef.current = [];
+
+        const positiveCharges = currentCharges.filter(c => c.q > 0);
+        const negativeCharges = currentCharges.filter(c => c.q < 0);
+
+        // Field lines from positive charges (outward)
+        positiveCharges.forEach(charge => {
+            const linesPerCharge = Math.ceil(fieldLineDensity * Math.abs(charge.q));
+            const spherePoints = generateSpherePoints(linesPerCharge);
+            const startOffset = CHARGE_RADIUS * 1.5;
+
+            spherePoints.forEach(sp => {
+                const startPoint = {
+                    x: charge.x + sp.x * startOffset,
+                    y: charge.y + sp.y * startOffset,
+                    z: charge.z + sp.z * startOffset
+                };
+
+                const points = traceFieldLine(startPoint, 1, currentCharges, 'negative');
+
+                if (points.length > 2) {
+                    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                    const colors = [];
+                    for (let j = 0; j < points.length; j++) {
+                        const t = j / points.length;
+                        colors.push(1, 0.4 + t * 0.4, t * 0.4); // Orange to yellow gradient
+                    }
+                    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+                    const material = new THREE.LineBasicMaterial({
+                        vertexColors: true,
+                        transparent: true,
+                        opacity: 0.6
+                    });
+
+                    const line = new THREE.Line(geometry, material);
+                    scene.add(line);
+                    fieldLinesRef.current.push(line);
+
+                    // Add direction cones
+                    const arrowInterval = Math.floor(points.length / 3);
+                    for (let arrowIdx = arrowInterval; arrowIdx < points.length - 1; arrowIdx += arrowInterval) {
+                        const p1 = points[arrowIdx];
+                        const p2 = points[Math.min(arrowIdx + 2, points.length - 1)];
+                        const direction = new THREE.Vector3(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z).normalize();
+
+                        const coneGeom = new THREE.ConeGeometry(2.5, 6, 6);
+                        const coneMat = new THREE.MeshBasicMaterial({ color: 0xffaa44 });
+                        const cone = new THREE.Mesh(coneGeom, coneMat);
+                        cone.position.copy(p1);
+
+                        const up = new THREE.Vector3(0, 1, 0);
+                        const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
+                        cone.setRotationFromQuaternion(quaternion);
+
+                        scene.add(cone);
+                        fieldLinesRef.current.push(cone);
+                    }
+                }
+            });
+        });
+
+        // Incoming field lines TO negative charges (traced backwards)
+        negativeCharges.forEach(charge => {
+            const linesPerCharge = Math.ceil(fieldLineDensity * Math.abs(charge.q));
+            const spherePoints = generateSpherePoints(linesPerCharge);
+            const startOffset = CHARGE_RADIUS * 1.5;
+
+            spherePoints.forEach(sp => {
+                const startPoint = {
+                    x: charge.x + sp.x * startOffset,
+                    y: charge.y + sp.y * startOffset,
+                    z: charge.z + sp.z * startOffset
+                };
+
+                // Trace field line backwards toward negative charge
+                const points = traceFieldLine(startPoint, -1, currentCharges, 'positive');
+
+                if (points.length > 2) {
+                    // Check redundancy
+                    const lastPoint = points[points.length - 1];
+                    const hitPositive = positiveCharges.some(p => {
+                        const dx = lastPoint.x - p.x;
+                        const dy = lastPoint.y - p.y;
+                        const dz = lastPoint.z - p.z;
+                        return (dx*dx + dy*dy + dz*dz) < (CHARGE_RADIUS * 2.5) ** 2;
+                    });
+                    if (hitPositive) return;
+
+                    points.reverse();
+
+                    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                    const colors = [];
+                    for (let j = 0; j < points.length; j++) {
+                        const t = j / points.length;
+                        colors.push(1, 0.4 + t * 0.4, t * 0.4);
+                    }
+                    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+                    const material = new THREE.LineBasicMaterial({
+                        vertexColors: true,
+                        transparent: true,
+                        opacity: 0.6
+                    });
+
+                    const line = new THREE.Line(geometry, material);
+                    scene.add(line);
+                    fieldLinesRef.current.push(line);
+
+                    // Direction cones
+                    const arrowInterval = Math.floor(points.length / 3);
+                    for (let arrowIdx = arrowInterval; arrowIdx < points.length - 1; arrowIdx += arrowInterval) {
+                        const p1 = points[arrowIdx];
+                        const p2 = points[Math.min(arrowIdx + 2, points.length - 1)];
+                        const direction = new THREE.Vector3(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z).normalize();
+
+                        const coneGeom = new THREE.ConeGeometry(2.5, 6, 6);
+                        const coneMat = new THREE.MeshBasicMaterial({ color: 0xffaa44 });
+                        const cone = new THREE.Mesh(coneGeom, coneMat);
+                        cone.position.copy(p1);
+
+                        const up = new THREE.Vector3(0, 1, 0);
+                        const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
+                        cone.setRotationFromQuaternion(quaternion);
+
+                        scene.add(cone);
+                        fieldLinesRef.current.push(cone);
+                    }
+                }
+            });
+        });
+
+    }, [charges, showFieldLines, fieldLineDensity]);
+
 
     // Scene setup - runs once
     useEffect(() => {
@@ -255,220 +491,11 @@ export default function ElectromagneticPage() {
         });
     }, [charges, sceneReady]);
 
+
     useEffect(() => {
-        const scene = sceneRef.current;
-        if (!scene) return;
+        updateFieldLines();
+    }, [updateFieldLines]);
 
-        // Remove old field lines
-        fieldLinesRef.current.forEach(line => {
-            scene.remove(line);
-            line.geometry?.dispose();
-            line.material?.dispose();
-        });
-        fieldLinesRef.current = [];
-
-        if (!showFieldLines) return;
-
-        // Helper to trace a field line
-        // direction: 1 = follow field (from positive), -1 = against field (toward negative)
-        // terminateAt: 'negative', 'positive', or 'any'
-        const traceFieldLine = (startPoint, direction, terminateAt = 'any') => {
-            const points = [];
-            let current = { ...startPoint };
-
-            for (let step = 0; step < FIELD_LINE_SEGMENTS; step++) {
-                points.push(new THREE.Vector3(current.x, current.y, current.z));
-
-                const field = calculateField(current, charges);
-                const mag = Math.sqrt(field.x ** 2 + field.y ** 2 + field.z ** 2);
-
-                if (mag < 0.001) break; // Very weak field
-
-                // Check if near target charge type (for termination)
-                if (step > 5) {
-                    const nearTarget = charges.some(c => {
-                        const d = Math.sqrt((current.x - c.x) ** 2 + (current.y - c.y) ** 2 + (current.z - c.z) ** 2);
-                        if (d > CHARGE_RADIUS * 1.5) return false;
-                        if (terminateAt === 'negative') return c.q < 0;
-                        if (terminateAt === 'positive') return c.q > 0;
-                        return true; // 'any'
-                    });
-                    if (nearTarget) break;
-                }
-
-                // Smoother, consistent step size
-                const stepSize = FIELD_LINE_STEP;
-                current.x += direction * (field.x / mag) * stepSize;
-                current.y += direction * (field.y / mag) * stepSize;
-                current.z += direction * (field.z / mag) * stepSize;
-
-                // Extended bounds for better coverage
-                if (Math.abs(current.x) > 1000 || Math.abs(current.y) > 1000 || Math.abs(current.z) > 1000) break;
-            }
-            return points;
-        };
-
-        // Generate symmetric 3D spherical distribution of starting points
-        // Uses regular latitude-longitude pattern for symmetric appearance
-        const generateSpherePoints = (count) => {
-            const points = [];
-            // Calculate number of latitude bands
-            const latBands = Math.max(2, Math.ceil(Math.sqrt(count)));
-            const lonPoints = Math.ceil(count / latBands);
-
-            for (let lat = 0; lat < latBands; lat++) {
-                // Latitude from -PI/2 to PI/2 (avoiding exact poles for better distribution)
-                const theta = ((lat + 0.5) / latBands) * Math.PI - Math.PI / 2;
-                const cosTheta = Math.cos(theta);
-                const sinTheta = Math.sin(theta);
-
-                // Number of longitude points scales with latitude (fewer near poles)
-                const numLon = Math.max(1, Math.round(lonPoints * cosTheta));
-
-                for (let lon = 0; lon < numLon; lon++) {
-                    const phi = (lon / numLon) * Math.PI * 2;
-                    points.push({
-                        x: Math.cos(phi) * cosTheta,
-                        y: sinTheta,
-                        z: Math.sin(phi) * cosTheta
-                    });
-                }
-            }
-            return points;
-        };
-
-        const positiveCharges = charges.filter(c => c.q > 0);
-        const negativeCharges = charges.filter(c => c.q < 0);
-
-        // Field lines from positive charges (outward)
-        positiveCharges.forEach(charge => {
-            const linesPerCharge = Math.ceil(fieldLineDensity * Math.abs(charge.q));
-            const spherePoints = generateSpherePoints(linesPerCharge);
-            const startOffset = CHARGE_RADIUS * 1.5;
-
-            spherePoints.forEach(sp => {
-                const startPoint = {
-                    x: charge.x + sp.x * startOffset,
-                    y: charge.y + sp.y * startOffset,
-                    z: charge.z + sp.z * startOffset
-                };
-
-                const points = traceFieldLine(startPoint, 1, 'negative'); // +1 = follow field, terminate at negative charges
-
-                if (points.length > 2) {
-                    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-                    const colors = [];
-                    for (let j = 0; j < points.length; j++) {
-                        const t = j / points.length;
-                        colors.push(1, 0.4 + t * 0.4, t * 0.4); // Orange to yellow gradient
-                    }
-                    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-                    const material = new THREE.LineBasicMaterial({
-                        vertexColors: true,
-                        transparent: true,
-                        opacity: 0.6
-                    });
-
-                    const line = new THREE.Line(geometry, material);
-                    scene.add(line);
-                    fieldLinesRef.current.push(line);
-
-                    // Add direction cones
-                    const arrowInterval = Math.floor(points.length / 3);
-                    for (let arrowIdx = arrowInterval; arrowIdx < points.length - 1; arrowIdx += arrowInterval) {
-                        const p1 = points[arrowIdx];
-                        const p2 = points[Math.min(arrowIdx + 2, points.length - 1)];
-                        const direction = new THREE.Vector3(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z).normalize();
-
-                        const coneGeom = new THREE.ConeGeometry(2.5, 6, 6);
-                        const coneMat = new THREE.MeshBasicMaterial({ color: 0xffaa44 });
-                        const cone = new THREE.Mesh(coneGeom, coneMat);
-                        cone.position.copy(p1);
-
-                        const up = new THREE.Vector3(0, 1, 0);
-                        const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
-                        cone.setRotationFromQuaternion(quaternion);
-
-                        scene.add(cone);
-                        fieldLinesRef.current.push(cone);
-                    }
-                }
-            });
-        });
-
-                // Incoming field lines TO negative charges (traced backwards)
-        negativeCharges.forEach(charge => {
-            const linesPerCharge = Math.ceil(fieldLineDensity * Math.abs(charge.q));
-            const spherePoints = generateSpherePoints(linesPerCharge);
-            const startOffset = CHARGE_RADIUS * 1.5;
-
-            spherePoints.forEach(sp => {
-                const startPoint = {
-                    x: charge.x + sp.x * startOffset,
-                    y: charge.y + sp.y * startOffset,
-                    z: charge.z + sp.z * startOffset
-                };
-
-                // Trace field line backwards toward negative charge
-                // direction: -1 = against field. terminateAt: 'positive' (stop at source)
-                const points = traceFieldLine(startPoint, -1, 'positive');
-
-                if (points.length > 2) {
-                    // Check if we hit a positive charge. If so, this line is redundant
-                    // (already drawn by the positive charge's outgoing line).
-                    const lastPoint = points[points.length - 1];
-                    const hitPositive = positiveCharges.some(p => {
-                        const dx = lastPoint.x - p.x;
-                        const dy = lastPoint.y - p.y;
-                        const dz = lastPoint.z - p.z;
-                        return (dx*dx + dy*dy + dz*dz) < (CHARGE_RADIUS * 2.5) ** 2;
-                    });
-                    if (hitPositive) return;
-
-                    points.reverse(); // Reverse so gradient goes toward charge (IN)
-
-                    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-                    const colors = [];
-                    for (let j = 0; j < points.length; j++) {
-                        const t = j / points.length;
-                        colors.push(1, 0.4 + t * 0.4, t * 0.4); // Same orange gradient
-                    }
-                    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-                    const material = new THREE.LineBasicMaterial({
-                        vertexColors: true,
-                        transparent: true,
-                        opacity: 0.6
-                    });
-
-                    const line = new THREE.Line(geometry, material);
-                    scene.add(line);
-                    fieldLinesRef.current.push(line);
-
-                    // Direction cones
-                    const arrowInterval = Math.floor(points.length / 3);
-                    for (let arrowIdx = arrowInterval; arrowIdx < points.length - 1; arrowIdx += arrowInterval) {
-                        const p1 = points[arrowIdx];
-                        const p2 = points[Math.min(arrowIdx + 2, points.length - 1)];
-                        const direction = new THREE.Vector3(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z).normalize();
-
-                        const coneGeom = new THREE.ConeGeometry(2.5, 6, 6);
-                        const coneMat = new THREE.MeshBasicMaterial({ color: 0xffaa44 });
-                        const cone = new THREE.Mesh(coneGeom, coneMat);
-                        cone.position.copy(p1);
-
-                        const up = new THREE.Vector3(0, 1, 0);
-                        const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
-                        cone.setRotationFromQuaternion(quaternion);
-
-                        scene.add(cone);
-                        fieldLinesRef.current.push(cone);
-                    }
-                }
-            });
-        });
-    }, [charges, showFieldLines, fieldLineDensity]);
 
     // Update force vectors
     useEffect(() => {
@@ -533,6 +560,7 @@ export default function ElectromagneticPage() {
     useEffect(() => {
         if (!isRunning) return;
 
+        let frameCount = 0;
         let lastTime = performance.now();
         let animId;
 
@@ -587,13 +615,19 @@ export default function ElectromagneticPage() {
                 // Debug log (throttled) - removed
             });
 
+
+            frameCount++;
+            if (frameCount % 2 === 0) { // Update every 2nd frame
+                updateFieldLines();
+            }
+
             setStats(prev => ({ ...prev, time: prev.time + dt }));
             animId = requestAnimationFrame(simulate);
         };
 
         simulate();
         return () => cancelAnimationFrame(animId);
-    }, [isRunning, simSpeed]);
+    }, [isRunning, simSpeed, updateFieldLines]);
 
     // Actions
     const loadScenario = useCallback((key) => {
