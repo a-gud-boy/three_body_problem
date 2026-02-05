@@ -112,7 +112,7 @@ export default function ElectromagneticPage() {
     const [showFieldLines, setShowFieldLines] = useState(true);
     const [showForceVectors, setShowForceVectors] = useState(false);
     const [showGrid, setShowGrid] = useState(true);
-    const [fieldLineDensity, setFieldLineDensity] = useState(8);
+    const [fieldLineDensity, setFieldLineDensity] = useState(16);
     const [interactionMode, setInteractionMode] = useState('view');
     const [isPanelOpen, setIsPanelOpen] = useState(true);
     const [stats, setStats] = useState({ totalEnergy: 0, time: 0 });
@@ -712,7 +712,7 @@ export default function ElectromagneticPage() {
                     {showFieldLines && (
                         <div className="em-slider-group">
                             <label>Density</label>
-                            <input type="range" min="2" max="16" value={fieldLineDensity} onChange={(e) => setFieldLineDensity(Number(e.target.value))} />
+                            <input type="range" min="16" max="64" value={fieldLineDensity} onChange={(e) => setFieldLineDensity(Number(e.target.value))} />
                             <span>{fieldLineDensity}</span>
                         </div>
                     )}
