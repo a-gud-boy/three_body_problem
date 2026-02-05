@@ -93,11 +93,11 @@ const simulations = [
     {
         id: 'fluid-dynamics',
         title: 'Fluid Dynamics (SPH)',
-        description: 'Particle-based fluid simulation concepts using Smoothed Particle Hydrodynamics.',
+        description: 'Interactive particle-based fluid simulation. Pour, stir, and play with viscosity.',
         icon: '💧',
         iconBg: 'rgba(14, 165, 233, 0.15)',
-        status: 'concept',
-        path: '/concept/fluid-dynamics',
+        status: 'available',
+        path: '/fluid-dynamics',
     },
     {
         id: 'wave-interference',

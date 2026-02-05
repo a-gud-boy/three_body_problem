@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Play, Pause, RotateCcw, Settings2, GitFork, BarChart3, TrendingUp } from 'lucide-react';
+import { getDerivatives } from './physicsUtils';
 import './DoublePendulum.css';
 
 const MAX_TRAIL_LENGTH = 1000;
@@ -51,35 +52,9 @@ export default function DoublePendulumPage() {
     const [shadowMode, setShadowMode] = useState(false);
 
     // --- Physics Engine (RK4) ---
-    const getDerivatives = (state, params) => {
-        const { theta1, theta2, omega1, omega2 } = state;
-        const { m1, m2, l1, l2, g } = params;
+    // Moved getDerivatives outside component to avoid recreation
 
-        const delta = theta1 - theta2;
-        const den1 = (m1 + m2) * l1 - m2 * l1 * Math.cos(delta) * Math.cos(delta);
-        const den2 = (l2 / l1) * den1;
-
-        const dTheta1 = omega1;
-        const dTheta2 = omega2;
-
-        const num1 = m2 * l1 * omega1 * omega1 * Math.sin(delta) * Math.cos(delta)
-                   + m2 * g * Math.sin(theta2) * Math.cos(delta)
-                   + m2 * l2 * omega2 * omega2 * Math.sin(delta)
-                   - (m1 + m2) * g * Math.sin(theta1);
-
-        const dOmega1 = num1 / den1;
-
-        const num2 = -m2 * l2 * omega2 * omega2 * Math.sin(delta) * Math.cos(delta)
-                   + (m1 + m2) * (g * Math.sin(theta1) * Math.cos(delta)
-                   - l1 * omega1 * omega1 * Math.sin(delta)
-                   - g * Math.sin(theta2));
-
-        const dOmega2 = num2 / den2;
-
-        return { dTheta1, dTheta2, dOmega1, dOmega2 };
-    };
-
-    const integrate = (dt) => {
+    const integrate = useCallback((dt) => {
         const params = paramsRef.current;
 
         stateRef.current.forEach(pendulum => {
@@ -108,10 +83,10 @@ export default function DoublePendulumPage() {
             };
             const k4 = getDerivatives(s4, params);
 
-            pendulum.theta1 += (k1.dTheta1 + 2*k2.dTheta1 + 2*k3.dTheta1 + k4.dTheta1) * dt / 6;
-            pendulum.theta2 += (k1.dTheta2 + 2*k2.dTheta2 + 2*k3.dTheta2 + k4.dTheta2) * dt / 6;
-            pendulum.omega1 += (k1.dOmega1 + 2*k2.dOmega1 + 2*k3.dOmega1 + k4.dOmega1) * dt / 6;
-            pendulum.omega2 += (k1.dOmega2 + 2*k2.dOmega2 + 2*k3.dOmega2 + k4.dOmega2) * dt / 6;
+            pendulum.theta1 += (k1.dTheta1 + 2 * k2.dTheta1 + 2 * k3.dTheta1 + k4.dTheta1) * dt / 6;
+            pendulum.theta2 += (k1.dTheta2 + 2 * k2.dTheta2 + 2 * k3.dTheta2 + k4.dTheta2) * dt / 6;
+            pendulum.omega1 += (k1.dOmega1 + 2 * k2.dOmega1 + 2 * k3.dOmega1 + k4.dOmega1) * dt / 6;
+            pendulum.omega2 += (k1.dOmega2 + 2 * k2.dOmega2 + 2 * k3.dOmega2 + k4.dOmega2) * dt / 6;
 
             pendulum.omega1 *= params.damping;
             pendulum.omega2 *= params.damping;
@@ -132,7 +107,7 @@ export default function DoublePendulumPage() {
         const p = stateRef.current[0];
 
         // Phase Space: Theta1 vs Omega1
-        // Normalize theta to -PI to PI for cleaner phase plot
+
         let theta = p.theta1 % (Math.PI * 2);
         if (theta > Math.PI) theta -= Math.PI * 2;
         if (theta < -Math.PI) theta += Math.PI * 2;
@@ -141,12 +116,7 @@ export default function DoublePendulumPage() {
         if (historyRef.current.phase.length > PHASE_HISTORY_LENGTH) historyRef.current.phase.shift();
 
         // Energy
-        // y is downwards positive for drawing, but for Potential Energy (mgh), h is usually up.
-        // Let's assume pivot at y=0 is reference. Center of mass y1 = -l1*cos(theta1).
-        // Actually rendering uses y downwards.
-        // PE = -m1*g*y1 - m2*g*y2 (where y is vertical position relative to pivot, up is positive)
-        // With canvas y down positive: y1 = l1*cos(theta1), PE = - m g ( - y_canvas ) = m g y_canvas
-        // Standard PE: U = -m g l cos(theta) (relative to pivot)
+
         const { m1, m2, l1, l2, g } = params;
         const pe1 = -m1 * g * l1 * Math.cos(p.theta1);
         const pe2 = -m2 * g * (l1 * Math.cos(p.theta1) + l2 * Math.cos(p.theta2));
@@ -158,7 +128,7 @@ export default function DoublePendulumPage() {
 
         historyRef.current.energy.push({ k: ke, p: pe, t: ke + pe });
         if (historyRef.current.energy.length > ENERGY_HISTORY_LENGTH) historyRef.current.energy.shift();
-    };
+    }, []);
 
     // --- Visualization ---
     const drawPhaseSpace = () => {
@@ -175,8 +145,8 @@ export default function DoublePendulumPage() {
         ctx.strokeStyle = '#334155';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(0, h/2); ctx.lineTo(w, h/2);
-        ctx.moveTo(w/2, 0); ctx.lineTo(w/2, h);
+        ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2);
+        ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, h);
         ctx.stroke();
 
         if (historyRef.current.phase.length < 2) return;
@@ -194,14 +164,14 @@ export default function DoublePendulumPage() {
         // Only draw connected line if points are close (avoid wrap-around lines)
         for (let i = 0; i < data.length - 1; i++) {
             const p1 = data[i];
-            const p2 = data[i+1];
+            const p2 = data[i + 1];
 
             if (Math.abs(p1.x - p2.x) > 1) continue; // Skip wrap-around
 
-            const x1 = w/2 + p1.x * scaleX;
-            const y1 = h/2 - p1.y * scaleY * 10; // Scale omega
-            const x2 = w/2 + p2.x * scaleX;
-            const y2 = h/2 - p2.y * scaleY * 10;
+            const x1 = w / 2 + p1.x * scaleX;
+            const y1 = h / 2 - p1.y * scaleY * 10; // Scale omega
+            const x2 = w / 2 + p2.x * scaleX;
+            const y2 = h / 2 - p2.y * scaleY * 10;
 
             ctx.moveTo(x1, y1);
             ctx.lineTo(x2, y2);
@@ -209,11 +179,11 @@ export default function DoublePendulumPage() {
         ctx.stroke();
 
         // Current Point
-        const last = data[data.length-1];
-        const cx = w/2 + last.x * scaleX;
-        const cy = h/2 - last.y * scaleY * 10;
+        const last = data[data.length - 1];
+        const cx = w / 2 + last.x * scaleX;
+        const cy = h / 2 - last.y * scaleY * 10;
         ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill();
     };
 
     const drawEnergy = () => {
@@ -249,7 +219,7 @@ export default function DoublePendulumPage() {
             data.forEach((d, i) => {
                 const x = i * xScale;
                 const y = yScale(d[key]);
-                if (i===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
             });
             ctx.stroke();
         };
@@ -262,7 +232,7 @@ export default function DoublePendulumPage() {
     const animate = useCallback(() => {
         if (isPlaying) {
             // Smaller steps for stability
-            for(let i=0; i<5; i++) integrate(0.04);
+            for (let i = 0; i < 5; i++) integrate(0.04);
         }
 
         const canvas = canvasRef.current;
@@ -329,12 +299,17 @@ export default function DoublePendulumPage() {
         drawPhaseSpace();
         drawEnergy();
 
-        requestRef.current = requestAnimationFrame(animate);
-    }, [isPlaying]);
+    }, [isPlaying, integrate]);
 
     useEffect(() => {
-        requestRef.current = requestAnimationFrame(animate);
-        return () => cancelAnimationFrame(requestRef.current);
+        let rId;
+        const loop = () => {
+            animate();
+            rId = requestAnimationFrame(loop);
+        };
+        rId = requestAnimationFrame(loop);
+        return () => cancelAnimationFrame(rId);
+
     }, [animate]);
 
     useEffect(() => {
@@ -411,35 +386,35 @@ export default function DoublePendulumPage() {
 
                 <aside className="dp-sidebar">
                     <div className="sidebar-section">
-                        <h2><Settings2 size={16}/> Parameters</h2>
+                        <h2><Settings2 size={16} /> Parameters</h2>
                         <div className="param-group">
                             <label>Mass 1: {uiParams.m1}</label>
-                            <input type="range" min="1" max="50" value={uiParams.m1} onChange={(e) => { const v=Number(e.target.value); setUiParams(p=>({...p, m1:v})); paramsRef.current.m1=v; }} />
+                            <input type="range" min="1" max="50" value={uiParams.m1} onChange={(e) => { const v = Number(e.target.value); setUiParams(p => ({ ...p, m1: v })); paramsRef.current.m1 = v; }} />
                         </div>
                         <div className="param-group">
                             <label>Mass 2: {uiParams.m2}</label>
-                            <input type="range" min="1" max="50" value={uiParams.m2} onChange={(e) => { const v=Number(e.target.value); setUiParams(p=>({...p, m2:v})); paramsRef.current.m2=v; }} />
+                            <input type="range" min="1" max="50" value={uiParams.m2} onChange={(e) => { const v = Number(e.target.value); setUiParams(p => ({ ...p, m2: v })); paramsRef.current.m2 = v; }} />
                         </div>
                         <div className="param-group">
                             <label>Length 1: {uiParams.l1}</label>
-                            <input type="range" min="50" max="250" value={uiParams.l1} onChange={(e) => { const v=Number(e.target.value); setUiParams(p=>({...p, l1:v})); paramsRef.current.l1=v; }} />
+                            <input type="range" min="50" max="250" value={uiParams.l1} onChange={(e) => { const v = Number(e.target.value); setUiParams(p => ({ ...p, l1: v })); paramsRef.current.l1 = v; }} />
                         </div>
                         <div className="param-group">
                             <label>Length 2: {uiParams.l2}</label>
-                            <input type="range" min="50" max="250" value={uiParams.l2} onChange={(e) => { const v=Number(e.target.value); setUiParams(p=>({...p, l2:v})); paramsRef.current.l2=v; }} />
+                            <input type="range" min="50" max="250" value={uiParams.l2} onChange={(e) => { const v = Number(e.target.value); setUiParams(p => ({ ...p, l2: v })); paramsRef.current.l2 = v; }} />
                         </div>
-                         <div className="param-group">
+                        <div className="param-group">
                             <label>Gravity: {uiParams.g}</label>
-                            <input type="range" min="0.1" max="5" step="0.1" value={uiParams.g} onChange={(e) => { const v=Number(e.target.value); setUiParams(p=>({...p, g:v})); paramsRef.current.g=v; }} />
+                            <input type="range" min="0.1" max="5" step="0.1" value={uiParams.g} onChange={(e) => { const v = Number(e.target.value); setUiParams(p => ({ ...p, g: v })); paramsRef.current.g = v; }} />
                         </div>
                         <div className="param-group">
                             <label>Damping: {uiParams.damping}</label>
-                            <input type="range" min="0.990" max="1.000" step="0.001" value={uiParams.damping} onChange={(e) => { const v=Number(e.target.value); setUiParams(p=>({...p, damping:v})); paramsRef.current.damping=v; }} />
+                            <input type="range" min="0.990" max="1.000" step="0.001" value={uiParams.damping} onChange={(e) => { const v = Number(e.target.value); setUiParams(p => ({ ...p, damping: v })); paramsRef.current.damping = v; }} />
                         </div>
                     </div>
 
                     <div className="sidebar-section">
-                        <h2><GitFork size={16}/> Chaos Mode</h2>
+                        <h2><GitFork size={16} /> Chaos Mode</h2>
                         <button
                             className={`btn-shadow ${shadowMode ? 'active' : ''}`}
                             onClick={toggleShadowMode}
@@ -452,17 +427,17 @@ export default function DoublePendulumPage() {
                     </div>
 
                     <div className="sidebar-section">
-                        <h2><TrendingUp size={16}/> Phase Space (θ₁ vs ω₁)</h2>
+                        <h2><TrendingUp size={16} /> Phase Space (θ₁ vs ω₁)</h2>
                         <canvas ref={phaseCanvasRef} width={280} height={150} className="analysis-canvas" />
                     </div>
 
                     <div className="sidebar-section">
-                        <h2><BarChart3 size={16}/> Energy</h2>
+                        <h2><BarChart3 size={16} /> Energy</h2>
                         <canvas ref={energyCanvasRef} width={280} height={100} className="analysis-canvas" />
-                         <div className="legend">
-                            <span style={{color: '#34d399'}}>Kinetic</span>
-                            <span style={{color: '#60a5fa'}}>Potential</span>
-                            <span style={{color: '#fbbf24'}}>Total</span>
+                        <div className="legend">
+                            <span style={{ color: '#34d399' }}>Kinetic</span>
+                            <span style={{ color: '#60a5fa' }}>Potential</span>
+                            <span style={{ color: '#fbbf24' }}>Total</span>
                         </div>
                     </div>
                 </aside>
