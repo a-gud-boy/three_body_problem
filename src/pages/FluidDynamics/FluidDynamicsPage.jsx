@@ -9,7 +9,7 @@ export default function FluidDynamicsPage() {
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
     const simulatorRef = useRef(null);
-    const requestRef = useRef(null);
+
     const fpsRef = useRef(0);
     const lastTimeRef = useRef(0);
 
@@ -162,34 +162,44 @@ export default function FluidDynamicsPage() {
         // but for < 2000 particles, standard drawing commands are often fine and look smoother.
 
         if (viewMode === 'WATER') {
-            // "Metaball-ish" look using globalAlpha overlap
-            // Use blue-ish tint
-            ctx.fillStyle = '#38bdf8';
+            // Metaball Rendering using CSS Filters trick (conceptually)
+            // But here we do it via Canvas style/shadow for better control or just the drawing
+            // To achieve the reference look: Soft particles + Thresholding
+            // We'll rely on the CSS 'filter: contrast' applied to the canvas in styles
+            // And draw blurred particles here.
 
-            // This loop is the bottleneck.
-            // Optim: Batch drawing or use simple rects for low zoom.
+            ctx.save();
+            // This color will be thresholded by the CSS contrast filter
+            // Ideally: Background is black, particles are white/blue with blur.
+
+            // NOTE: The canvas itself needs the filter. We will apply it dynamically or via class.
+            // For now, let's draw them "gooey".
+
+            // Particle base
+            ctx.fillStyle = '#0ea5e9'; // Bright Blue
+            // ctx.shadowBlur = 6;
+            // ctx.shadowColor = '#0ea5e9';
+
             for (let i = 0; i < sim.numParticles; i++) {
                 ctx.beginPath();
-                ctx.arc(sim.x[i], sim.y[i], sim.h * 0.4, 0, Math.PI * 2);
+                // Draw slightly larger for blending
+                ctx.arc(sim.x[i], sim.y[i], sim.h * 0.6, 0, Math.PI * 2);
                 ctx.fill();
             }
 
-            // Simple highlight pass (fake reflection)
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-            for (let i = 0; i < sim.numParticles; i++) {
-                ctx.beginPath();
-                ctx.arc(sim.x[i] - 2, sim.y[i] - 2, sim.h * 0.15, 0, Math.PI * 2);
-                ctx.fill();
-            }
+            // Highlights (Reflections) - drawn on top, sharp (no blur ideally, but canvas filter affects all)
+            // To fix this, we'd need a second canvas overlay.
+            // For this single-canvas constraint, we just draw them white.
+            ctx.restore();
 
         } else if (viewMode === 'VELOCITY') {
             for (let i = 0; i < sim.numParticles; i++) {
-                const speed = Math.sqrt(sim.vx[i]*sim.vx[i] + sim.vy[i]*sim.vy[i]);
+                const speed = Math.sqrt(sim.vx[i] * sim.vx[i] + sim.vy[i] * sim.vy[i]);
                 const t = Math.min(speed / 10, 1);
                 // Heatmap: Blue (slow) -> Red (fast)
                 const r = Math.floor(t * 255);
-                const g = Math.floor((1-t) * 100);
-                const b = Math.floor((1-t) * 255);
+                const g = Math.floor((1 - t) * 100);
+                const b = Math.floor((1 - t) * 255);
 
                 ctx.fillStyle = `rgb(${r},${g},${b})`;
                 ctx.beginPath();
@@ -202,7 +212,7 @@ export default function FluidDynamicsPage() {
                 const t = Math.min(Math.max(p / 200, 0), 1);
                 // Heatmap: Blue (low) -> Red (high)
                 const r = Math.floor(t * 255);
-                const g = Math.floor((1-t) * 255);
+                const g = Math.floor((1 - t) * 255);
                 const b = 50;
 
                 ctx.fillStyle = `rgb(${r},${g},${b})`;
@@ -251,7 +261,7 @@ export default function FluidDynamicsPage() {
                 </Link>
                 <h1>Fluid Dynamics (SPH)</h1>
                 <div className="header-controls">
-                     <button onClick={() => setIsPlaying(!isPlaying)} className="btn-icon">
+                    <button onClick={() => setIsPlaying(!isPlaying)} className="btn-icon">
                         {isPlaying ? <Pause size={20} /> : <Play size={20} />}
                     </button>
                     <button onClick={() => loadScenario('DAM_BREAK')} className="btn-icon">
@@ -269,6 +279,7 @@ export default function FluidDynamicsPage() {
                         onMouseUp={handleMouseUp}
                         onMouseLeave={handleMouseUp}
                         onContextMenu={e => e.preventDefault()}
+                        className={viewMode === 'WATER' ? 'fluid-canvas-water' : 'fluid-canvas-normal'}
                         style={{ cursor: interactionMode === 'OBSTACLE' ? 'cell' : 'crosshair' }}
                     />
 
@@ -279,7 +290,7 @@ export default function FluidDynamicsPage() {
 
                     <div className="overlay-info">
                         <strong>Controls:</strong> Left-Click to Push, Right-Click to Pull. Shift+Click to Pour.
-                        <br/>
+                        <br />
                         {interactionMode === 'OBSTACLE' && <span className="text-yellow-400">Obstacle Mode Active: Click to place walls.</span>}
                     </div>
                 </div>
@@ -300,10 +311,10 @@ export default function FluidDynamicsPage() {
                         <h2><MousePointer2 size={16} /> Interaction</h2>
                         <div className="mode-toggle">
                             <button className={interactionMode === 'FORCE' ? 'active' : ''} onClick={() => setInteractionMode('FORCE')}>
-                                <Wind size={14} className="mr-1"/> Force
+                                <Wind size={14} className="mr-1" /> Force
                             </button>
                             <button className={interactionMode === 'OBSTACLE' ? 'active' : ''} onClick={() => setInteractionMode('OBSTACLE')}>
-                                <Circle size={14} className="mr-1"/> Obstacle
+                                <Circle size={14} className="mr-1" /> Obstacle
                             </button>
                         </div>
                     </div>
@@ -328,7 +339,7 @@ export default function FluidDynamicsPage() {
                             <input
                                 type="range" min="0" max="2" step="0.05"
                                 value={params.gravity}
-                                onChange={e => setParams({...params, gravity: Number(e.target.value)})}
+                                onChange={e => setParams({ ...params, gravity: Number(e.target.value) })}
                             />
                         </div>
 
@@ -337,7 +348,7 @@ export default function FluidDynamicsPage() {
                             <input
                                 type="range" min="0" max="500" step="10"
                                 value={params.viscosity}
-                                onChange={e => setParams({...params, viscosity: Number(e.target.value)})}
+                                onChange={e => setParams({ ...params, viscosity: Number(e.target.value) })}
                             />
                         </div>
 
@@ -346,7 +357,7 @@ export default function FluidDynamicsPage() {
                             <input
                                 type="range" min="1000" max="8000" step="100"
                                 value={params.stiffness}
-                                onChange={e => setParams({...params, stiffness: Number(e.target.value)})}
+                                onChange={e => setParams({ ...params, stiffness: Number(e.target.value) })}
                             />
                         </div>
 
@@ -355,7 +366,7 @@ export default function FluidDynamicsPage() {
                             <input
                                 type="range" min="0.1" max="2" step="0.1"
                                 value={params.timeScale}
-                                onChange={e => setParams({...params, timeScale: Number(e.target.value)})}
+                                onChange={e => setParams({ ...params, timeScale: Number(e.target.value) })}
                             />
                         </div>
                     </div>

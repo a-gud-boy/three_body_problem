@@ -5,6 +5,8 @@ import AtomSimulator from './pages/AtomSimulator/AtomSimulator';
 import ElectromagneticPage from './pages/Electromagnetic/ElectromagneticPage';
 import DoublePendulumPage from './pages/DoublePendulum/DoublePendulumPage';
 import FluidDynamicsPage from './pages/FluidDynamics/FluidDynamicsPage';
+import WaveInterferencePage from './pages/WaveInterference/WaveInterferencePage';
+import SoftBodyPage from './pages/SoftBody/SoftBodyPage';
 import ConceptPage from './pages/Concept/ConceptPage';
 
 const router = createBrowserRouter([
@@ -31,6 +33,14 @@ const router = createBrowserRouter([
     {
         path: '/fluid-dynamics',
         element: <FluidDynamicsPage />,
+    },
+    {
+        path: '/wave-interference',
+        element: <WaveInterferencePage />,
+    },
+    {
+        path: '/soft-body',
+        element: <SoftBodyPage />,
     },
     {
         path: '/concept/:id',

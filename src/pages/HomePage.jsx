@@ -102,20 +102,20 @@ const simulations = [
     {
         id: 'wave-interference',
         title: 'Wave Interference',
-        description: 'Ripple tank simulation concepts demonstrating wave propagation and interference.',
+        description: 'Interactive ripple tank. Experiment with diffraction, refraction, and interference patterns.',
         icon: '🌊',
         iconBg: 'rgba(139, 92, 246, 0.15)',
-        status: 'concept',
-        path: '/concept/wave-interference',
+        status: 'available',
+        path: '/wave-interference',
     },
     {
         id: 'soft-body',
         title: 'Soft Body Simulation',
-        description: 'Mass-spring systems concepts for simulating deformable objects and cloth.',
+        description: 'Deformable physics engine. Play with cloth, jellies, and elastic collisions.',
         icon: '🧶',
         iconBg: 'rgba(236, 72, 153, 0.15)',
-        status: 'concept',
-        path: '/concept/soft-body',
+        status: 'available',
+        path: '/soft-body',
     },
 ];
 

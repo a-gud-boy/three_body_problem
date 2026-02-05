@@ -17,7 +17,7 @@ export default function DoublePendulumPage() {
 
     // Simulation State
     const [isPlaying, setIsPlaying] = useState(true);
-    const requestRef = useRef();
+
 
     // Physics Parameters
     const paramsRef = useRef({
@@ -48,7 +48,14 @@ export default function DoublePendulumPage() {
     });
 
     // UI State
-    const [uiParams, setUiParams] = useState(paramsRef.current);
+    const [uiParams, setUiParams] = useState({
+        m1: 10,
+        m2: 10,
+        l1: 150,
+        l2: 150,
+        g: 1,
+        damping: 1.0
+    });
     const [shadowMode, setShadowMode] = useState(false);
 
     // --- Physics Engine (RK4) ---

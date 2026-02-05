@@ -8,12 +8,12 @@ export default class FluidSimulator {
         this.numParticles = 0;
 
         // Physics Constants
-        this.h = 16; // Smoothing Radius
+        this.h = 22; // Increased Smoothing Radius for better connectivity
         this.h2 = this.h * this.h;
         this.h9 = Math.pow(this.h, 9);
 
         // Tunable Parameters
-        this.restDensity = 0.0004;
+        this.restDensity = 0.0002; // Adjusted for new H
         this.stiffness = 3000;
         this.viscosity = 200;
         this.gravity = 0.5;
@@ -110,22 +110,22 @@ export default class FluidSimulator {
                 this.numParticles++;
             }
         } else if (scenario === 'GALAXY') {
-             this.gravity = 0;
-             const count = 1000;
-             const cx = this.width / 2;
-             const cy = this.height / 2;
-             for (let i = 0; i < count; i++) {
-                 const angle = Math.random() * Math.PI * 2;
-                 const r = 20 + Math.sqrt(Math.random()) * 150;
-                 this.x[this.numParticles] = cx + Math.cos(angle) * r;
-                 this.y[this.numParticles] = cy + Math.sin(angle) * r;
+            this.gravity = 0;
+            const count = 1000;
+            const cx = this.width / 2;
+            const cy = this.height / 2;
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const r = 20 + Math.sqrt(Math.random()) * 150;
+                this.x[this.numParticles] = cx + Math.cos(angle) * r;
+                this.y[this.numParticles] = cy + Math.sin(angle) * r;
 
-                 // Orbital velocity
-                 const speed = 800 / r;
-                 this.vx[this.numParticles] = Math.sin(angle) * speed; // Tangential
-                 this.vy[this.numParticles] = -Math.cos(angle) * speed;
-                 this.numParticles++;
-             }
+                // Orbital velocity
+                const speed = 800 / r;
+                this.vx[this.numParticles] = Math.sin(angle) * speed; // Tangential
+                this.vy[this.numParticles] = -Math.cos(angle) * speed;
+                this.numParticles++;
+            }
         }
     }
 
@@ -202,7 +202,7 @@ export default class FluidSimulator {
             if (mouse.isPressed && !mouse.isPouring) {
                 const dx = mouse.x - this.x[i];
                 const dy = mouse.y - this.y[i];
-                const distSq = dx*dx + dy*dy;
+                const distSq = dx * dx + dy * dy;
                 const radiusSq = 150 * 150;
 
                 if (distSq < radiusSq) {
@@ -262,7 +262,7 @@ export default class FluidSimulator {
             for (const obs of this.obstacles) {
                 const dx = this.x[i] - obs.x;
                 const dy = this.y[i] - obs.y;
-                const distSq = dx*dx + dy*dy;
+                const distSq = dx * dx + dy * dy;
                 const minDist = obs.radius + this.h * 0.5; // Particle radius approx h/2
 
                 if (distSq < minDist * minDist) {
