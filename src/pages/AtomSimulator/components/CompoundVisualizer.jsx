@@ -77,6 +77,21 @@ export default function CompoundVisualizer({ compound, atoms, visualizationMode 
         const centerX = width / 2 + offset.x;
         const centerY = height / 2 + offset.y;
 
+
+        // Calculate bounding box and center offset
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        if (renderData.atoms && renderData.atoms.length > 0) {
+            renderData.atoms.forEach(atom => {
+                minX = Math.min(minX, atom.x);
+                maxX = Math.max(maxX, atom.x);
+                minY = Math.min(minY, atom.y);
+                maxY = Math.max(maxY, atom.y);
+            });
+        }
+        const shiftX = (minX !== Infinity) ? (minX + maxX) / 2 : 0;
+        const shiftY = (minY !== Infinity) ? (minY + maxY) / 2 : 0;
+
+
         // Base visuals
         const SHELL_SPACING = 35; // Distance between shells
         const ELECTRON_SIZE = 5;
@@ -99,10 +114,10 @@ export default function CompoundVisualizer({ compound, atoms, visualizationMode 
                     const to = renderData.atoms[bond.to];
                     if (!from || !to) return;
 
-                    const x1 = centerX + from.x * GLOBAL_SCALE;
-                    const y1 = centerY + from.y * GLOBAL_SCALE;
-                    const x2 = centerX + to.x * GLOBAL_SCALE;
-                    const y2 = centerY + to.y * GLOBAL_SCALE;
+                    const x1 = centerX + (from.x - shiftX) * GLOBAL_SCALE;
+                    const y1 = centerY + (from.y - shiftY) * GLOBAL_SCALE;
+                    const x2 = centerX + (to.x - shiftX) * GLOBAL_SCALE;
+                    const y2 = centerY + (to.y - shiftY) * GLOBAL_SCALE;
 
                     ctx.moveTo(x1, y1);
                     ctx.lineTo(x2, y2);
@@ -114,8 +129,8 @@ export default function CompoundVisualizer({ compound, atoms, visualizationMode 
 
             // Draw Atoms
             renderData.atoms.forEach((atom, index) => {
-                const cx = centerX + atom.x * GLOBAL_SCALE;
-                const cy = centerY + atom.y * GLOBAL_SCALE;
+                const cx = centerX + (atom.x - shiftX) * GLOBAL_SCALE;
+                const cy = centerY + (atom.y - shiftY) * GLOBAL_SCALE;
                 const elementInfo = getElementBySymbol(atom.element);
                 const shells = getElectronShells(elementInfo.atomicNumber);
                 const color = getAtomColor(atom.element);
