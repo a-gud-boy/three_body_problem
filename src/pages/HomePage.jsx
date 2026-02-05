@@ -94,7 +94,8 @@ const simulations = [
         description: 'Visualize electric and magnetic field lines in complex setups.',
         icon: '⚡',
         iconBg: 'rgba(6, 182, 212, 0.15)',
-        status: 'coming-soon',
+        status: 'available',
+        path: '/electromagnetic',
     },
 ];
 

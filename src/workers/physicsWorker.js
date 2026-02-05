@@ -13,7 +13,15 @@ const SOFTENING = 0.1;
 /**
  * Calculate accelerations for all bodies (Euler integrator)
  */
-function calculateAccelerations(bodies, G, skipIndex) {
+// Coulomb constant (k_e)
+const K_E = 8.9875517923e9;
+// We use a simplified K for simulation scaling unless otherwise specified, 
+// strictly handled via config.coulombK
+
+/**
+ * Calculate accelerations for all bodies (Euler integrator)
+ */
+function calculateAccelerations(bodies, G, coulombK, skipIndex) {
     const accelerations = bodies.map(() => ({ ax: 0, ay: 0, az: 0 }));
 
     for (let i = 0; i < bodies.length; i++) {
@@ -27,11 +35,50 @@ function calculateAccelerations(bodies, G, skipIndex) {
             const dz = bodies[j].z - bodies[i].z;
             const distSq = dx * dx + dy * dy + dz * dz + SOFTENING * SOFTENING;
             const dist = Math.sqrt(distSq);
-            const f = (G * bodies[j].mass) / distSq;
 
-            accelerations[i].ax += f * (dx / dist);
-            accelerations[i].ay += f * (dy / dist);
-            accelerations[i].az += f * (dz / dist);
+            // Gravitational Force (Attraction)
+            const fG = (G * bodies[j].mass) / distSq;
+
+            // Coulomb Force (Repulsion/Attraction)
+            // F = k * q1 * q2 / r^2
+            // If q1 * q2 > 0 -> Repulsion (Force opposite to displacement)
+            // If q1 * q2 < 0 -> Attraction (Force along displacement)
+            // However, our force vector logic traditionally adds force towards j.
+            // Gravity: +fG * (dx/dist) pulls i towards j.
+            // Coulomb: If repulsive (q1, q2 same sign), we want to push i AWAY from j.
+            // Force magnitude F_c
+            let fC = 0;
+            if (coulombK !== 0 && bodies[i].charge && bodies[j].charge) {
+                const forceMag = (coulombK * bodies[i].charge * bodies[j].charge) / distSq;
+                // If forceMag is positive (like charges), it's repulsive.
+                // We need to subtract this from the direction towards j.
+                fC = -forceMag;
+                // Wait, let's verify direction. 
+                // dx is vector from i to j (j - i).
+                // Acceleration on i should be proportional to F.
+                // If attractive (gravity), we want +dx direction.
+                // If repulsive (coulomb +), we want -dx direction.
+                // So adding -forceMag * (dx/dist) is correct for repulsion.
+            }
+
+            // Total force scaled by mass of i (F = ma -> a = F/m)
+            // Actually, for gravity: a = GM/r^2 (independent of mi)
+            // For Coulomb: F = k q1 q2 / r^2 -> a = (k q1 q2 / m1) / r^2
+            // So we must divide fC by bodies[i].mass explicitly here?
+            // Wait, logic above `const f = (G * bodies[j].mass) / distSq;` ALREADY divides by mi 
+            // because F_gravity = G mi mj / r^2, so a_i = G mj / r^2.
+
+            // For Coulomb: a_i = F_c / m_i = (k qi qj / r^2) / m_i
+            const accG = fG; // This is purely GM/r^2
+            const accC = (coulombK && bodies[i].charge && bodies[j].charge)
+                ? (-1 * (coulombK * bodies[i].charge * bodies[j].charge) / distSq) / bodies[i].mass
+                : 0;
+
+            const totalAcc = accG + accC;
+
+            accelerations[i].ax += totalAcc * (dx / dist);
+            accelerations[i].ay += totalAcc * (dy / dist);
+            accelerations[i].az += totalAcc * (dz / dist);
         }
     }
 
@@ -41,8 +88,8 @@ function calculateAccelerations(bodies, G, skipIndex) {
 /**
  * Symplectic Euler Integration (velocity then position)
  */
-function integrateEuler(bodies, dt, G, skipIndex) {
-    const accelerations = calculateAccelerations(bodies, G, skipIndex);
+function integrateEuler(bodies, dt, G, coulombK, skipIndex) {
+    const accelerations = calculateAccelerations(bodies, G, coulombK, skipIndex);
 
     for (let i = 0; i < bodies.length; i++) {
         if (i === skipIndex) continue;
@@ -64,7 +111,7 @@ function integrateEuler(bodies, dt, G, skipIndex) {
 /**
  * RK4 Integration (4th order Runge-Kutta)
  */
-function integrateRK4(bodies, dt, G, skipIndex) {
+function integrateRK4(bodies, dt, G, coulombK, skipIndex) {
     const n = bodies.length;
     const soft = SOFTENING;
 
@@ -79,7 +126,17 @@ function integrateRK4(bodies, dt, G, skipIndex) {
                 const dz = state[j].z - state[i].z;
                 const distSq = dx * dx + dy * dy + dz * dz + soft * soft;
                 const dist = Math.sqrt(distSq);
-                const f = (G * state[j].mass) / distSq;
+
+                // Gravity
+                const fG = (G * state[j].mass) / distSq;
+
+                // Coulomb
+                const accC = (coulombK && state[i].charge && state[j].charge)
+                    ? (-1 * (coulombK * state[i].charge * state[j].charge) / distSq) / state[i].mass
+                    : 0;
+
+                const f = fG + accC;
+
                 ax += f * (dx / dist);
                 ay += f * (dy / dist);
                 az += f * (dz / dist);
@@ -259,7 +316,7 @@ function handleCollisions(bodies, skipIndex) {
 /**
  * Calculate energy for stats
  */
-function calculateEnergy(bodies, G) {
+function calculateEnergy(bodies, G, coulombK) {
     let totalKE = 0;
     let totalPE = 0;
 
@@ -278,6 +335,11 @@ function calculateEnergy(bodies, G) {
 
             if (dist > 0.1) {
                 totalPE -= (G * bodies[i].mass * bodies[j].mass) / dist;
+
+                // Electric Potential Energy: U = k q1 q2 / r
+                if (coulombK && bodies[i].charge && bodies[j].charge) {
+                    totalPE += (coulombK * bodies[i].charge * bodies[j].charge) / dist;
+                }
             }
         }
     }
@@ -299,7 +361,8 @@ self.onmessage = function (e) {
             physicsMode = 'EULER',
             enableCollisions = false,
             skipIndex = null,
-            currentTime = 0
+            currentTime = 0,
+            coulombK = 0
         } = config;
 
         const dt = 0.01 * simSpeed * timeDirection;
@@ -309,9 +372,9 @@ self.onmessage = function (e) {
 
         // Integration
         if (physicsMode === 'EULER') {
-            updatedBodies = integrateEuler(updatedBodies, dt, gravityG, skipIndex);
+            updatedBodies = integrateEuler(updatedBodies, dt, gravityG, coulombK, skipIndex);
         } else {
-            updatedBodies = integrateRK4(updatedBodies, dt, gravityG, skipIndex);
+            updatedBodies = integrateRK4(updatedBodies, dt, gravityG, coulombK, skipIndex);
         }
 
         // Collision handling
@@ -323,7 +386,7 @@ self.onmessage = function (e) {
         }
 
         // Calculate energy stats
-        const energy = calculateEnergy(updatedBodies, gravityG);
+        const energy = calculateEnergy(updatedBodies, gravityG, coulombK);
 
         // Send results back
         self.postMessage({
