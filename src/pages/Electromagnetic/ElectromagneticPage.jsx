@@ -172,6 +172,26 @@ function traceFieldLine(startPoint, direction, charges, terminateAt = 'any') {
     }
     return points;
 }
+
+function calculateTotalEnergy(charges) {
+    let energy = 0;
+    for (let i = 0; i < charges.length; i++) {
+        for (let j = i + 1; j < charges.length; j++) {
+            const c1 = charges[i];
+            const c2 = charges[j];
+            const dx = c1.x - c2.x;
+            const dy = c1.y - c2.y;
+            const dz = c1.z - c2.z;
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+            if (dist > 1) { // Avoid singularity
+                energy += (COULOMB_K * c1.q * c2.q) / dist;
+            }
+        }
+    }
+    return energy;
+}
+
 export default function ElectromagneticPage() {
     const [charges, setCharges] = useState(SCENARIOS.DIPOLE.charges);
     const [currentScenario, setCurrentScenario] = useState('DIPOLE');
@@ -611,17 +631,26 @@ export default function ElectromagneticPage() {
                 mesh.position.x += mesh.userData.vx * dt;
                 mesh.position.y += mesh.userData.vy * dt;
                 mesh.position.z += mesh.userData.vz * dt;
-
-                // Debug log (throttled) - removed
             });
-
 
             frameCount++;
             if (frameCount % 2 === 0) { // Update every 2nd frame
                 updateFieldLines();
             }
 
-            setStats(prev => ({ ...prev, time: prev.time + dt }));
+            setStats(prev => {
+                let energy = prev.totalEnergy;
+                if (frameCount % 10 === 0) {
+                    const currentCharges = meshes.map(m => ({
+                        x: m.position.x,
+                        y: m.position.y,
+                        z: m.position.z,
+                        q: m.userData.charge
+                    }));
+                    energy = calculateTotalEnergy(currentCharges);
+                }
+                return { ...prev, totalEnergy: energy, time: prev.time + dt };
+            });
             animId = requestAnimationFrame(simulate);
         };
 
