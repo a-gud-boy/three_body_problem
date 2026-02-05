@@ -308,12 +308,12 @@ export const DEMO_COMPOUNDS = [
         description: 'Strong industrial acid. Used in batteries and fertilizers.',
         atoms: [
             { element: 'S', x: 0, y: 0, z: 0 },
-            { element: 'O', x: 0, y: 1.4, z: 0 },
-            { element: 'O', x: 0, y: -1.4, z: 0 },
-            { element: 'O', x: 1.4, y: 0, z: 0 },
-            { element: 'O', x: -1.4, y: 0, z: 0 },
-            { element: 'H', x: 2.3, y: 0, z: 0 },
-            { element: 'H', x: -2.3, y: 0, z: 0 },
+            { element: 'O', x: 0, y: 1.7, z: 0 },
+            { element: 'O', x: 0, y: -1.7, z: 0 },
+            { element: 'O', x: 1.7, y: 0, z: 0 },
+            { element: 'O', x: -1.7, y: 0, z: 0 },
+            { element: 'H', x: 2.7, y: 0, z: 0 },
+            { element: 'H', x: -2.7, y: 0, z: 0 },
         ],
         bonds: [
             { from: 0, to: 1, order: 2 },

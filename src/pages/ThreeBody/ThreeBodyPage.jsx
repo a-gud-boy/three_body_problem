@@ -1,7 +1,14 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Pause, RotateCcw, Info, Activity, Settings, MousePointer2, Move3d, Globe, Sparkles, Plus, Hand, Merge, Calculator, X, Target, Eye, Video, LineChart as LineChartIcon, Clock, Download, HelpCircle, Upload, Trash2, Tag, Maximize, Minimize, Camera, ArrowRight, PanelRightClose, PanelRightOpen, Cpu, Rewind, SkipForward, Bookmark, Zap, Home } from 'lucide-react';
-import { usePhysicsWorker } from './hooks/usePhysicsWorker';
+import { Play, Pause, RotateCcw, Plus, MousePointer2, Settings2, Download, Upload, Maximize2, Minimize2, Trash2, Bookmark, BarChart3, Info, Camera, Video, Monitor, AlertTriangle, X, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Home, HelpCircle, Sparkles, Globe, Target, Hand, Zap, Merge, Calculator, Minimize, Maximize, PanelRightClose, PanelRightOpen, Activity, LineChart as LineChartIcon, Settings, Clock, Rewind, SkipForward } from 'lucide-react';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
+
+import './ThreeBodyPage.css';
+import { usePhysicsWorker } from '../../hooks/usePhysicsWorker';
 
 const DEFAULT_PANEL_WIDTH = 380;
 const MIN_PANEL_WIDTH = 260;
@@ -269,7 +276,7 @@ const createCOMMarker = (THREE) => {
     return group;
 };
 
-const App = () => {
+const ThreeBodyPage = () => {
     // --- State ---
     const [isPlaying, setIsPlaying] = useState(false);
     const [scenarioKey, setScenarioKey] = useState('FIGURE_8');
@@ -2879,7 +2886,7 @@ const App = () => {
     );
 };
 
-export default App;
+export default ThreeBodyPage;
 
 // Helper component for inline editing
 const EditableValue = ({ field, value, editing, setEditing, editValue, setEditValue, onApply, onLiveUpdate, color = "text-white" }) => {
