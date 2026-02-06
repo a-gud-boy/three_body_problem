@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useMemo, useState, Component } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-// Removed OrbitControls to fix WebGPU crash
+import { OrbitControls } from '@react-three/drei';
 import { Fn, uniform, storage, float, uint, vec2, vec3, color, positionLocal, instanceIndex, vertexIndex, distance } from 'three/tsl';
 import { WebGPURenderer, MeshStandardNodeMaterial } from 'three/webgpu';
 import * as THREE from 'three';
