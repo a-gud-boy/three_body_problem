@@ -18,6 +18,7 @@ export default function FluidDynamicsPage() {
     const [stats, setStats] = useState({ fps: 0, particles: 0 });
     const [viewMode, setViewMode] = useState('WATER'); // WATER, VELOCITY, PRESSURE
     const [interactionMode, setInteractionMode] = useState('FORCE'); // FORCE, OBSTACLE
+    const [isInitialized, setIsInitialized] = useState(false);
 
     // Parameters State (synced with simulator)
     const [params, setParams] = useState({
@@ -39,20 +40,25 @@ export default function FluidDynamicsPage() {
 
     // Initialize Simulator
     useEffect(() => {
-        if (!containerRef.current || simulatorRef.current) return;
+        // Check if container and canvas are available and simulator not yet created
+        if (!containerRef.current || !canvasRef.current || simulatorRef.current || isInitialized) return;
 
         const width = containerRef.current.clientWidth;
         const height = containerRef.current.clientHeight;
+
+        // Only initialize if we have valid dimensions
+        if (width === 0 || height === 0) return;
 
         const sim = new FluidSimulator(width, height);
         sim.reset('DAM_BREAK');
         simulatorRef.current = sim;
 
         // Initial Canvas Setup
-        if (canvasRef.current) {
-            canvasRef.current.width = width;
-            canvasRef.current.height = height;
-        }
+        canvasRef.current.width = width;
+        canvasRef.current.height = height;
+
+        // Mark as initialized
+        setIsInitialized(true);
 
         // Handle Resize
         const handleResize = () => {
@@ -67,7 +73,7 @@ export default function FluidDynamicsPage() {
         };
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
-    }, []);
+    }, [isInitialized]); // Depend on isInitialized to prevent re-running after initialization
 
     // Parameter Sync
     useEffect(() => {
