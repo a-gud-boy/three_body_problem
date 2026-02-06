@@ -57,75 +57,72 @@ const SafeOrbitControls = () => {
 const GRID_SIZE = 128;
 const COUNT = GRID_SIZE * GRID_SIZE;
 
-const Simulation = ({ params, isPlaying, mousePos }) => {
-    // 1. Storage Buffers
-    const { currentBuffer, prevBuffer } = useMemo(() => {
-        const current = storage(new Float32Array(COUNT), 'float', COUNT);
-        const prev = storage(new Float32Array(COUNT), 'float', COUNT);
-        return { currentBuffer: current, prevBuffer: prev };
-    }, []);
+// Define buffers globally to ensure they are stable nodes
+const currentBuffer = storage(new Float32Array(COUNT), 'float', COUNT);
+const prevBuffer = storage(new Float32Array(COUNT), 'float', COUNT);
 
-    // 2. Uniforms
-    const uMouse = uniform(new THREE.Vector2(-1000, -1000));
-    const uDamping = uniform(params.damping);
-    const uSpeed = uniform(params.speed);
-    const uBrushSize = uniform(params.brushSize);
-    const uBrushStrength = uniform(params.brushStrength);
+// Define Uniforms globally (or at least stable refs)
+const uMouse = uniform(new THREE.Vector2(-1000, -1000));
+const uDamping = uniform(0.98);
+const uSpeed = uniform(1.0);
+const uBrushSize = uniform(5.0);
+const uBrushStrength = uniform(5.0);
+
+// Define Compute Shader
+const computeWater = Fn(() => {
+    const index = uint(instanceIndex);
+
+    const x = index.mod(GRID_SIZE);
+    const y = index.div(GRID_SIZE);
+
+    const current = currentBuffer.element(index);
+    const prev = prevBuffer.element(index);
+
+    // Helper to get buffer value safely
+    const getVal = (ix, iy) => {
+        const cX = ix.clamp(0, GRID_SIZE - 1);
+        const cY = iy.clamp(0, GRID_SIZE - 1);
+        const idx = cY.mul(GRID_SIZE).add(cX);
+        return currentBuffer.element(idx);
+    };
+
+    const right = getVal(x.add(1), y);
+    const left = getVal(x.sub(1), y);
+    const up = getVal(x, y.sub(1));
+    const down = getVal(x, y.add(1));
+
+    const neighborSum = right.add(left).add(up).add(down);
+    const val = neighborSum.div(2.0).sub(prev);
+
+    const damped = val.mul(uDamping);
+
+    const d = distance(vec2(x, y), uMouse);
+    const interaction = uBrushStrength.mul(
+            float(1.0).sub(d.div(uBrushSize)).clamp(0.0, 1.0)
+    );
+
+    const finalHeight = damped.add(interaction);
+
+    prevBuffer.element(index).assign(current);
+    currentBuffer.element(index).assign(finalHeight);
+
+}).compute(COUNT);
+
+
+const Simulation = ({ params, isPlaying, mousePos }) => {
 
     useEffect(() => {
         uDamping.value = params.damping;
         uSpeed.value = params.speed;
         uBrushSize.value = params.brushSize;
         uBrushStrength.value = params.brushStrength;
-    }, [params, uDamping, uSpeed, uBrushSize, uBrushStrength]);
+    }, [params]);
 
     useFrame(() => {
         if (mousePos.current) {
             uMouse.value.set(mousePos.current.x, mousePos.current.y);
         }
     });
-
-    // 3. Compute Logic
-    const computeWater = useMemo(() => {
-        return Fn(() => {
-            const index = uint(instanceIndex);
-
-            const x = index.mod(GRID_SIZE);
-            const y = index.div(GRID_SIZE);
-
-            const current = currentBuffer.element(index);
-            const prev = prevBuffer.element(index);
-
-            // Helper to get buffer value safely
-            const getVal = (ix, iy) => {
-                const cX = ix.clamp(0, GRID_SIZE - 1);
-                const cY = iy.clamp(0, GRID_SIZE - 1);
-                const idx = cY.mul(GRID_SIZE).add(cX);
-                return currentBuffer.element(idx);
-            };
-
-            const right = getVal(x.add(1), y);
-            const left = getVal(x.sub(1), y);
-            const up = getVal(x, y.sub(1));
-            const down = getVal(x, y.add(1));
-
-            const neighborSum = right.add(left).add(up).add(down);
-            const val = neighborSum.div(2.0).sub(prev);
-
-            const damped = val.mul(uDamping);
-
-            const d = distance(vec2(x, y), uMouse);
-            const interaction = uBrushStrength.mul(
-                 float(1.0).sub(d.div(uBrushSize)).clamp(0.0, 1.0)
-            );
-
-            const finalHeight = damped.add(interaction);
-
-            prevBuffer.element(index).assign(current);
-            currentBuffer.element(index).assign(finalHeight);
-
-        }).compute(COUNT);
-    }, [currentBuffer, prevBuffer, uMouse, uDamping, uBrushSize, uBrushStrength]);
 
     // 4. Material Logic
     const waterMaterial = useMemo(() => {
@@ -167,7 +164,7 @@ const Simulation = ({ params, isPlaying, mousePos }) => {
         mat.normalNode = vec3(dx.negate(), stride, dy.negate()).normalize();
 
         return mat;
-    }, [currentBuffer, params.color]);
+    }, [params.color]); // Removed currentBuffer dep as it is now global/stable
 
     useEffect(() => {
         waterMaterial.colorNode = color(params.color);
