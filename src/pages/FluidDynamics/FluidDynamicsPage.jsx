@@ -7,7 +7,6 @@ import './FluidDynamics.css';
 export default function FluidDynamicsPage() {
     // Refs
     const canvasRef = useRef(null);
-    const containerRef = useRef(null);
     const simulatorRef = useRef(null);
     const isInitializedRef = useRef(false);
 
@@ -19,6 +18,7 @@ export default function FluidDynamicsPage() {
     const [stats, setStats] = useState({ fps: 0, particles: 0 });
     const [viewMode, setViewMode] = useState('WATER'); // WATER, VELOCITY, PRESSURE
     const [interactionMode, setInteractionMode] = useState('FORCE'); // FORCE, OBSTACLE
+    const [containerElement, setContainerElement] = useState(null);
 
     // Parameters State (synced with simulator)
     const [params, setParams] = useState({
@@ -41,10 +41,10 @@ export default function FluidDynamicsPage() {
     // Initialize Simulator
     useEffect(() => {
         // Check if container and canvas are available and simulator not yet created
-        if (!containerRef.current || !canvasRef.current || simulatorRef.current || isInitializedRef.current) return;
+        if (!containerElement || !canvasRef.current || isInitializedRef.current) return;
 
-        const width = containerRef.current.clientWidth;
-        const height = containerRef.current.clientHeight;
+        const width = containerElement.clientWidth;
+        const height = containerElement.clientHeight;
 
         // Only initialize if we have valid dimensions
         if (width === 0 || height === 0) return;
@@ -62,9 +62,9 @@ export default function FluidDynamicsPage() {
 
         // Handle Resize
         const handleResize = () => {
-            if (containerRef.current && canvasRef.current && simulatorRef.current) {
-                const w = containerRef.current.clientWidth;
-                const h = containerRef.current.clientHeight;
+            if (containerElement && canvasRef.current && simulatorRef.current) {
+                const w = containerElement.clientWidth;
+                const h = containerElement.clientHeight;
                 canvasRef.current.width = w;
                 canvasRef.current.height = h;
                 simulatorRef.current.width = w;
@@ -73,7 +73,7 @@ export default function FluidDynamicsPage() {
         };
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
-    }); // No dependency array to allow re-checking until initialized
+    }, [containerElement]); // Depend on containerElement to re-run when it's set
 
     // Parameter Sync
     useEffect(() => {
@@ -277,7 +277,7 @@ export default function FluidDynamicsPage() {
             </header>
 
             <main className="fluid-main">
-                <div className="canvas-container" ref={containerRef}>
+                <div className="canvas-container" ref={setContainerElement}>
                     <canvas
                         ref={canvasRef}
                         onMouseDown={handleMouseDown}
