@@ -47,8 +47,8 @@ class ErrorBoundary extends Component {
 
 const SafeOrbitControls = () => {
     const { gl } = useThree();
-    // Only render controls if we have a valid DOM element to attach events to
-    if (!gl || !gl.domElement) return null;
+    // Only render controls if we have a valid DOM element with style to attach events to
+    if (!gl || !gl.domElement || !gl.domElement.style) return null;
     return <OrbitControls makeDefault />;
 };
 
@@ -134,11 +134,37 @@ const Simulation = ({ params, isPlaying, mousePos }) => {
         mat.roughness = 0.1;
         mat.metalness = 0.8;
 
-        const height = currentBuffer.element(vertexIndex);
+        const idx = uint(vertexIndex);
+        const x = idx.mod(GRID_SIZE);
+        const y = idx.div(GRID_SIZE);
+
+        // Helper to get buffer value safely
+        const getVal = (ix, iy) => {
+             const cX = ix.clamp(0, GRID_SIZE - 1);
+             const cY = iy.clamp(0, GRID_SIZE - 1);
+             const bufferIdx = cY.mul(GRID_SIZE).add(cX);
+             return currentBuffer.element(bufferIdx);
+        };
+
+        const height = currentBuffer.element(idx);
 
         const pos = positionLocal;
         const newPos = vec3(pos.x, height.mul(5.0), pos.z);
         mat.positionNode = newPos;
+
+        // Normal calculation for correct lighting
+        const hL = getVal(x.sub(1), y);
+        const hR = getVal(x.add(1), y);
+        const hD = getVal(x, y.sub(1));
+        const hU = getVal(x, y.add(1));
+
+        const stride = float(1.5); // Approx 2 * (100/128)
+        const heightScale = float(5.0);
+
+        const dx = hR.sub(hL).mul(heightScale);
+        const dy = hU.sub(hD).mul(heightScale);
+
+        mat.normalNode = vec3(dx.negate(), stride, dy.negate()).normalize();
 
         return mat;
     }, [currentBuffer, params.color]);
@@ -152,10 +178,14 @@ const Simulation = ({ params, isPlaying, mousePos }) => {
     useFrame(({ gl }) => {
         if (isPlaying) {
              // Use computeAsync if available (WebGPURenderer)
-             if (gl.computeAsync) {
-                 gl.computeAsync(computeWater);
-             } else if (gl.compute) {
-                 gl.compute(computeWater);
+             try {
+                if (gl.computeAsync) {
+                    gl.computeAsync(computeWater);
+                } else if (gl.compute) {
+                    gl.compute(computeWater);
+                }
+             } catch (_) {
+                 // Suppress compute errors if WebGPU is not active
              }
         }
     });
@@ -212,8 +242,9 @@ export default function ExperimentalFluidPage() {
                     <Canvas
                         camera={{ position: [0, 80, 80], fov: 45 }}
                         gl={canvas => {
-                            // Standard WebGPU initialization for production
                             const renderer = new WebGPURenderer({ canvas, antialias: true });
+                            // Attempt to initialize, but don't crash if it fails (handled by fallbacks internally usually)
+                            renderer.init().catch(e => console.error("WebGPU init failed:", e));
                             return renderer;
                         }}
                         onCreated={({ camera }) => {
@@ -242,6 +273,7 @@ export default function ExperimentalFluidPage() {
                                  <planeGeometry args={[100, 100]} />
                             </mesh>
                         </group>
+
                     </Canvas>
                 </div>
 
