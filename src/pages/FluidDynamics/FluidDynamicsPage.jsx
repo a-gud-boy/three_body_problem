@@ -9,6 +9,7 @@ export default function FluidDynamicsPage() {
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
     const simulatorRef = useRef(null);
+    const isInitializedRef = useRef(false);
 
     const fpsRef = useRef(0);
     const lastTimeRef = useRef(0);
@@ -18,7 +19,6 @@ export default function FluidDynamicsPage() {
     const [stats, setStats] = useState({ fps: 0, particles: 0 });
     const [viewMode, setViewMode] = useState('WATER'); // WATER, VELOCITY, PRESSURE
     const [interactionMode, setInteractionMode] = useState('FORCE'); // FORCE, OBSTACLE
-    const [isInitialized, setIsInitialized] = useState(false);
 
     // Parameters State (synced with simulator)
     const [params, setParams] = useState({
@@ -41,7 +41,7 @@ export default function FluidDynamicsPage() {
     // Initialize Simulator
     useEffect(() => {
         // Check if container and canvas are available and simulator not yet created
-        if (!containerRef.current || !canvasRef.current || simulatorRef.current || isInitialized) return;
+        if (!containerRef.current || !canvasRef.current || simulatorRef.current || isInitializedRef.current) return;
 
         const width = containerRef.current.clientWidth;
         const height = containerRef.current.clientHeight;
@@ -58,7 +58,7 @@ export default function FluidDynamicsPage() {
         canvasRef.current.height = height;
 
         // Mark as initialized
-        setIsInitialized(true);
+        isInitializedRef.current = true;
 
         // Handle Resize
         const handleResize = () => {
@@ -73,7 +73,7 @@ export default function FluidDynamicsPage() {
         };
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
-    }, [isInitialized]); // Depend on isInitialized to prevent re-running after initialization
+    }); // No dependency array to allow re-checking until initialized
 
     // Parameter Sync
     useEffect(() => {
