@@ -43,7 +43,7 @@ export default function AtomSimulator() {
 
     // Handle adding atom to compound
     const handleAddAtomToCompound = useCallback((element) => {
-        setCompoundAtoms(prev => [...prev, { element, id: Date.now() }]);
+        setCompoundAtoms(prev => [...prev, { element, id: crypto.randomUUID() }]);
     }, []);
 
     // Handle removing atom from compound
