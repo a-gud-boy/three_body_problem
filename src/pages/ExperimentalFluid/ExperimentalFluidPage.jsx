@@ -28,6 +28,7 @@ class WebGPUWaterSimulation {
         this.disposed = false;
         this.gridSize = gridSize;
         this.count = gridSize * gridSize;
+        this.rainTriggered = false;
         
         this.init();
     }
@@ -84,9 +85,49 @@ class WebGPUWaterSimulation {
     }
     
     setupBackground() {
-        const colA = color(new THREE.Color(0x0f172a));
-        const colB = color(new THREE.Color(0x1e293b));
+        const colA = color(new THREE.Color(0x0f172a)); // Deep slate
+        const colB = color(new THREE.Color(0x1e293b)); // Lighter slate
         this.scene.backgroundNode = mix(colB, colA, viewportUV.y);
+
+        // Procedural environment map
+        const width = 256;
+        const height = 128;
+        const size = width * height;
+        const data = new Uint8Array(4 * size);
+
+        for (let i = 0; i < size; i++) {
+            const y = Math.floor(i / width);
+            const v = y / height;
+
+            let r, g, b;
+
+            if (v < 0.5) {
+                // Sky (top half) - lighter blue to white
+                const t = v * 2;
+                r = Math.floor(THREE.MathUtils.lerp(135, 255, t));
+                g = Math.floor(THREE.MathUtils.lerp(206, 255, t));
+                b = Math.floor(THREE.MathUtils.lerp(235, 255, t));
+            } else {
+                // Ground/Sea (bottom half) - dark blue
+                const t = (v - 0.5) * 2;
+                r = Math.floor(THREE.MathUtils.lerp(255, 15, t));
+                g = Math.floor(THREE.MathUtils.lerp(255, 23, t));
+                b = Math.floor(THREE.MathUtils.lerp(255, 42, t));
+            }
+
+            data[i * 4] = r;
+            data[i * 4 + 1] = g;
+            data[i * 4 + 2] = b;
+            data[i * 4 + 3] = 255;
+        }
+
+        const envTexture = new THREE.DataTexture(data, width, height, THREE.RGBAFormat);
+        envTexture.colorSpace = THREE.SRGBColorSpace;
+        envTexture.mapping = THREE.EquirectangularReflectionMapping;
+        envTexture.needsUpdate = true;
+
+        this.scene.environment = envTexture;
+        this.scene.environmentIntensity = 1.0;
     }
 
     setupCompute() {
@@ -107,12 +148,18 @@ class WebGPUWaterSimulation {
         this.uBrushSize = uniform(this.params.brushSize);
         this.uBrushStrength = uniform(this.params.brushStrength);
         this.uSpeed = uniform(this.params.speed);
+
+        // Rain Uniforms
+        this.uRainPos = uniform(new THREE.Vector2(-1000, -1000));
+        this.uRainActive = uniform(0.0);
+        this.uRainSize = uniform(2.0);
+        this.uRainStrength = uniform(3.0);
         
         const gridSize = this.gridSize;
         const heightStorage = this.heightStorage;
         const velocityStorage = this.velocityStorage;
         
-        // --- Pass 1: Update Velocity ---
+        // --- Pass 1: Update Velocity (Force Calculation) ---
         // Reads Height (neighbors), Reads/Writes Velocity
         const computeVelocity = Fn(() => {
             const index = instanceIndex.toUint();
@@ -133,10 +180,11 @@ class WebGPUWaterSimulation {
             const up = getH(x, y.sub(1));
             const down = getH(x, y.add(1));
             
+            // Laplacian: sum(neighbors) - 4*current
             const laplacian = right.add(left).add(up).add(down).sub(currentH.mul(4.0));
             const accel = laplacian.mul(this.uSpeed).mul(0.5); // Speed factor
             
-            // Interaction
+            // Mouse Interaction (Force)
             const mousePos = this.uMouse;
             const dx = float(x).sub(mousePos.x);
             const dy = float(y).sub(mousePos.y);
@@ -144,19 +192,30 @@ class WebGPUWaterSimulation {
             const brush = this.uBrushStrength.mul(
                 float(1.0).sub(dist.div(this.uBrushSize)).clamp(0.0, 1.0)
             ).mul(this.uMouseActive).mul(0.1);
+
+            // Rain Interaction (Force)
+            const rainPos = this.uRainPos;
+            const rdx = float(x).sub(rainPos.x);
+            const rdy = float(y).sub(rainPos.y);
+            const rdist = rdx.mul(rdx).add(rdy.mul(rdy)).sqrt();
+            const rain = this.uRainStrength.mul(
+                float(1.0).sub(rdist.div(this.uRainSize)).clamp(0.0, 1.0)
+            ).mul(this.uRainActive).mul(0.1);
             
-            const newV = currentV.add(accel).add(brush).mul(this.uDamping);
+            // v_new = (v + a + brush + rain) * damping
+            const newV = currentV.add(accel).add(brush).add(rain).mul(this.uDamping);
             
             velocityStorage.element(index).assign(newV);
         });
         
-        // --- Pass 2: Update Height ---
+        // --- Pass 2: Update Height (Advection) ---
         // Reads Velocity, Reads/Writes Height
         const computeHeight = Fn(() => {
             const index = instanceIndex.toUint();
             const v = velocityStorage.element(index);
             const h = heightStorage.element(index);
 
+            // h_new = h + v
             heightStorage.element(index).assign(h.add(v));
         });
 
@@ -174,8 +233,8 @@ class WebGPUWaterSimulation {
         
         try {
             this.material = new MeshStandardNodeMaterial({
-                metalness: 0.3,
-                roughness: 0.1,
+                metalness: 0.1,
+                roughness: 0.02,
                 side: THREE.DoubleSide,
             });
             
@@ -227,11 +286,24 @@ class WebGPUWaterSimulation {
     }
     
     setupLights() {
-        const sun = new THREE.DirectionalLight(0xffffff, 2.0);
-        sun.position.set(50, 50, 50);
-        this.scene.add(sun);
-        const ambient = new THREE.AmbientLight(0x404040);
-        this.scene.add(ambient);
+        const hemiLight = new THREE.HemisphereLight(0x88ccff, 0x224466, 0.6);
+        this.scene.add(hemiLight);
+
+        const sunLight = new THREE.DirectionalLight(0xffffee, 1.2);
+        sunLight.position.set(30, 50, 20);
+        this.scene.add(sunLight);
+
+        const fillLight = new THREE.DirectionalLight(0x8888ff, 0.4);
+        fillLight.position.set(-30, 20, -20);
+        this.scene.add(fillLight);
+
+        const rimLight = new THREE.PointLight(0xffffff, 0.8, 150);
+        rimLight.position.set(0, 30, -50);
+        this.scene.add(rimLight);
+
+        const accentLight = new THREE.PointLight(0x00ffff, 0.6, 120);
+        accentLight.position.set(-40, 15, 40);
+        this.scene.add(accentLight);
     }
     
     createInitialRipples() {
@@ -247,6 +319,18 @@ class WebGPUWaterSimulation {
 
     setMouseActive(active) {
         if (this.uMouseActive) this.uMouseActive.value = active ? 1.0 : 0.0;
+    }
+
+    triggerRainDrop() {
+        if (!this.uRainPos || !this.uRainActive) return;
+
+        const x = Math.random() * this.gridSize;
+        const y = Math.random() * this.gridSize;
+
+        this.uRainPos.value.set(x, y);
+        this.uRainActive.value = 1.0;
+
+        this.rainTriggered = true;
     }
     
     raycastToGrid(ndcX, ndcY) {
@@ -292,6 +376,12 @@ class WebGPUWaterSimulation {
         if (this.isRunning) {
             this.renderer.compute(this.computeVelocityNode);
             this.renderer.compute(this.computeHeightNode);
+
+            // Reset rain after one frame
+            if (this.rainTriggered) {
+                this.rainTriggered = false;
+                if (this.uRainActive) this.uRainActive.value = 0.0;
+            }
         }
 
         this.renderer.render(this.scene, this.camera);
@@ -321,6 +411,8 @@ export default function ExperimentalFluidPage() {
     });
     const [resolution, setResolution] = useState(256);
     const [isPlaying, setIsPlaying] = useState(true);
+    const [isRaining, setIsRaining] = useState(false);
+    const [rainIntensity, setRainIntensity] = useState(5);
     const [error, setError] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -367,6 +459,22 @@ export default function ExperimentalFluidPage() {
     }, [isPlaying]);
 
     useEffect(() => {
+        if (!isRaining || !isPlaying) return;
+
+        const minDelay = 10;
+        const maxDelay = 500;
+        const delay = maxDelay - ((rainIntensity - 1) / 9) * (maxDelay - minDelay);
+
+        const interval = setInterval(() => {
+            if (simulationRef.current && Math.random() > 0.3) {
+                 simulationRef.current.triggerRainDrop();
+            }
+        }, delay);
+
+        return () => clearInterval(interval);
+    }, [isRaining, rainIntensity, isPlaying]);
+
+    useEffect(() => {
         const handleResize = () => {
             if (containerRef.current && simulationRef.current) {
                 const { clientWidth, clientHeight } = containerRef.current;
@@ -395,25 +503,31 @@ export default function ExperimentalFluidPage() {
 
     return (
         <div className="w-full h-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden relative">
-            {/* UI Overlay */}
             <div className="absolute top-0 left-0 right-0 p-4 z-10 flex justify-between items-start pointer-events-none">
                 <div className="flex flex-col gap-2 pointer-events-auto">
-                    <Link to="/" className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-800/80 rounded-lg text-slate-300 hover:text-white">
-                        <ArrowLeft className="w-4 h-4" /> Back
+                    <Link to="/" className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-600/50 rounded-lg text-slate-300 hover:text-white text-sm font-medium transition-all backdrop-blur-sm">
+                        <ArrowLeft className="w-4 h-4" />
+                        Back to Hub
                     </Link>
-                    <h1 className="text-xl font-bold">GPU Water Sim</h1>
+                    <h1 className="text-2xl font-bold text-slate-200 drop-shadow-lg flex items-center gap-2">
+                        Water Ripple Simulation
+                        <span className="text-xs bg-purple-600 text-white px-1.5 py-0.5 rounded">WebGPU</span>
+                    </h1>
                 </div>
             </div>
 
             {isLoading && (
-                <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80">
-                    <div className="animate-spin w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full"></div>
+                <div className="absolute inset-0 z-30 bg-slate-950 flex flex-col items-center justify-center">
+                    <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p className="text-slate-300">Initializing WebGPU...</p>
                 </div>
             )}
 
             {error && (
-                <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950 text-red-500 p-8 text-center">
-                    {error}
+                <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950 text-red-500 p-8 text-center flex-col gap-4">
+                    <AlertCircle className="w-16 h-16 text-red-500" />
+                    <p>{error}</p>
+                    <Link to="/" className="px-4 py-2 bg-slate-800 rounded">Return Home</Link>
                 </div>
             )}
 
@@ -428,45 +542,159 @@ export default function ExperimentalFluidPage() {
                 />
             </div>
 
-            <aside className="absolute right-0 top-0 bottom-0 w-72 bg-slate-900/90 border-l border-slate-700 p-4 z-20 overflow-y-auto">
-                <div className="space-y-4">
-                    <button onClick={() => setIsPlaying(!isPlaying)} className="w-full py-2 bg-emerald-600 rounded flex items-center justify-center gap-2">
-                        {isPlaying ? <Pause size={16}/> : <Play size={16}/>} {isPlaying ? 'Pause' : 'Resume'}
-                    </button>
-                    <button onClick={() => simulationRef.current?.reset()} className="w-full py-2 bg-slate-700 rounded flex items-center justify-center gap-2">
-                        <RotateCcw size={16}/> Reset
-                    </button>
-
-                    <div className="space-y-1">
-                        <label className="text-xs text-slate-400">Resolution</label>
-                        <select
-                            value={resolution}
-                            onChange={e => setResolution(Number(e.target.value))}
-                            className="w-full bg-slate-800 border border-slate-600 rounded p-1"
-                        >
-                            {RESOLUTION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
+            {!error && (
+                <aside className="absolute right-0 top-0 bottom-0 w-80 bg-slate-900/90 backdrop-blur-md border-l border-slate-700 p-6 z-20 overflow-y-auto">
+                    <div className="mb-6 flex items-center gap-2 text-purple-400">
+                        <Settings2 className="w-5 h-5" />
+                        <h2 className="font-bold text-lg">Configuration</h2>
                     </div>
 
-                    <div className="space-y-1">
-                        <label className="text-xs text-slate-400">Damping ({params.damping})</label>
-                        <input type="range" min="0.9" max="0.999" step="0.001" value={params.damping}
-                            onChange={e => setParams({...params, damping: parseFloat(e.target.value)})} className="w-full accent-purple-500"/>
-                    </div>
+                    <div className="space-y-6">
+                        <div className="space-y-4">
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setIsPlaying(!isPlaying)}
+                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-semibold transition-all ${
+                                        isPlaying
+                                        ? 'bg-amber-500/10 text-amber-500 border border-amber-500/50 hover:bg-amber-500/20'
+                                        : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg'
+                                    }`}
+                                >
+                                    {isPlaying ? <><Pause className="w-4 h-4" /> Pause</> : <><Play className="w-4 h-4" /> Resume</>}
+                                </button>
+                                <button
+                                    onClick={() => simulationRef.current?.reset()}
+                                    className="px-4 py-3 rounded-lg font-semibold bg-slate-700 text-slate-300 hover:bg-slate-600 transition-all"
+                                    title="Reset simulation"
+                                >
+                                    <RotateCcw className="w-4 h-4" />
+                                </button>
+                            </div>
 
-                    <div className="space-y-1">
-                        <label className="text-xs text-slate-400">Speed ({params.speed})</label>
-                        <input type="range" min="0.1" max="1.0" step="0.1" value={params.speed}
-                            onChange={e => setParams({...params, speed: parseFloat(e.target.value)})} className="w-full accent-purple-500"/>
-                    </div>
+                            <div className="space-y-2 pt-2 border-t border-slate-700/50">
+                                <button
+                                    onClick={() => setIsRaining(!isRaining)}
+                                    className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg font-medium transition-all ${
+                                        isRaining
+                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                    }`}
+                                >
+                                    <CloudRain className={`w-4 h-4 ${isRaining ? 'animate-bounce' : ''}`} />
+                                    {isRaining ? 'Rain Active' : 'Enable Rain'}
+                                </button>
 
-                     <div className="space-y-1">
-                        <label className="text-xs text-slate-400">Brush Size</label>
-                        <input type="range" min="1" max="20" step="1" value={params.brushSize}
-                            onChange={e => setParams({...params, brushSize: parseFloat(e.target.value)})} className="w-full accent-purple-500"/>
+                                {isRaining && (
+                                    <div className="space-y-1 pt-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <label className="text-xs text-slate-400 flex justify-between">
+                                            Rain Intensity
+                                            <span className="text-slate-200 font-mono">{rainIntensity}</span>
+                                        </label>
+                                        <input
+                                            type="range" min="1" max="10" step="1"
+                                            value={rainIntensity}
+                                            onChange={e => setRainIntensity(parseInt(e.target.value, 10))}
+                                            className="w-full accent-blue-500 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm text-slate-400">Resolution</label>
+                                <select
+                                    value={resolution}
+                                    onChange={e => setResolution(parseInt(e.target.value, 10))}
+                                    className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-200 focus:outline-none focus:border-purple-500"
+                                >
+                                    {RESOLUTION_OPTIONS.map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm text-slate-400 flex justify-between">
+                                    Damping
+                                    <span className="text-slate-200 font-mono">{params.damping.toFixed(3)}</span>
+                                </label>
+                                <input
+                                    type="range" min="0.900" max="0.999" step="0.001"
+                                    value={params.damping}
+                                    onChange={e => setParams({...params, damping: parseFloat(e.target.value)})}
+                                    className="w-full accent-purple-500"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm text-slate-400 flex justify-between">
+                                    Wave Speed
+                                    <span className="text-slate-200 font-mono">{params.speed.toFixed(1)}</span>
+                                </label>
+                                <input
+                                    type="range" min="0.1" max="1.4" step="0.1"
+                                    value={params.speed}
+                                    onChange={e => setParams({...params, speed: parseFloat(e.target.value)})}
+                                    className="w-full accent-purple-500"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm text-slate-400 flex justify-between">
+                                    Brush Size
+                                    <span className="text-slate-200 font-mono">{params.brushSize.toFixed(1)}</span>
+                                </label>
+                                <input
+                                    type="range" min="1.0" max="30.0" step="0.5"
+                                    value={params.brushSize}
+                                    onChange={e => setParams({...params, brushSize: parseFloat(e.target.value)})}
+                                    className="w-full accent-purple-500"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm text-slate-400 flex justify-between">
+                                    Brush Strength
+                                    <span className="text-slate-200 font-mono">{params.brushStrength.toFixed(1)}</span>
+                                </label>
+                                <input
+                                    type="range" min="0.1" max="10.0" step="0.1"
+                                    value={params.brushStrength}
+                                    onChange={e => setParams({...params, brushStrength: parseFloat(e.target.value)})}
+                                    className="w-full accent-purple-500"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm text-slate-400">Water Color</label>
+                                <div className="flex gap-2">
+                                    {['#0088ff', '#00ffcc', '#ff0088', '#8800ff'].map(c => (
+                                        <button
+                                            key={c}
+                                            onClick={() => setParams({...params, color: c})}
+                                            className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${params.color === c ? 'border-white scale-110' : 'border-transparent'}`}
+                                            style={{ backgroundColor: c }}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-4 bg-slate-800/50 rounded-lg text-xs text-slate-400 leading-relaxed border border-slate-700/50">
+                            <div className="flex items-center gap-2 mb-2 font-semibold text-slate-300">
+                                <MousePointer2 className="w-4 h-4" /> Interaction
+                            </div>
+                            <p className="mb-2">Click and drag on the water to create ripples. Right-click + drag to rotate. Scroll to zoom.</p>
+                            <p>Adjust damping for wave decay, brush size/strength for ripple intensity.</p>
+                        </div>
+
+                        <div className="p-3 bg-purple-900/30 rounded-lg text-xs text-purple-300 border border-purple-700/50">
+                            <p className="font-semibold">100% GPU Accelerated</p>
+                            <p className="text-purple-400 mt-1">Wave simulation AND vertex displacement run entirely on GPU using WebGPU compute shaders with {resolution}x{resolution} = {(resolution * resolution).toLocaleString()} vertices.</p>
+                        </div>
                     </div>
-                </div>
-            </aside>
+                </aside>
+            )}
         </div>
     );
 }
