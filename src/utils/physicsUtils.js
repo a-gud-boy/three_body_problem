@@ -37,18 +37,18 @@ export function calculateTotalEnergy(charges) {
  */
 export function calculateField(point, charges, minDistance = 5) {
     const field = { x: 0, y: 0, z: 0 };
-    for (const charge of charges) {
+    for (let i = 0; i < charges.length; i++) {
+        const charge = charges[i];
         const dx = point.x - charge.x;
         const dy = point.y - charge.y;
         const dz = point.z - charge.z;
         const distSq = dx * dx + dy * dy + dz * dz;
         const dist = Math.sqrt(distSq);
         if (dist < minDistance) continue;
-        const magnitude = (COULOMB_K * Math.abs(charge.q)) / distSq;
-        const sign = charge.q > 0 ? 1 : -1;
-        field.x += sign * magnitude * (dx / dist);
-        field.y += sign * magnitude * (dy / dist);
-        field.z += sign * magnitude * (dz / dist);
+        const factor = (COULOMB_K * charge.q) / (distSq * dist);
+        field.x += factor * dx;
+        field.y += factor * dy;
+        field.z += factor * dz;
     }
     return field;
 }
@@ -90,26 +90,42 @@ export function traceFieldLine(startPoint, direction, charges, options = {}) {
 
     const points = [];
     let current = { ...startPoint };
+    const terminationDist = chargeRadius * 1.5;
 
     for (let step = 0; step < maxSteps; step++) {
         points.push({ x: current.x, y: current.y, z: current.z });
 
-        const field = calculateField(current, charges);
+        const field = { x: 0, y: 0, z: 0 };
+        let nearTarget = false;
+
+        for (let i = 0; i < charges.length; i++) {
+            const charge = charges[i];
+            const dx = current.x - charge.x;
+            const dy = current.y - charge.y;
+            const dz = current.z - charge.z;
+            const distSq = dx * dx + dy * dy + dz * dz;
+            const dist = Math.sqrt(distSq);
+
+            if (step > 5 && !nearTarget) {
+                if (dist <= terminationDist) {
+                    if (terminateAt === 'any') nearTarget = true;
+                    else if (terminateAt === 'negative' && charge.q < 0) nearTarget = true;
+                    else if (terminateAt === 'positive' && charge.q > 0) nearTarget = true;
+                }
+            }
+
+            if (dist < 5) continue;
+            const factor = (COULOMB_K * charge.q) / (distSq * dist);
+            field.x += factor * dx;
+            field.y += factor * dy;
+            field.z += factor * dz;
+        }
+
+        if (nearTarget) break;
+
         const mag = Math.sqrt(field.x ** 2 + field.y ** 2 + field.z ** 2);
 
         if (mag < minFieldMag) break;
-
-        // Check if near target charge type (for termination)
-        if (step > 5) {
-            const nearTarget = charges.some(c => {
-                const d = Math.sqrt((current.x - c.x) ** 2 + (current.y - c.y) ** 2 + (current.z - c.z) ** 2);
-                if (d > chargeRadius * 1.5) return false;
-                if (terminateAt === 'negative') return c.q < 0;
-                if (terminateAt === 'positive') return c.q > 0;
-                return true; // 'any'
-            });
-            if (nearTarget) break;
-        }
 
         current.x += direction * (field.x / mag) * stepSize;
         current.y += direction * (field.y / mag) * stepSize;
