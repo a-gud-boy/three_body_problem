@@ -325,14 +325,17 @@ class WebGPUWaterSimulation {
     }
     
     setMousePosition(x, y) {
+        if (this.disposed) return;
         if (this.uMouse) this.uMouse.value.set(x, y);
     }
 
     setMouseActive(active) {
+        if (this.disposed) return;
         if (this.uMouseActive) this.uMouseActive.value = active ? 1.0 : 0.0;
     }
 
     triggerRainDrop() {
+        if (this.disposed) return;
         if (!this.uRainPos || !this.uRainActive) return;
 
         const x = Math.random() * this.gridSize;
@@ -345,6 +348,7 @@ class WebGPUWaterSimulation {
     }
     
     raycastToGrid(ndcX, ndcY) {
+        if (this.disposed) return null;
         if (!this.raycaster) {
             this.raycaster = new THREE.Raycaster();
             this.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -360,6 +364,7 @@ class WebGPUWaterSimulation {
     }
 
     updateParams(params) {
+        if (this.disposed) return;
         this.params = params;
         if (this.uDamping) this.uDamping.value = params.damping;
         if (this.uBrushSize) this.uBrushSize.value = params.brushSize;
@@ -371,6 +376,7 @@ class WebGPUWaterSimulation {
     setPlaying(p) { this.isRunning = p; }
     
     reset() {
+        if (this.disposed) return;
         this.heightBuffer.array.fill(0);
         this.velocityBuffer.array.fill(0);
         this.heightBuffer.needsUpdate = true;
@@ -399,16 +405,52 @@ class WebGPUWaterSimulation {
     }
     
     resize(w, h) {
-        if (!this.camera) return;
+        if (this.disposed || !this.camera) return;
         this.camera.aspect = w / h;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(w, h);
+    }
+
+    cleanupScene() {
+        if (this.scene) {
+            this.scene.traverse((object) => {
+                if (object.geometry) object.geometry.dispose();
+                if (object.material) {
+                    if (Array.isArray(object.material)) {
+                        object.material.forEach(m => m.dispose());
+                    } else {
+                        object.material.dispose();
+                    }
+                }
+            });
+            if (this.scene.environment) this.scene.environment.dispose();
+            if (this.scene.background && this.scene.background.isTexture) {
+                this.scene.background.dispose();
+            }
+        }
     }
     
     dispose() {
         this.disposed = true;
         if (this.animationId) cancelAnimationFrame(this.animationId);
-        this.renderer?.dispose();
+
+        this.controls?.dispose();
+        this.cleanupScene();
+
+        const renderer = this.renderer;
+        this.renderer = null;
+
+        if (renderer) {
+            // Delay disposal slightly to allow pending GPU commands to finish
+            // This prevents "Buffer destroyed" errors if the loop was just active
+            setTimeout(() => {
+                try {
+                    renderer.dispose();
+                } catch (e) {
+                    console.error('Error disposing WebGPU renderer:', e);
+                }
+            }, 50);
+        }
     }
 }
 
