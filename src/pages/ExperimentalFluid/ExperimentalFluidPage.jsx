@@ -435,7 +435,6 @@ class WebGPUWaterSimulation {
         if (this.animationId) cancelAnimationFrame(this.animationId);
 
         this.controls?.dispose();
-        this.cleanupScene();
 
         const renderer = this.renderer;
         this.renderer = null;
@@ -443,13 +442,17 @@ class WebGPUWaterSimulation {
         if (renderer) {
             // Delay disposal slightly to allow pending GPU commands to finish
             // This prevents "Buffer destroyed" errors if the loop was just active
+            // We also move cleanupScene here to ensure resources aren't freed while GPU is busy
             setTimeout(() => {
                 try {
+                    this.cleanupScene();
                     renderer.dispose();
                 } catch (e) {
                     console.error('Error disposing WebGPU renderer:', e);
                 }
-            }, 50);
+            }, 100);
+        } else {
+            this.cleanupScene();
         }
     }
 }
