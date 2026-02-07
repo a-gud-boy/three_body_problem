@@ -7,7 +7,7 @@ def run():
         page = browser.new_page()
 
         # Navigate
-        url = "http://localhost:5173/three_body_problem/atom-simulator"
+        url = "http://localhost:5175/three_body_problem/atom-simulator"
         print(f"Navigating to {url}...")
         page.goto(url)
 
