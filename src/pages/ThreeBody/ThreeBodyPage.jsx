@@ -3787,7 +3787,6 @@ const VelocityVectorsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, scal
 
                 // Velocity endpoint in world coords (scaled for visibility)
                 const speed = Math.sqrt(body.vx ** 2 + body.vy ** 2 + body.vz ** 2);
-                // const velScale = Math.min(50, speed * 30); // Original line, not used in diff
 
                 // Create a 3D point offset by velocity
                 const endWorld = meshRefs.current[i].position.clone();

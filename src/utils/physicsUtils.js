@@ -63,3 +63,59 @@ export function calculateField(point, charges, minDistance = 5) {
 export function calculateElectrostaticForce(q1, q2, distSq) {
     return (COULOMB_K * q1 * q2) / distSq;
 }
+
+/**
+ * Traces a field line from a starting point
+ * @param {{x: number, y: number, z: number}} startPoint
+ * @param {number} direction 1 for along field (from positive), -1 for against field (toward negative)
+ * @param {Array<{x: number, y: number, z: number, q: number}>} charges
+ * @param {Object} options Configuration options
+ * @param {number} [options.maxSteps=3000] Maximum number of steps to trace
+ * @param {number} [options.stepSize=6] Step size for each iteration
+ * @param {string} [options.terminateAt='any'] Termination condition ('negative', 'positive', 'any')
+ * @param {number} [options.chargeRadius=15] Radius of charges for termination checks
+ * @param {number} [options.minFieldMag=0.001] Minimum field magnitude to continue tracing
+ * @param {number} [options.bounds=1000] Maximum coordinate value for bounds check
+ * @returns {Array<{x: number, y: number, z: number}>} Array of points along the field line
+ */
+export function traceFieldLine(startPoint, direction, charges, options = {}) {
+    const {
+        maxSteps = 3000,
+        stepSize = 6,
+        terminateAt = 'any',
+        chargeRadius = 15,
+        minFieldMag = 0.001,
+        bounds = 1000
+    } = options;
+
+    const points = [];
+    let current = { ...startPoint };
+
+    for (let step = 0; step < maxSteps; step++) {
+        points.push({ x: current.x, y: current.y, z: current.z });
+
+        const field = calculateField(current, charges);
+        const mag = Math.sqrt(field.x ** 2 + field.y ** 2 + field.z ** 2);
+
+        if (mag < minFieldMag) break;
+
+        // Check if near target charge type (for termination)
+        if (step > 5) {
+            const nearTarget = charges.some(c => {
+                const d = Math.sqrt((current.x - c.x) ** 2 + (current.y - c.y) ** 2 + (current.z - c.z) ** 2);
+                if (d > chargeRadius * 1.5) return false;
+                if (terminateAt === 'negative') return c.q < 0;
+                if (terminateAt === 'positive') return c.q > 0;
+                return true; // 'any'
+            });
+            if (nearTarget) break;
+        }
+
+        current.x += direction * (field.x / mag) * stepSize;
+        current.y += direction * (field.y / mag) * stepSize;
+        current.z += direction * (field.z / mag) * stepSize;
+
+        if (Math.abs(current.x) > bounds || Math.abs(current.y) > bounds || Math.abs(current.z) > bounds) break;
+    }
+    return points;
+}
