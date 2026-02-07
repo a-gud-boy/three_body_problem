@@ -1,6 +1,6 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Play, Pause, RotateCcw, Settings2, Droplets, Wind, Zap, Layers, MousePointer2, Circle } from 'lucide-react';
+import { ArrowLeft, Play, Pause, RotateCcw, Settings2, Droplets, Wind, Layers, MousePointer2, Circle } from 'lucide-react';
 import FluidSimulator from './FluidSimulator';
 import './FluidDynamics.css';
 
