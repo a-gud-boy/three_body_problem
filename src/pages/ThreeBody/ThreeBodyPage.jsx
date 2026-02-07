@@ -354,6 +354,10 @@ const ThreeBodyPage = () => {
     const requestRef = useRef();
     const bodiesRef = useRef([]);
     const trailsRef = useRef([]);
+    const rk4BuffersRef = useRef({
+        k1: null, k2: null, k3: null, k4: null,
+        s1: null, s2: null, s3: null
+    });
     const timeRef = useRef(0);
     const frameCountRef = useRef(0);
     const gridRef = useRef(null);
@@ -771,27 +775,39 @@ const ThreeBodyPage = () => {
 
         // 1. Integration Step
         if (physicsMode === 'EULER') {
-            const accelerations = bodies.map(() => ({ ax: 0, ay: 0, az: 0 }));
-            for (let i = 0; i < bodies.length; i++) {
+            const n = bodies.length;
+            // Reuse k1 buffer from rk4BuffersRef for Euler accelerations (saves memory)
+            if (!rk4BuffersRef.current.k1 || rk4BuffersRef.current.k1.length < n * 3) {
+                rk4BuffersRef.current.k1 = new Float32Array(n * 3);
+            }
+            const accelerations = rk4BuffersRef.current.k1;
+            accelerations.fill(0, 0, n * 3);
+
+            for (let i = 0; i < n; i++) {
                 if (i === skipIndex) continue;
-                for (let j = 0; j < bodies.length; j++) {
+                const i3 = i * 3;
+                const b_i = bodies[i];
+                for (let j = 0; j < n; j++) {
                     if (i === j) continue;
-                    const dx = bodies[j].x - bodies[i].x;
-                    const dy = bodies[j].y - bodies[i].y;
-                    const dz = bodies[j].z - bodies[i].z;
+                    const b_j = bodies[j];
+                    const dx = b_j.x - b_i.x;
+                    const dy = b_j.y - b_i.y;
+                    const dz = b_j.z - b_i.z;
                     const distSq = dx * dx + dy * dy + dz * dz + soft * soft;
                     const dist = Math.sqrt(distSq);
-                    const f = (gravityG * bodies[j].mass) / distSq;
-                    accelerations[i].ax += f * (dx / dist);
-                    accelerations[i].ay += f * (dy / dist);
-                    accelerations[i].az += f * (dz / dist);
+                    const f = (gravityG * b_j.mass) / distSq;
+                    const f_dist = f / dist;
+                    accelerations[i3]     += f_dist * dx;
+                    accelerations[i3 + 1] += f_dist * dy;
+                    accelerations[i3 + 2] += f_dist * dz;
                 }
             }
-            for (let i = 0; i < bodies.length; i++) {
+            for (let i = 0; i < n; i++) {
                 if (i === skipIndex) continue;
-                bodies[i].vx += accelerations[i].ax * dt;
-                bodies[i].vy += accelerations[i].ay * dt;
-                bodies[i].vz += accelerations[i].az * dt;
+                const i3 = i * 3;
+                bodies[i].vx += accelerations[i3] * dt;
+                bodies[i].vy += accelerations[i3 + 1] * dt;
+                bodies[i].vz += accelerations[i3 + 2] * dt;
                 bodies[i].x += bodies[i].vx * dt;
                 bodies[i].y += bodies[i].vy * dt;
                 bodies[i].z += bodies[i].vz * dt;
@@ -799,95 +815,133 @@ const ThreeBodyPage = () => {
         } else {
             // Optimized RK4 Integration (Minimal Allocation)
             const n = bodies.length;
+            const stride = 6; // x, y, z, vx, vy, vz
+
+            // Initialize or resize buffers if needed
+            if (!rk4BuffersRef.current.k1 || rk4BuffersRef.current.k1.length < n * stride) {
+                rk4BuffersRef.current.k1 = new Float32Array(n * stride);
+                rk4BuffersRef.current.k2 = new Float32Array(n * stride);
+                rk4BuffersRef.current.k3 = new Float32Array(n * stride);
+                rk4BuffersRef.current.k4 = new Float32Array(n * stride);
+                rk4BuffersRef.current.s1 = new Float32Array(n * stride);
+                rk4BuffersRef.current.s2 = new Float32Array(n * stride);
+                rk4BuffersRef.current.s3 = new Float32Array(n * stride);
+            }
+            const { k1, k2, k3, k4, s1, s2, s3 } = rk4BuffersRef.current;
 
             // Helper to calculate derivatives into a buffer
-            // state: array of {x,y,z,vx,vy,vz,mass}
-            // out: array of {dx,dy,dz,dvx,dvy,dvz}
-            const calcDerivatives = (state, out) => {
+            // state: either bodies array (objects) or one of s1, s2, s3 (TypedArray)
+            // isTyped: boolean
+            // out: Float32Array
+            const calcDerivatives = (state, isTyped, out) => {
                 for (let i = 0; i < n; i++) {
                     let ax = 0, ay = 0, az = 0;
+                    let ix, iy, iz, ivx, ivy, ivz;
+
+                    if (isTyped) {
+                        const base = i * stride;
+                        ix = state[base];
+                        iy = state[base + 1];
+                        iz = state[base + 2];
+                        ivx = state[base + 3];
+                        ivy = state[base + 4];
+                        ivz = state[base + 5];
+                    } else {
+                        const b = state[i];
+                        ix = b.x; iy = b.y; iz = b.z;
+                        ivx = b.vx; ivy = b.vy; ivz = b.vz;
+                    }
+
                     for (let j = 0; j < n; j++) {
                         if (i === j) continue;
-                        const dx = state[j].x - state[i].x;
-                        const dy = state[j].y - state[i].y;
-                        const dz = state[j].z - state[i].z;
+                        let jx, jy, jz, jmass;
+                        if (isTyped) {
+                            const base = j * stride;
+                            jx = state[base];
+                            jy = state[base + 1];
+                            jz = state[base + 2];
+                            jmass = bodies[j].mass;
+                        } else {
+                            const b = state[j];
+                            jx = b.x; jy = b.y; jz = b.z;
+                            jmass = b.mass;
+                        }
+
+                        const dx = jx - ix;
+                        const dy = jy - iy;
+                        const dz = jz - iz;
                         const distSq = dx * dx + dy * dy + dz * dz + soft * soft;
                         const dist = Math.sqrt(distSq);
-                        const f = (gravityG * state[j].mass) / distSq;
-                        ax += f * (dx / dist);
-                        ay += f * (dy / dist);
-                        az += f * (dz / dist);
+                        const f = (gravityG * jmass) / distSq;
+                        const f_dist = f / dist;
+                        ax += f_dist * dx;
+                        ay += f_dist * dy;
+                        az += f_dist * dz;
                     }
-                    out[i] = { dx: state[i].vx, dy: state[i].vy, dz: state[i].vz, dvx: ax, dvy: ay, dvz: az };
+
+                    const outBase = i * stride;
+                    out[outBase] = ivx;
+                    out[outBase + 1] = ivy;
+                    out[outBase + 2] = ivz;
+                    out[outBase + 3] = ax;
+                    out[outBase + 4] = ay;
+                    out[outBase + 5] = az;
                 }
             };
 
-            // We need buffers for intermediate states. 
-            // Ideally these should be reused across frames, but for now we just avoid map() inside the steps.
-            // A full optimization would use Float32Arrays for everything.
+            // K1 = f(y0)
+            calcDerivatives(bodies, false, k1);
 
-            // Initial State (k1 input)
-            const s0 = bodies;
-            const k1 = new Array(n);
-            calcDerivatives(s0, k1);
-
-            // K2 State
-            const s1 = new Array(n);
+            // S1 = y0 + K1 * dt/2
             for (let i = 0; i < n; i++) {
-                s1[i] = {
-                    x: s0[i].x + k1[i].dx * dt * 0.5,
-                    y: s0[i].y + k1[i].dy * dt * 0.5,
-                    z: s0[i].z + k1[i].dz * dt * 0.5,
-                    vx: s0[i].vx + k1[i].dvx * dt * 0.5,
-                    vy: s0[i].vy + k1[i].dvy * dt * 0.5,
-                    vz: s0[i].vz + k1[i].dvz * dt * 0.5,
-                    mass: s0[i].mass
-                };
+                const b = i * stride;
+                s1[b]     = bodies[i].x + k1[b] * dt * 0.5;
+                s1[b + 1] = bodies[i].y + k1[b + 1] * dt * 0.5;
+                s1[b + 2] = bodies[i].z + k1[b + 2] * dt * 0.5;
+                s1[b + 3] = bodies[i].vx + k1[b + 3] * dt * 0.5;
+                s1[b + 4] = bodies[i].vy + k1[b + 4] * dt * 0.5;
+                s1[b + 5] = bodies[i].vz + k1[b + 5] * dt * 0.5;
             }
-            const k2 = new Array(n);
-            calcDerivatives(s1, k2);
+            // K2 = f(S1)
+            calcDerivatives(s1, true, k2);
 
-            // K3 State
-            const s2 = new Array(n);
+            // S2 = y0 + K2 * dt/2
             for (let i = 0; i < n; i++) {
-                s2[i] = {
-                    x: s0[i].x + k2[i].dx * dt * 0.5,
-                    y: s0[i].y + k2[i].dy * dt * 0.5,
-                    z: s0[i].z + k2[i].dz * dt * 0.5,
-                    vx: s0[i].vx + k2[i].dvx * dt * 0.5,
-                    vy: s0[i].vy + k2[i].dvy * dt * 0.5,
-                    vz: s0[i].vz + k2[i].dvz * dt * 0.5,
-                    mass: s0[i].mass
-                };
+                const b = i * stride;
+                s2[b]     = bodies[i].x + k2[b] * dt * 0.5;
+                s2[b + 1] = bodies[i].y + k2[b + 1] * dt * 0.5;
+                s2[b + 2] = bodies[i].z + k2[b + 2] * dt * 0.5;
+                s2[b + 3] = bodies[i].vx + k2[b + 3] * dt * 0.5;
+                s2[b + 4] = bodies[i].vy + k2[b + 4] * dt * 0.5;
+                s2[b + 5] = bodies[i].vz + k2[b + 5] * dt * 0.5;
             }
-            const k3 = new Array(n);
-            calcDerivatives(s2, k3);
+            // K3 = f(S2)
+            calcDerivatives(s2, true, k3);
 
-            // K4 State
-            const s3 = new Array(n);
+            // S3 = y0 + K3 * dt
             for (let i = 0; i < n; i++) {
-                s3[i] = {
-                    x: s0[i].x + k3[i].dx * dt,
-                    y: s0[i].y + k3[i].dy * dt,
-                    z: s0[i].z + k3[i].dz * dt,
-                    vx: s0[i].vx + k3[i].dvx * dt,
-                    vy: s0[i].vy + k3[i].dvy * dt,
-                    vz: s0[i].vz + k3[i].dvz * dt,
-                    mass: s0[i].mass
-                };
+                const b = i * stride;
+                s3[b]     = bodies[i].x + k3[b] * dt;
+                s3[b + 1] = bodies[i].y + k3[b + 1] * dt;
+                s3[b + 2] = bodies[i].z + k3[b + 2] * dt;
+                s3[b + 3] = bodies[i].vx + k3[b + 3] * dt;
+                s3[b + 4] = bodies[i].vy + k3[b + 4] * dt;
+                s3[b + 5] = bodies[i].vz + k3[b + 5] * dt;
             }
-            const k4 = new Array(n);
-            calcDerivatives(s3, k4);
+            // K4 = f(S3)
+            calcDerivatives(s3, true, k4);
 
-            // Final Integration
+            // Final Integration: y1 = y0 + (K1 + 2K2 + 2K3 + K4) * dt / 6
+            const dt6 = dt / 6;
             for (let i = 0; i < n; i++) {
                 if (i === skipIndex) continue;
-                bodies[i].x += (k1[i].dx + 2 * k2[i].dx + 2 * k3[i].dx + k4[i].dx) * dt / 6;
-                bodies[i].y += (k1[i].dy + 2 * k2[i].dy + 2 * k3[i].dy + k4[i].dy) * dt / 6;
-                bodies[i].z += (k1[i].dz + 2 * k2[i].dz + 2 * k3[i].dz + k4[i].dz) * dt / 6;
-                bodies[i].vx += (k1[i].dvx + 2 * k2[i].dvx + 2 * k3[i].dvx + k4[i].dvx) * dt / 6;
-                bodies[i].vy += (k1[i].dvy + 2 * k2[i].dvy + 2 * k3[i].dvy + k4[i].dvy) * dt / 6;
-                bodies[i].vz += (k1[i].dvz + 2 * k2[i].dvz + 2 * k3[i].dvz + k4[i].dvz) * dt / 6;
+                const b = i * stride;
+                bodies[i].x += (k1[b] + 2 * k2[b] + 2 * k3[b] + k4[b]) * dt6;
+                bodies[i].y += (k1[b + 1] + 2 * k2[b + 1] + 2 * k3[b + 1] + k4[b + 1]) * dt6;
+                bodies[i].z += (k1[b + 2] + 2 * k2[b + 2] + 2 * k3[b + 2] + k4[b + 2]) * dt6;
+                bodies[i].vx += (k1[b + 3] + 2 * k2[b + 3] + 2 * k3[b + 3] + k4[b + 3]) * dt6;
+                bodies[i].vy += (k1[b + 4] + 2 * k2[b + 4] + 2 * k3[b + 4] + k4[b + 4]) * dt6;
+                bodies[i].vz += (k1[b + 5] + 2 * k2[b + 5] + 2 * k3[b + 5] + k4[b + 5]) * dt6;
             }
         }
 
