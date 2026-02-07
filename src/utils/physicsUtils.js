@@ -32,9 +32,10 @@ export function calculateTotalEnergy(charges) {
  * Calculates the electric field vector at a given point
  * @param {{x: number, y: number, z: number}} point
  * @param {Array<{x: number, y: number, z: number, q: number}>} charges
+ * @param {number} [minDistance=5] Minimum distance to avoid singularities
  * @returns {{x: number, y: number, z: number}} Field vector
  */
-export function calculateField(point, charges) {
+export function calculateField(point, charges, minDistance = 5) {
     const field = { x: 0, y: 0, z: 0 };
     for (const charge of charges) {
         const dx = point.x - charge.x;
@@ -42,7 +43,7 @@ export function calculateField(point, charges) {
         const dz = point.z - charge.z;
         const distSq = dx * dx + dy * dy + dz * dz;
         const dist = Math.sqrt(distSq);
-        if (dist < 5) continue;
+        if (dist < minDistance) continue;
         const magnitude = (COULOMB_K * Math.abs(charge.q)) / distSq;
         const sign = charge.q > 0 ? 1 : -1;
         field.x += sign * magnitude * (dx / dist);
