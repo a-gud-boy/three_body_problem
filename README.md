@@ -1,200 +1,115 @@
-# Three Body Problem — 3D Simulator
+# Interactive Physics Simulations
 
-Interactive 3D multi‑body gravity sandbox built with React + Vite and a dynamically loaded Three.js engine. Explore classic periodic solutions, hierarchical systems, chaotic evolutions, and extended scenarios with rich real‑time analysis and high‑performance rendering.
+A suite of high-performance, interactive physics simulations built with **React**, **Three.js**, and **WebGPU**. Explore fundamental forces, chaotic systems, fluid dynamics, and quantum mechanics directly in your browser.
 
-Demo: https://a-gud-boy.github.io/three_body_problem/
-
----
-
-## Table of Contents
-1. [Features](#features)
-2. [Scenarios](#scenarios)
-3. [Architecture](#architecture)
-4. [Physics & Integrators](#physics--integrators)
-5. [Development Setup](#development-setup)
-6. [Build & Production](#build--production)
-7. [Deployment](#deployment)
-8. [Controls & Shortcuts](#controls--shortcuts)
-9. [UI Concepts](#ui-concepts)
-10. [Troubleshooting](#troubleshooting)
-11. [Roadmap](#roadmap)
-12. [Contributing](#contributing)
-13. [License](#license)
+**Live Demo:** [https://a-gud-boy.github.io/three_body_problem/](https://a-gud-boy.github.io/three_body_problem/)
 
 ---
 
-## Features
+## 🌟 Overview
 
-- Rich preset scenarios (Figure‑8, Sun–Earth–Moon, Random 3D Chaos, Burrau Pythagorean, Lagrange Points, Sitnikov, 4‑Body square)
-- Optional collision merging (mass + momentum conservation approximation)
-- Two integration engines: Symplectic Euler (speed) & Runge‑Kutta 4 (precision)
-- Body trails (performance or detailed mode), velocity vectors, labels, energy and center‑of‑mass (COM) diagnostics
-- Interactive manipulation: drag bodies when paused, camera orbit/lock/cockpit modes, dynamic camera target switching
-- Glow & procedural textures, corner axis gizmo, optional 3D grid, screenshot capture
-- Floating analysis dashboard (energy drift, phase space) with draggable + resizable window
-- State export/import (JSON) and bookmark system for temporal snapshots
-- Full keyboard-driven workflow and responsive adaptive layout (panel resize + fullscreen)
-- Zero-build CDN loading of Three.js (r128) for fast initial page load
-- GitHub Pages deployment script and workflow
+This project is a collection of educational and experimental physics engines designed to visualize complex mathematical concepts in real-time. From the chaotic orbits of the Three-Body Problem to the fluid dynamics of water ripples computed on the GPU, each simulation offers interactive controls to tweak parameters and observe the results.
+
+### Key Features
+- **Real-Time Physics:** High-performance integration (Verlet, RK4, Euler) running at 60+ FPS.
+- **WebGPU Acceleration:** Next-generation compute shaders for massive particle systems and fluid simulation.
+- **Interactive Sandbox:** Drag bodies, draw barriers, pour fluids, and manipulate fields with intuitive mouse controls.
+- **Scientific Accuracy:** Visualization of phase space, energy conservation, field lines, and wave interference patterns.
 
 ---
 
-## Scenarios
-| Key | Name | Summary |
-|-----|------|---------|
-| FIGURE_8 | Figure‑8 Periodic | Equal masses tracing a stable planar figure‑8 orbit. |
-| SUN_EARTH_MOON | Hierarchical | Star–planet–moon with slight inclination for 3D depth. |
-| CHAOS_RANDOM | 3D Random Chaos | Randomized initial state—highly sensitive dynamics. |
-| BURRAU | Pythagorean | Masses (3,4,5) at triangle vertices—classic chaotic case. |
-| LAGRANGE | L4/L5 Trojan | Demonstrates stability near triangular Lagrange points. |
-| SITNIKOV | Sitnikov | Two primaries orbit; third oscillates on Z axis. |
-| FOUR_BODY | 4‑Body Chaos | Square configuration with tangential velocities. |
+## 🚀 Simulations
 
-Each scenario sets initial positions, velocities, G, scale, and camera spherical coordinates. Switching resets the simulation state deterministically (except for random bodies which are regenerated).
+### 🌌 Gravity & Chaos
+| Simulation | Description | Key Tech |
+| :--- | :--- | :--- |
+| **[Three-Body Problem](./src/pages/ThreeBody)** | Visualize the chaotic dance of three celestial bodies. Features energy analysis, phase space plots, and preset scenarios (Figure-8, Lagrange Points). | `Runge-Kutta 4`, `Trails`, `Energy Plots` |
+| **[Double Pendulum](./src/pages/DoublePendulum)** | Explore the "Butterfly Effect" with a sensitive double pendulum. Includes shadow mode to visualize divergence of initial conditions. | `Chaos Theory`, `Phase Space (θ₁ vs ω₁)` |
 
----
+### 💧 Fluid Dynamics
+| Simulation | Description | Key Tech |
+| :--- | :--- | :--- |
+| **[Fluid Dynamics (SPH)](./src/pages/FluidDynamics)** | Smoothed Particle Hydrodynamics simulation. Pour water, add obstacles, and observe pressure/viscosity interactions. | `SPH`, `Spatial Hashing` |
+| **[Water Ripples (WebGPU)](./src/pages/ExperimentalFluid)** | Experimental fluid surface simulation running entirely on the GPU. Features interactive ripples, rain, and vertex displacement. | `WebGPU Compute Shaders`, `Vertex Displacement` |
+| **[Wave Interference](./src/pages/WaveInterference)** | 2D Ripple Tank simulation. Experiment with diffraction, refraction, reflection, and multi-source interference patterns. | `Wave Equation`, `Pixel Buffer` |
 
-## Architecture
-```
-src/
-	main.jsx        # App bootstrap (React + Vite entry)
-	App.jsx         # Core simulation component (state + rendering lifecycle)
-	components/     # Small UI components (panels, overlays)
-	utils/          # (If present) math/util helpers
-```
-Key concepts:
-- Three.js is loaded lazily via CDN; `window.THREE` gates initialization.
-- Bodies stored in mutable refs (`bodiesRef`) to avoid high-frequency React re-renders; visual elements tracked in parallel arrays (meshes, glows, labels, velocity arrows).
-- Animation loop (`requestAnimationFrame`) drives physics + rendering; React state reserved for UI toggles and medium‑frequency changes.
-- Custom HTML/CSS overlays (labels, panels) decouple UI from WebGL render for performance.
-- Analysis graphs use canvas 2D for hardware-accelerated lightweight plotting (not SVG/React).
+### ⚛️ Fields & Matter
+| Simulation | Description | Key Tech |
+| :--- | :--- | :--- |
+| **[Atom Simulator](./src/pages/AtomSimulator)** | Interactive Bohr model visualizer. Build compounds from the periodic table and explore electron shells. | `Bohr Model`, `Compound Builder` |
+| **[Electromagnetic Fields](./src/pages/Electromagnetic)** | Visualize electric fields and forces. Place charges, trace field lines, and observe dipole interactions. | `Field Line Tracing`, `Coulomb's Law` |
+| **[Soft Body Physics](./src/pages/SoftBody)** | Deformable object simulation using mass-spring systems. Play with cloth, jelly, and rope bridges. | `Verlet Integration`, `PBD (Position Based Dynamics)` |
 
 ---
 
-## Physics & Integrators
-- State vector includes positions (x,y,z) and velocities (vx,vy,vz) per body.
-- Gravitational force computed pairwise with optional softening parameter (to mitigate singularities).
-- Symplectic Euler: updates velocity then position—energy reasonably conserved for small steps.
-- RK4: four sub‑steps sampling derivatives—higher accuracy, more CPU cost.
-- Energy Drift calculation compares current total energy to initial snapshot, percent deviation displayed (green if low, red if high).
-- Optional collision merge: combines bodies when within threshold (approximate; not a precise N‑body collision model).
+## 🛠️ Tech Stack
 
-Tuning Tips:
-- Use smaller time step (lower speed) for chaotic or tightly bound systems to reduce energy drift.
-- RK4 recommended when analyzing long‑term stability; Euler for exploratory manipulation.
+- **Frontend:** [React 19](https://react.dev/), [Vite](https://vitejs.dev/)
+- **3D & Graphics:** [Three.js](https://threejs.org/), [@react-three/fiber](https://docs.pmnd.rs/react-three-fiber), [WebGPU](https://www.w3.org/TR/webgpu/)
+- **Styling:** [TailwindCSS v4](https://tailwindcss.com/), [Lucide React](https://lucide.dev/) (Icons)
+- **Testing:** Node.js Native Test Runner, Playwright
 
 ---
 
-## Development Setup
-Requirements:
-- Node.js ≥ 18 (16 may work; 20 recommended for performance)
-- npm (or `pnpm`/`yarn` if you adapt scripts)
+## 💻 Development Setup
 
-Install:
+### Prerequisites
+- Node.js ≥ 18 (20+ recommended)
+- A browser with WebGPU support (Chrome 113+, Edge 113+) for experimental features.
+
+### Installation
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/a-gud-boy/three_body_problem.git
+    cd three_body_problem
+    ```
+
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+
+3.  Start the development server:
+    ```bash
+    npm run dev
+    ```
+    Open `http://localhost:5173/` to view the project.
+
+### Building for Production
 ```bash
-npm install
-```
-Run dev server (will auto-switch port if default busy):
-```bash
-npm run dev
-```
-Open: `http://localhost:5173/` (or the port Vite reports, e.g. 5174).
-
-Environment Notes:
-- On Windows PowerShell with restricted script execution, use `cmd /c "npm run dev"` if execution policy blocks `npm`.
-- No environment variables required; everything client-side.
-
----
-
-## Build & Production
-```bash
-npm run build     # Produces optimized assets in dist/
-npm run preview   # Serves dist/ locally for validation
-```
-Artifacts are static and suitable for GitHub Pages / any static host.
-
----
-
-## Deployment
-Automatic: GitHub Actions workflow builds and publishes on pushes to `main`.
-
-Manual (if needed):
-```bash
-npm install -D gh-pages
 npm run build
-npx gh-pages -d dist
-# or: npm run deploy (script provided)
+# Preview the build locally
+npm run preview
 ```
 
 ---
 
-## Controls & Shortcuts
-Mouse
-- Left‑drag: Rotate camera / drag body (paused + drag mode)
-- Right‑drag: Pan camera
-- Wheel: Zoom
+## 🧪 Testing
 
-Touch
-- Single finger: Rotate
-- Pinch: Zoom
+The project uses the Node.js native test runner for unit tests and Playwright for end-to-end verification.
 
-Keyboard
-- Space: Play / Pause
-- R: Reset scenario
-- G: Toggle grid
-- T: Toggle trails
-- C: Toggle center of mass
-- L: Toggle labels
-- V: Toggle velocity vectors
-- F: Fullscreen
-- P: Toggle side panel
-- A: Analysis panel
-- H / ?: Help overlay
-- Esc: Close overlays / exit fullscreen
+```bash
+# Run unit tests
+npm test
 
-Advanced
-- Reverse time button in panel changes time direction (experimental)
-- Step Mode allows frame‑by‑frame advancement (for analysis / screenshots)
+# Run UI verification (requires Playwright setup)
+npx playwright test
+```
 
 ---
 
-## UI Concepts
-- Side Panel: Scenario selection, system stats, integrator switch, performance toggles, sliders for G and timestep.
-- Analysis Panel: Draggable window with energy conservation line chart + phase space scatter; resizable via corner/edge handles.
-- Bookmarks: Capture current positions/velocities/time; restore later for comparison.
-- Export / Import: JSON serialization of current bodies (+ velocities, masses, colors).
-- Camera Modes: ORBIT (default), LOCK (follow body from external frame), COCKPIT (first‑person anchored to body).
-- Reference Frames: Inertial vs barycentric (center-of-mass anchored) altering visual interpretation.
+## 🤝 Contributing
+
+Contributions are welcome! Please check the [ROADMAP.md](./ROADMAP.md) for planned features.
+
+1.  Fork the repository.
+2.  Create a feature branch (`git checkout -b feature/amazing-feature`).
+3.  Commit your changes (`git commit -m 'Add amazing feature'`).
+4.  Push to the branch (`git push origin feature/amazing-feature`).
+5.  Open a Pull Request.
 
 ---
 
-## Troubleshooting
-| Issue | Cause | Fix |
-|-------|-------|-----|
-| Port 5173 busy | Another Vite/dev server running | Vite auto-selects next free (e.g. 5174); use that URL. |
-| `npm` blocked by PowerShell execution policy | Restricted script execution | Run via `cmd /c "npm install"` or adjust policy (`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`). |
-| High energy drift | Large timestep / chaotic regime | Lower time step or switch to RK4. |
-| Lag with trails | Too many trail segments | Enable Performance Mode or reduce trail length. |
-| Bodies disappear (merge) | Collision merge enabled | Toggle off Collision Merge if undesired. |
+## 📄 License
 
----
-
-## Roadmap
-See `ROADMAP.md` for planned enhancements (e.g. GPU compute, adaptive time steps, multi‑system comparison). Feel free to open issues suggesting priorities.
-
----
-
-## Contributing
-Contributions welcome—focus on atomic PRs.
-- Follow ESLint config (`eslint.config.js`).
-- Keep performance implications in mind (avoid unnecessary React state thrash; prefer refs for per‑frame data).
-- Document new scenario presets clearly (initial conditions + scientific context if applicable).
-
----
-
-## License
-MIT. See `LICENSE` for full text.
-
----
-
-Want additional sections (API docs, deeper physics notes, GPU acceleration ideas)? Open an issue or PR.
+This project is licensed under the **MIT License**.

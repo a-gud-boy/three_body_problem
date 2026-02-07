@@ -1,5 +1,19 @@
 {
   "name": "three_body_problem",
+  "description": "A suite of high-performance, interactive physics simulations built with React, Three.js, and WebGPU.",
+  "keywords": [
+    "physics",
+    "simulation",
+    "webgpu",
+    "threejs",
+    "react",
+    "science",
+    "education",
+    "chaos-theory",
+    "electromagnetism",
+    "fluid-dynamics",
+    "quantum-mechanics"
+  ],
   "private": true,
   "version": "0.0.0",
   "type": "module",
