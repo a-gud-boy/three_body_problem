@@ -65,6 +65,17 @@ class WebGPUWaterSimulation {
             this.controls.enableDamping = true;
             this.controls.dampingFactor = 0.05;
             this.controls.target.set(0, 0, 0);
+
+            // Interaction Configuration:
+            // LEFT: Ripples (Custom) - Disable Orbit
+            // MIDDLE: Zoom (Dolly)
+            // RIGHT: Rotate
+            // SHIFT + RIGHT: Pan (Handled via key listeners below)
+            this.controls.mouseButtons = {
+                LEFT: null,
+                MIDDLE: THREE.MOUSE.DOLLY,
+                RIGHT: THREE.MOUSE.ROTATE
+            };
             
             this.setupCompute();
             this.setupWaterMesh();
@@ -501,6 +512,29 @@ export default function ExperimentalFluidPage() {
 
     const onPointerUp = useCallback(() => simulationRef.current?.setMouseActive(false), []);
 
+    // Custom Key Handler for Shift+Right Pan
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.shiftKey && simulationRef.current?.controls) {
+                // Swap Right Click to PAN
+                simulationRef.current.controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+            }
+        };
+        const handleKeyUp = (e) => {
+            if (!e.shiftKey && simulationRef.current?.controls) {
+                // Swap Right Click back to ROTATE
+                simulationRef.current.controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
+    }, []);
+
     return (
         <div className="w-full h-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden relative">
             <div className="absolute top-0 left-0 right-0 p-4 z-10 flex justify-between items-start pointer-events-none">
@@ -684,7 +718,12 @@ export default function ExperimentalFluidPage() {
                             <div className="flex items-center gap-2 mb-2 font-semibold text-slate-300">
                                 <MousePointer2 className="w-4 h-4" /> Interaction
                             </div>
-                            <p className="mb-2">Click and drag on the water to create ripples. Right-click + drag to rotate. Scroll to zoom.</p>
+                            <ul className="list-disc list-inside space-y-1 mb-2">
+                                <li><strong>Left Click + Drag:</strong> Create Ripples</li>
+                                <li><strong>Right Click + Drag:</strong> Rotate Camera</li>
+                                <li><strong>Shift + Right Click:</strong> Pan Camera</li>
+                                <li><strong>Scroll:</strong> Zoom</li>
+                            </ul>
                             <p>Adjust damping for wave decay, brush size/strength for ripple intensity.</p>
                         </div>
 
