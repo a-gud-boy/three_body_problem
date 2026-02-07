@@ -8,7 +8,7 @@ import {
 import { WebGPURenderer, StorageBufferAttribute, MeshStandardNodeMaterial } from 'three/webgpu';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Play, Pause, Settings2, MousePointer2, AlertCircle, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Settings2, MousePointer2, AlertCircle, RotateCcw, CloudRain } from 'lucide-react';
 
 // --- WebGPU Water Simulation Class ---
 const RESOLUTION_OPTIONS = [
@@ -231,6 +231,12 @@ class WebGPUWaterSimulation {
         this.uBrushStrength = uniform(this.params.brushStrength);
         this.uSpeed = uniform(this.params.speed);
         
+        // Rain Uniforms
+        this.uRainPos = uniform(new THREE.Vector2(-1000, -1000));
+        this.uRainActive = uniform(0.0);
+        this.uRainSize = uniform(2.0); // Smaller than brush
+        this.uRainStrength = uniform(3.0);
+
         // Storage nodes
         this.currentStorage = storage(this.currentBuffer, 'float', this.count);
         this.previousStorage = storage(this.previousBuffer, 'float', this.count);
@@ -242,6 +248,12 @@ class WebGPUWaterSimulation {
         const uBrushSize = this.uBrushSize;
         const uBrushStrength = this.uBrushStrength;
         const uSpeed = this.uSpeed;
+
+        const uRainPos = this.uRainPos;
+        const uRainActive = this.uRainActive;
+        const uRainSize = this.uRainSize;
+        const uRainStrength = this.uRainStrength;
+
         const currentStorage = this.currentStorage;
         const previousStorage = this.previousStorage;
         const gridSize = this.gridSize;
@@ -273,6 +285,7 @@ class WebGPUWaterSimulation {
             
             const damped = newVal.mul(uDamping);
             
+            // Mouse Interaction
             const mousePos = uMouse;
             const dx = float(x).sub(mousePos.x);
             const dy = float(y).sub(mousePos.y);
@@ -282,7 +295,17 @@ class WebGPUWaterSimulation {
                 float(1.0).sub(dist.div(uBrushSize)).clamp(0.0, 1.0)
             ).mul(uMouseActive);
             
-            const finalHeight = damped.add(brushEffect);
+            // Rain Interaction
+            const rainPos = uRainPos;
+            const rdx = float(x).sub(rainPos.x);
+            const rdy = float(y).sub(rainPos.y);
+            const rdist = rdx.mul(rdx).add(rdy.mul(rdy)).sqrt();
+
+            const rainEffect = uRainStrength.mul(
+                float(1.0).sub(rdist.div(uRainSize)).clamp(0.0, 1.0)
+            ).mul(uRainActive);
+
+            const finalHeight = damped.add(brushEffect).add(rainEffect);
             
             previousStorage.element(index).assign(current);
             currentStorage.element(index).assign(finalHeight);
@@ -450,6 +473,23 @@ class WebGPUWaterSimulation {
         }
     }
     
+    // Trigger a single raindrop at a random location
+    triggerRainDrop() {
+        if (!this.uRainPos || !this.uRainActive) return;
+
+        // Random position on the grid
+        const x = Math.random() * this.gridSize;
+        const y = Math.random() * this.gridSize;
+
+        this.uRainPos.value.set(x, y);
+        this.uRainActive.value = 1.0;
+
+        // Reset after one frame (simulated via timeout for now, or handled in animate)
+        // Since WebGPU runs asynchronously, we need to ensure this stays active for at least one compute dispatch.
+        // We'll reset it in the next animate loop call.
+        this.rainTriggered = true;
+    }
+
     updateParams(params) {
         this.params = params;
         
@@ -499,6 +539,15 @@ class WebGPUWaterSimulation {
             if (this.isRunning && this.computeNode) {
                 // Run compute shader on GPU
                 this.renderer.compute(this.computeNode);
+
+                // If we triggered rain this frame, turn it off for the next
+                if (this.rainTriggered) {
+                    this.rainTriggered = false;
+                    // We don't want to turn it off immediately if we want it to persist for exactly one frame?
+                    // Actually, setting it to 0 here means it was 1 for the *just executed* compute pass (above).
+                    // So this is correct.
+                    if (this.uRainActive) this.uRainActive.value = 0.0;
+                }
             }
             
             this.renderer.render(this.scene, this.camera);
@@ -559,6 +608,8 @@ export default function ExperimentalFluidPage() {
     });
     const [resolution, setResolution] = useState(256);
     const [isPlaying, setIsPlaying] = useState(true);
+    const [isRaining, setIsRaining] = useState(false);
+    const [rainIntensity, setRainIntensity] = useState(5); // 1 to 10
     const [error, setError] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isChangingResolution, setIsChangingResolution] = useState(false);
@@ -636,6 +687,27 @@ export default function ExperimentalFluidPage() {
     useEffect(() => {
         simulationRef.current?.setPlaying(isPlaying);
     }, [isPlaying]);
+
+    // Handle Rain Loop
+    useEffect(() => {
+        if (!isRaining || !isPlaying) return;
+
+        // Rain intensity determines frequency
+        // 1 = sparse, 10 = heavy storm
+        // Max delay 500ms, min delay 10ms
+        const minDelay = 10;
+        const maxDelay = 500;
+        // Inverse linear mapping: intensity 1 -> 500ms, intensity 10 -> 10ms
+        const delay = maxDelay - ((rainIntensity - 1) / 9) * (maxDelay - minDelay);
+
+        const interval = setInterval(() => {
+            if (simulationRef.current && Math.random() > 0.3) { // 30% chance skip for irregularity
+                 simulationRef.current.triggerRainDrop();
+            }
+        }, delay);
+
+        return () => clearInterval(interval);
+    }, [isRaining, rainIntensity, isPlaying]);
 
     // Handle resize
     useEffect(() => {
@@ -781,6 +853,35 @@ export default function ExperimentalFluidPage() {
                                 >
                                     <RotateCcw className="w-4 h-4" />
                                 </button>
+                            </div>
+
+                            <div className="space-y-2 pt-2 border-t border-slate-700/50">
+                                <button
+                                    onClick={() => setIsRaining(!isRaining)}
+                                    className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg font-medium transition-all ${
+                                        isRaining
+                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                    }`}
+                                >
+                                    <CloudRain className={`w-4 h-4 ${isRaining ? 'animate-bounce' : ''}`} />
+                                    {isRaining ? 'Rain Active' : 'Enable Rain'}
+                                </button>
+
+                                {isRaining && (
+                                    <div className="space-y-1 pt-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <label className="text-xs text-slate-400 flex justify-between">
+                                            Rain Intensity
+                                            <span className="text-slate-200 font-mono">{rainIntensity}</span>
+                                        </label>
+                                        <input
+                                            type="range" min="1" max="10" step="1"
+                                            value={rainIntensity}
+                                            onChange={e => setRainIntensity(parseInt(e.target.value, 10))}
+                                            className="w-full accent-blue-500 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                    </div>
+                                )}
                             </div>
 
                             <div className="space-y-2">
