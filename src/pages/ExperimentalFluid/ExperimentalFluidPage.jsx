@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { 
-    Fn, uniform, storage, float, vec3,
+    Fn, uniform, storage, float, vec3, int,
     instanceIndex, vertexIndex, positionLocal,
     viewportUV, mix, color
 } from 'three/tsl';
@@ -174,8 +174,8 @@ class WebGPUWaterSimulation {
         // Reads Height (neighbors), Reads/Writes Velocity
         const computeVelocity = Fn(() => {
             const index = instanceIndex.toUint();
-            const x = index.mod(gridSize);
-            const y = index.div(gridSize);
+            const x = int(index.mod(gridSize));
+            const y = int(index.div(gridSize));
             
             const currentH = heightStorage.element(index);
             const currentV = velocityStorage.element(index);
@@ -264,8 +264,8 @@ class WebGPUWaterSimulation {
             // Normal Recalculation
             this.material.normalNode = Fn(() => {
                 const idx = vertexIndex.toUint();
-                const x = idx.mod(gridSize);
-                const y = idx.div(gridSize);
+                const x = int(idx.mod(gridSize));
+                const y = int(idx.div(gridSize));
                 
                 const getH = (ix, iy) => {
                     const cX = ix.clamp(0, gridSize - 1);
