@@ -360,6 +360,21 @@ const ThreeBodyPage = () => {
     const gizmoRef = useRef(null);
     const comMarkerRef = useRef(null);
 
+    // Scratch objects for performance
+    const comOffsetRef = useRef({ x: 0, y: 0, z: 0 });
+    const mainCamDirRef = useRef(new THREE.Vector3());
+    const vectorPoolRef = useRef([]);
+    const getVectorFromPool = (x, y, z) => {
+        const pool = vectorPoolRef.current;
+        if (pool.length > 0) {
+            return pool.pop().set(x, y, z);
+        }
+        return new THREE.Vector3(x, y, z);
+    };
+    const releaseVectorToPool = (vec) => {
+        vectorPoolRef.current.push(vec);
+    };
+
     // Gizmo refs (corner axis indicator)
     const gizmoSceneRef = useRef(null);
     const gizmoCameraRef = useRef(null);
@@ -550,8 +565,12 @@ const ThreeBodyPage = () => {
         scene.add(line);
         trailLineRefs.current.push(line);
 
-        trailsRef.current.push([]);
-    }, []);
+        trailsRef.current.push({
+            data: new Float32Array(trailLength * 3),
+            head: 0,
+            count: 0
+        });
+    }, [trailLength]);
 
     const removeBodyVisuals = (index) => {
         if (!sceneRef.current) return;
@@ -604,8 +623,11 @@ const ThreeBodyPage = () => {
         timeRef.current = bookmark.time;
 
         // Clear trails
-        trailsRef.current.forEach(() => []);
-        trailsRef.current = bodiesRef.current.map(() => []);
+        trailsRef.current = bodiesRef.current.map(() => ({
+            data: new Float32Array(trailLength * 3),
+            head: 0,
+            count: 0
+        }));
 
         // Reset initial energy for drift calculation
         setInitialEnergy(null);
@@ -616,7 +638,7 @@ const ThreeBodyPage = () => {
         setBookmarks(prev => prev.filter((_, i) => i !== index));
     };
 
-    const calculateCOM = () => {
+    const calculateCOM = useCallback((target = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 }) => {
         const bodies = bodiesRef.current;
         let totalMass = 0;
         let comX = 0, comY = 0, comZ = 0;
@@ -632,15 +654,17 @@ const ThreeBodyPage = () => {
             comVz += body.vz * body.mass;
         });
 
-        return {
-            x: comX / totalMass,
-            y: comY / totalMass,
-            z: comZ / totalMass,
-            vx: comVx / totalMass,
-            vy: comVy / totalMass,
-            vz: comVz / totalMass
-        };
-    };
+        if (totalMass > 0) {
+            target.x = comX / totalMass;
+            target.y = comY / totalMass;
+            target.z = comZ / totalMass;
+            target.vx = comVx / totalMass;
+            target.vy = comVy / totalMass;
+            target.vz = comVz / totalMass;
+        }
+
+        return target;
+    }, []);
 
 
 
@@ -703,7 +727,11 @@ const ThreeBodyPage = () => {
                     }
 
                     // Clear trails
-                    trailsRef.current = bodiesRef.current.map(() => []);
+                    trailsRef.current = bodiesRef.current.map(() => ({
+                        data: new Float32Array(trailLength * 3),
+                        head: 0,
+                        count: 0
+                    }));
 
                     statsRef.current = { ...statsRef.current, bodyCount: bodiesRef.current.length };
                     setIsPlaying(false);
@@ -972,17 +1000,19 @@ const ThreeBodyPage = () => {
                                 bodies[j].z -= nz * separation;
 
                                 // Update last trail point to new separated position to prevent spike
-                                if (trailsRef.current[i] && trailsRef.current[i].length > 0) {
-                                    const lastI = trailsRef.current[i][trailsRef.current[i].length - 1];
-                                    lastI.x = bodies[i].x;
-                                    lastI.y = bodies[i].y;
-                                    lastI.z = bodies[i].z;
+                                if (trailsRef.current[i] && trailsRef.current[i].count > 0) {
+                                    const trail = trailsRef.current[i];
+                                    const lastIdx = ((trail.head - 1 + trailLength) % trailLength) * 3;
+                                    trail.data[lastIdx] = bodies[i].x;
+                                    trail.data[lastIdx + 1] = bodies[i].y;
+                                    trail.data[lastIdx + 2] = bodies[i].z;
                                 }
-                                if (trailsRef.current[j] && trailsRef.current[j].length > 0) {
-                                    const lastJ = trailsRef.current[j][trailsRef.current[j].length - 1];
-                                    lastJ.x = bodies[j].x;
-                                    lastJ.y = bodies[j].y;
-                                    lastJ.z = bodies[j].z;
+                                if (trailsRef.current[j] && trailsRef.current[j].count > 0) {
+                                    const trail = trailsRef.current[j];
+                                    const lastIdx = ((trail.head - 1 + trailLength) % trailLength) * 3;
+                                    trail.data[lastIdx] = bodies[j].x;
+                                    trail.data[lastIdx + 1] = bodies[j].y;
+                                    trail.data[lastIdx + 2] = bodies[j].z;
                                 }
 
                                 // Mark bodies as collided to skip next trail point
@@ -1029,30 +1059,24 @@ const ThreeBodyPage = () => {
 
         // Update Trails (skip bodies that just collided to prevent spikes)
         // Calculate COM offset for Barycentric frame
-        let offsetX = 0, offsetY = 0, offsetZ = 0;
+        const comOffset = comOffsetRef.current;
+        comOffset.x = 0; comOffset.y = 0; comOffset.z = 0;
         if (referenceFrame === 'barycentric') {
-            let totalMass = 0;
-            bodies.forEach(b => {
-                offsetX += b.x * b.mass;
-                offsetY += b.y * b.mass;
-                offsetZ += b.z * b.mass;
-                totalMass += b.mass;
-            });
-            if (totalMass > 0) {
-                offsetX /= totalMass;
-                offsetY /= totalMass;
-                offsetZ /= totalMass;
-            }
+            calculateCOM(comOffset);
         }
+        const offsetX = comOffset.x;
+        const offsetY = comOffset.y;
+        const offsetZ = comOffset.z;
 
         for (let i = 0; i < bodies.length; i++) {
-            if (trailsRef.current[i] && !collidedBodies.has(i)) {
-                trailsRef.current[i].push(new window.THREE.Vector3(
-                    bodies[i].x - offsetX,
-                    bodies[i].y - offsetY,
-                    bodies[i].z - offsetZ
-                ));
-                if (trailsRef.current[i].length > trailLength) trailsRef.current[i].shift();
+            const trail = trailsRef.current[i];
+            if (trail && !collidedBodies.has(i)) {
+                const idx = trail.head * 3;
+                trail.data[idx] = bodies[i].x - offsetX;
+                trail.data[idx + 1] = bodies[i].y - offsetY;
+                trail.data[idx + 2] = bodies[i].z - offsetZ;
+                trail.head = (trail.head + 1) % trailLength;
+                if (trail.count < trailLength) trail.count++;
             }
         }
 
@@ -1463,32 +1487,24 @@ const ThreeBodyPage = () => {
                     timeRef.current = stats.time;
 
                     // Update trails in worker callback
-                    let workerOffsetX = 0, workerOffsetY = 0, workerOffsetZ = 0;
+                    const comOffset = comOffsetRef.current;
+                    comOffset.x = 0; comOffset.y = 0; comOffset.z = 0;
                     if (referenceFrame === 'barycentric') {
-                        let totalMass = 0;
-                        bodiesRef.current.forEach(b => {
-                            workerOffsetX += b.x * b.mass;
-                            workerOffsetY += b.y * b.mass;
-                            workerOffsetZ += b.z * b.mass;
-                            totalMass += b.mass;
-                        });
-                        if (totalMass > 0) {
-                            workerOffsetX /= totalMass;
-                            workerOffsetY /= totalMass;
-                            workerOffsetZ /= totalMass;
-                        }
+                        calculateCOM(comOffset);
                     }
+                    const workerOffsetX = comOffset.x;
+                    const workerOffsetY = comOffset.y;
+                    const workerOffsetZ = comOffset.z;
 
                     for (let i = 0; i < bodiesRef.current.length; i++) {
-                        if (trailsRef.current[i]) {
-                            trailsRef.current[i].push(new THREE.Vector3(
-                                bodiesRef.current[i].x - workerOffsetX,
-                                bodiesRef.current[i].y - workerOffsetY,
-                                bodiesRef.current[i].z - workerOffsetZ
-                            ));
-                            if (trailsRef.current[i].length > trailLength) {
-                                trailsRef.current[i].shift();
-                            }
+                        const trail = trailsRef.current[i];
+                        if (trail) {
+                            const idx = trail.head * 3;
+                            trail.data[idx] = bodiesRef.current[i].x - workerOffsetX;
+                            trail.data[idx + 1] = bodiesRef.current[i].y - workerOffsetY;
+                            trail.data[idx + 2] = bodiesRef.current[i].z - workerOffsetZ;
+                            trail.head = (trail.head + 1) % trailLength;
+                            if (trail.count < trailLength) trail.count++;
                         }
                     }
 
@@ -1539,10 +1555,10 @@ const ThreeBodyPage = () => {
         const shouldUpdateTrails = frameCountRef.current % 4 === 0;
 
         // Calculate COM for barycentric frame
-        let comOffset = { x: 0, y: 0, z: 0 };
+        const comOffset = comOffsetRef.current;
+        comOffset.x = 0; comOffset.y = 0; comOffset.z = 0;
         if (referenceFrame === 'barycentric') {
-            const com = calculateCOM();
-            comOffset = { x: com.x, y: com.y, z: com.z };
+            calculateCOM(comOffset);
         }
 
         bodiesRef.current.forEach((body, i) => {
@@ -1596,55 +1612,77 @@ const ThreeBodyPage = () => {
             // Throttle expensive trail updates
             if (trailLineRefs.current[i] && showTrails && shouldUpdateTrails) {
                 const trail = trailsRef.current[i];
-                if (trail.length > 2) {
-                    let smoothPoints;
-
-                    if (performanceMode) {
-                        // Performance Mode: Simple line segments (NO spline calculation)
-                        smoothPoints = trail.map(p => new THREE.Vector3(p.x * scale, p.y * scale, p.z * scale));
-                        // Use renderX/Y/Z which already have COM offset applied for Barycentric mode
-                        smoothPoints.push(new THREE.Vector3(renderX, renderY, renderZ));
-                    } else {
-                        // Quality Mode: Smooth spline curves (EXPENSIVE)
-                        const rawPoints = trail.map(p => new THREE.Vector3(p.x * scale, p.y * scale, p.z * scale));
-                        // Use renderX/Y/Z which already have COM offset applied for Barycentric mode
-                        rawPoints.push(new THREE.Vector3(renderX, renderY, renderZ));
-                        const curve = new THREE.CatmullRomCurve3(rawPoints, false, 'centripetal');
-                        const pointsCount = Math.min(trail.length * 3, 500);
-                        smoothPoints = curve.getPoints(pointsCount);
-                    }
-
+                if (trail && trail.count > 2) {
                     const geometry = trailLineRefs.current[i].geometry;
-                    const numPoints = smoothPoints.length;
                     const bodyColor = new THREE.Color(body.color);
-
-                    // Reuse existing buffers if they exist and are large enough
                     let posAttr = geometry.getAttribute('position');
                     let colAttr = geometry.getAttribute('color');
 
-                    if (!posAttr || posAttr.count < numPoints) {
-                        // Create new buffers with extra capacity to reduce reallocations
-                        const capacity = Math.max(numPoints * 2, 512);
-                        posAttr = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3);
-                        posAttr.setUsage(THREE.DynamicDrawUsage);
-                        geometry.setAttribute('position', posAttr);
+                    if (performanceMode) {
+                        const numPoints = trail.count + 1;
+                        if (!posAttr || posAttr.count < numPoints) {
+                            const capacity = Math.max(numPoints * 2, 512);
+                            posAttr = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3);
+                            posAttr.setUsage(THREE.DynamicDrawUsage);
+                            geometry.setAttribute('position', posAttr);
+                            colAttr = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3);
+                            colAttr.setUsage(THREE.DynamicDrawUsage);
+                            geometry.setAttribute('color', colAttr);
+                        }
 
-                        colAttr = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3);
-                        colAttr.setUsage(THREE.DynamicDrawUsage);
-                        geometry.setAttribute('color', colAttr);
+                        for (let j = 0; j < trail.count; j++) {
+                            const idx = ((trail.head - trail.count + j + trailLength) % trailLength) * 3;
+                            posAttr.setXYZ(j, trail.data[idx] * scale, trail.data[idx + 1] * scale, trail.data[idx + 2] * scale);
+                            const alpha = j / (numPoints - 1);
+                            colAttr.setXYZ(j, bodyColor.r * alpha, bodyColor.g * alpha, bodyColor.b * alpha);
+                        }
+                        posAttr.setXYZ(trail.count, renderX, renderY, renderZ);
+                        colAttr.setXYZ(trail.count, bodyColor.r, bodyColor.g, bodyColor.b);
+
+                        geometry.setDrawRange(0, numPoints);
+                        posAttr.needsUpdate = true;
+                        colAttr.needsUpdate = true;
+                    } else {
+                        // Quality Mode: Smooth spline curves (EXPENSIVE)
+                        const rawPoints = [];
+                        for (let j = 0; j < trail.count; j++) {
+                            const idx = ((trail.head - trail.count + j + trailLength) % trailLength) * 3;
+                            rawPoints.push(getVectorFromPool(trail.data[idx] * scale, trail.data[idx + 1] * scale, trail.data[idx + 2] * scale));
+                        }
+                        rawPoints.push(getVectorFromPool(renderX, renderY, renderZ));
+
+                        const curve = new THREE.CatmullRomCurve3(rawPoints, false, 'centripetal');
+                        const pointsCount = Math.min(trail.count * 3, 500);
+                        const smoothPoints = curve.getPoints(pointsCount);
+
+                        const numPoints = smoothPoints.length;
+                        if (!posAttr || posAttr.count < numPoints) {
+                            const capacity = Math.max(numPoints * 2, 512);
+                            posAttr = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3);
+                            posAttr.setUsage(THREE.DynamicDrawUsage);
+                            geometry.setAttribute('position', posAttr);
+                            colAttr = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3);
+                            colAttr.setUsage(THREE.DynamicDrawUsage);
+                            geometry.setAttribute('color', colAttr);
+                        }
+
+                        for (let j = 0; j < numPoints; j++) {
+                            posAttr.setXYZ(j, smoothPoints[j].x, smoothPoints[j].y, smoothPoints[j].z);
+                            const alpha = j / (numPoints - 1);
+                            colAttr.setXYZ(j, bodyColor.r * alpha, bodyColor.g * alpha, bodyColor.b * alpha);
+                        }
+
+                        geometry.setDrawRange(0, numPoints);
+                        posAttr.needsUpdate = true;
+                        colAttr.needsUpdate = true;
+
+                        // Release pooled vectors
+                        rawPoints.forEach(releaseVectorToPool);
+                        // Release smoothPoints if they are newly allocated Vector3s (CatmullRomCurve3.getPoints does this)
+                        // Actually THREE.js getPoints creates new Vector3 objects. We can't easily pool them without changing THREE.js.
+                        // But we at least pooled the rawPoints.
                     }
 
-                    // Update buffer data directly
-                    for (let j = 0; j < numPoints; j++) {
-                        posAttr.setXYZ(j, smoothPoints[j].x, smoothPoints[j].y, smoothPoints[j].z);
-                        const alpha = j / (numPoints - 1);
-                        colAttr.setXYZ(j, bodyColor.r * alpha, bodyColor.g * alpha, bodyColor.b * alpha);
-                    }
-
-                    // Update draw range and mark for upload
-                    geometry.setDrawRange(0, numPoints);
-                    posAttr.needsUpdate = true;
-                    colAttr.needsUpdate = true;
                     geometry.computeBoundingSphere();
                     trailLineRefs.current[i].visible = true;
                 } else {
@@ -1657,7 +1695,7 @@ const ThreeBodyPage = () => {
         if (referenceFrame === 'barycentric' && isAutoTrackingRef.current) {
             // Re-calculate max distance based on current body positions relative to COM
             let maxDistSq = 0;
-            const comReal = calculateCOM();
+            const comReal = calculateCOM(comOffsetRef.current);
             const scale = SCENARIOS[scenarioKey].scale || 100;
 
             // Safety check to prevent crash/NaN propagation
@@ -1766,7 +1804,7 @@ const ThreeBodyPage = () => {
         // Render corner gizmo (Blender-style axis indicator)
         if (gizmoSceneRef.current && gizmoCameraRef.current && gizmoRef.current) {
             // Sync gizmo rotation with main camera orientation
-            const mainCamDir = new THREE.Vector3();
+            const mainCamDir = mainCamDirRef.current;
             cameraRef.current.getWorldDirection(mainCamDir);
 
             // Position gizmo camera to look at the gizmo from the same angle as main camera
@@ -1878,8 +1916,12 @@ const ThreeBodyPage = () => {
 
     // Clear trails on reference frame change
     useEffect(() => {
-        trailsRef.current = bodiesRef.current.map(() => []);
-    }, [referenceFrame]);
+        trailsRef.current = bodiesRef.current.map(() => ({
+            data: new Float32Array(trailLength * 3),
+            head: 0,
+            count: 0
+        }));
+    }, [referenceFrame, trailLength]);
 
     // --- Interaction ---
     const resetSimulation = useCallback((key) => {
