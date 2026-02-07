@@ -36,7 +36,6 @@ export function usePhysicsWorker() {
 
                 if (type === 'READY') {
                     setIsReady(true);
-                    console.log('Physics worker initialized');
                 } else if (type === 'RESULT') {
                     // Call pending callback with results
                     if (pendingCallbackRef.current) {
