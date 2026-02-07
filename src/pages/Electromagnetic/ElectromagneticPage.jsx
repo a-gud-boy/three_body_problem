@@ -10,10 +10,14 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
 
+import {
+    calculateTotalEnergy,
+    calculateField,
+    calculateElectrostaticForce
+} from '../../utils/physicsUtils';
 import './ElectromagneticPage.css';
 
 // ============== CONSTANTS ==============
-const COULOMB_K = 8.99e3;
 const CHARGE_RADIUS = 15;
 const FIELD_LINE_SEGMENTS = 3000; // Increased length for closed loops
 const FIELD_LINE_STEP = 6;
@@ -85,24 +89,6 @@ function generateRandomCharges(count = 15) {
     }));
 }
 
-function calculateField(point, charges) {
-    const field = { x: 0, y: 0, z: 0 };
-    for (const charge of charges) {
-        const dx = point.x - charge.x;
-        const dy = point.y - charge.y;
-        const dz = point.z - charge.z;
-        const distSq = dx * dx + dy * dy + dz * dz;
-        const dist = Math.sqrt(distSq);
-        if (dist < 5) continue;
-        const magnitude = (COULOMB_K * Math.abs(charge.q)) / distSq;
-        const sign = charge.q > 0 ? 1 : -1;
-        field.x += sign * magnitude * (dx / dist);
-        field.y += sign * magnitude * (dy / dist);
-        field.z += sign * magnitude * (dz / dist);
-    }
-    return field;
-}
-
 // ============== MAIN COMPONENT ==============
 
 // Generate symmetric 3D spherical distribution of starting points
@@ -171,25 +157,6 @@ function traceFieldLine(startPoint, direction, charges, terminateAt = 'any') {
         if (Math.abs(current.x) > 1000 || Math.abs(current.y) > 1000 || Math.abs(current.z) > 1000) break;
     }
     return points;
-}
-
-function calculateTotalEnergy(charges) {
-    let energy = 0;
-    for (let i = 0; i < charges.length; i++) {
-        for (let j = i + 1; j < charges.length; j++) {
-            const c1 = charges[i];
-            const c2 = charges[j];
-            const dx = c1.x - c2.x;
-            const dy = c1.y - c2.y;
-            const dz = c1.z - c2.z;
-            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-            if (dist > 1) { // Avoid singularity
-                energy += (COULOMB_K * c1.q * c2.q) / dist;
-            }
-        }
-    }
-    return energy;
 }
 
 export default function ElectromagneticPage() {
@@ -548,7 +515,7 @@ export default function ElectromagneticPage() {
                 const distSq = dx * dx + dy * dy + dz * dz;
                 const dist = Math.sqrt(distSq);
                 if (dist < 1) return;
-                const forceMag = (COULOMB_K * charge.q * other.q) / distSq;
+                const forceMag = calculateElectrostaticForce(charge.q, other.q, distSq);
                 fx += forceMag * (dx / dist);
                 fy += forceMag * (dy / dist);
                 fz += forceMag * (dz / dist);
@@ -610,7 +577,7 @@ export default function ElectromagneticPage() {
                     const distSq = dx * dx + dy * dy + dz * dz;
                     const dist = Math.sqrt(distSq);
                     if (dist < CHARGE_RADIUS * 2) return;
-                    const forceMag = (COULOMB_K * chargeQ * otherQ) / distSq;
+                    const forceMag = calculateElectrostaticForce(chargeQ, otherQ, distSq);
                     fx += forceMag * (dx / dist);
                     fy += forceMag * (dy / dist);
                     fz += forceMag * (dz / dist);
