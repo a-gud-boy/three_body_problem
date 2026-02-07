@@ -12,8 +12,8 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 
 import {
     calculateTotalEnergy,
-    calculateField,
-    calculateElectrostaticForce
+    calculateElectrostaticForce,
+    traceFieldLine
 } from '../../utils/physicsUtils';
 import './ElectromagneticPage.css';
 
@@ -120,44 +120,6 @@ function generateSpherePoints(count) {
     return points;
 }
 
-// Helper to trace a field line
-// direction: 1 = follow field (from positive), -1 = against field (toward negative)
-// terminateAt: 'negative', 'positive', or 'any'
-function traceFieldLine(startPoint, direction, charges, terminateAt = 'any') {
-    const points = [];
-    let current = { ...startPoint };
-
-    for (let step = 0; step < FIELD_LINE_SEGMENTS; step++) {
-        points.push(new THREE.Vector3(current.x, current.y, current.z));
-
-        const field = calculateField(current, charges);
-        const mag = Math.sqrt(field.x ** 2 + field.y ** 2 + field.z ** 2);
-
-        if (mag < 0.001) break; // Very weak field
-
-        // Check if near target charge type (for termination)
-        if (step > 5) {
-            const nearTarget = charges.some(c => {
-                const d = Math.sqrt((current.x - c.x) ** 2 + (current.y - c.y) ** 2 + (current.z - c.z) ** 2);
-                if (d > CHARGE_RADIUS * 1.5) return false;
-                if (terminateAt === 'negative') return c.q < 0;
-                if (terminateAt === 'positive') return c.q > 0;
-                return true; // 'any'
-            });
-            if (nearTarget) break;
-        }
-
-        // Smoother, consistent step size
-        const stepSize = FIELD_LINE_STEP;
-        current.x += direction * (field.x / mag) * stepSize;
-        current.y += direction * (field.y / mag) * stepSize;
-        current.z += direction * (field.z / mag) * stepSize;
-
-        // Extended bounds for better coverage
-        if (Math.abs(current.x) > 1000 || Math.abs(current.y) > 1000 || Math.abs(current.z) > 1000) break;
-    }
-    return points;
-}
 
 export default function ElectromagneticPage() {
     const [charges, setCharges] = useState(SCENARIOS.DIPOLE.charges);
@@ -238,9 +200,15 @@ export default function ElectromagneticPage() {
                     z: charge.z + sp.z * startOffset
                 };
 
-                const points = traceFieldLine(startPoint, 1, currentCharges, 'negative');
+                const rawPoints = traceFieldLine(startPoint, 1, currentCharges, {
+                    maxSteps: FIELD_LINE_SEGMENTS,
+                    stepSize: FIELD_LINE_STEP,
+                    terminateAt: 'negative',
+                    chargeRadius: CHARGE_RADIUS
+                });
 
-                if (points.length > 2) {
+                if (rawPoints.length > 2) {
+                    const points = rawPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
                     const geometry = new THREE.BufferGeometry().setFromPoints(points);
                     const colors = [];
                     for (let j = 0; j < points.length; j++) {
@@ -296,9 +264,15 @@ export default function ElectromagneticPage() {
                 };
 
                 // Trace field line backwards toward negative charge
-                const points = traceFieldLine(startPoint, -1, currentCharges, 'positive');
+                const rawPoints = traceFieldLine(startPoint, -1, currentCharges, {
+                    maxSteps: FIELD_LINE_SEGMENTS,
+                    stepSize: FIELD_LINE_STEP,
+                    terminateAt: 'positive',
+                    chargeRadius: CHARGE_RADIUS
+                });
 
-                if (points.length > 2) {
+                if (rawPoints.length > 2) {
+                    const points = rawPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
                     // Check redundancy
                     const lastPoint = points[points.length - 1];
                     const hitPositive = positiveCharges.some(p => {
