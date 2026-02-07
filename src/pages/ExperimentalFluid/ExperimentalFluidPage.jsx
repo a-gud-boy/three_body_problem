@@ -2,7 +2,8 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { 
     Fn, uniform, storage, float, vec3,
-    instanceIndex, vertexIndex, positionLocal
+    instanceIndex, vertexIndex, positionLocal,
+    viewportUV, mix, color
 } from 'three/tsl';
 import { WebGPURenderer, StorageBufferAttribute, MeshStandardNodeMaterial } from 'three/webgpu';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -116,6 +117,9 @@ class WebGPUWaterSimulation {
             // Lights
             this.setupLights();
             
+            // Setup background gradient
+            this.setupBackground();
+
             // Create initial ripples
             this.createInitialRipples();
             
@@ -143,6 +147,22 @@ class WebGPUWaterSimulation {
         }
     }
     
+    setupBackground() {
+        // Create a nice gradient background using TSL
+        // Dark blue/slate gradient
+        const colA = color(new THREE.Color(0x0f172a)); // Deep slate
+        const colB = color(new THREE.Color(0x1e293b)); // Lighter slate
+
+        // Vertical gradient (viewportUV.y is 0 at bottom, 1 at top)
+        // We want dark (colA) at top, lighter (colB) at bottom?
+        // Or dark at bottom?
+        // Let's do dark at top (0x0f172a) and lighter at bottom (0x1e293b) to simulate depth/horizon.
+        // mix(x, y, a): if a=0 -> x, if a=1 -> y.
+        // if y=0 (bottom), we want colB. if y=1 (top), we want colA.
+        // So mix(colB, colA, viewportUV.y)
+        this.scene.backgroundNode = mix(colB, colA, viewportUV.y);
+    }
+
     setupCompute() {
         // Create storage buffers for wave simulation
         const currentData = new Float32Array(this.count);
@@ -241,8 +261,8 @@ class WebGPUWaterSimulation {
             const gridSize = this.gridSize;
             
             this.material = new MeshStandardNodeMaterial({
-                metalness: 0.8,
-                roughness: 0.1,
+                metalness: 0.5, // Reduced from 0.8 for less harsh metallic look, but kept for shininess
+                roughness: 0.05, // Smooth surface
                 side: THREE.DoubleSide,
             });
             
@@ -290,8 +310,8 @@ class WebGPUWaterSimulation {
             console.warn('Failed to create node material, using fallback:', materialErr);
             this.material = new THREE.MeshStandardMaterial({
                 color: this.params.color,
-                metalness: 0.8,
-                roughness: 0.1,
+                metalness: 0.5,
+                roughness: 0.05,
                 side: THREE.DoubleSide,
             });
         }
