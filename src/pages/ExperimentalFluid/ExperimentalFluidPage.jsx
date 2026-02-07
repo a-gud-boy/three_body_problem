@@ -88,7 +88,6 @@ class WebGPUWaterSimulation {
             console.log('WebGPU Renderer initialized');
             
             // Wait a frame to ensure GPU device is fully ready
-            // This is important for proper resource initialization across different GPU vendors
             await new Promise(resolve => requestAnimationFrame(resolve));
             
             // Check again after frame wait
@@ -97,7 +96,7 @@ class WebGPUWaterSimulation {
                 return;
             }
             
-            // Orbit Controls - use right-click for rotation so left-click can create ripples
+            // Orbit Controls
             this.controls = new OrbitControls(this.camera, this.canvas);
             this.controls.enableDamping = true;
             this.controls.dampingFactor = 0.05;
@@ -148,47 +147,31 @@ class WebGPUWaterSimulation {
     }
     
     setupBackground() {
-        // Create a nice gradient background using TSL
-        // Dark blue/slate gradient
         const colA = color(new THREE.Color(0x0f172a)); // Deep slate
         const colB = color(new THREE.Color(0x1e293b)); // Lighter slate
-
-        // Vertical gradient (viewportUV.y is 0 at bottom, 1 at top)
-        // We want dark (colA) at top, lighter (colB) at bottom?
-        // Or dark at bottom?
-        // Let's do dark at top (0x0f172a) and lighter at bottom (0x1e293b) to simulate depth/horizon.
-        // mix(x, y, a): if a=0 -> x, if a=1 -> y.
-        // if y=0 (bottom), we want colB. if y=1 (top), we want colA.
-        // So mix(colB, colA, viewportUV.y)
         this.scene.backgroundNode = mix(colB, colA, viewportUV.y);
 
-        // --- NEW: Generate a simple procedural environment map ---
-        // Since we can't use PMREMGenerator or load external assets easily here,
-        // we'll create a DataTexture that acts as a simple environment map (gradient).
+        // Procedural environment map
         const width = 256;
         const height = 128;
         const size = width * height;
         const data = new Uint8Array(4 * size);
 
         for (let i = 0; i < size; i++) {
-            // const x = i % width;
             const y = Math.floor(i / width);
-            // const u = x / width;
-            const v = y / height; // 0 at top, 1 at bottom usually, or vice-versa
+            const v = y / height;
 
-            // Simple sky gradient: blue at top, white at horizon, dark blue at bottom
-            // Horizon is at v=0.5
             let r, g, b;
 
             if (v < 0.5) {
                 // Sky (top half) - lighter blue to white
-                const t = v * 2; // 0 to 1
+                const t = v * 2;
                 r = Math.floor(THREE.MathUtils.lerp(135, 255, t));
                 g = Math.floor(THREE.MathUtils.lerp(206, 255, t));
                 b = Math.floor(THREE.MathUtils.lerp(235, 255, t));
             } else {
                 // Ground/Sea (bottom half) - dark blue
-                const t = (v - 0.5) * 2; // 0 to 1
+                const t = (v - 0.5) * 2;
                 r = Math.floor(THREE.MathUtils.lerp(255, 15, t));
                 g = Math.floor(THREE.MathUtils.lerp(255, 23, t));
                 b = Math.floor(THREE.MathUtils.lerp(255, 42, t));
@@ -197,7 +180,7 @@ class WebGPUWaterSimulation {
             data[i * 4] = r;
             data[i * 4 + 1] = g;
             data[i * 4 + 2] = b;
-            data[i * 4 + 3] = 255; // Alpha
+            data[i * 4 + 3] = 255;
         }
 
         const envTexture = new THREE.DataTexture(data, width, height, THREE.RGBAFormat);
@@ -206,22 +189,27 @@ class WebGPUWaterSimulation {
         envTexture.needsUpdate = true;
 
         this.scene.environment = envTexture;
-        // Optionally blur the background reflection slightly? Not easy without PMREM.
         this.scene.environmentIntensity = 1.0;
     }
 
     setupCompute() {
         // Create storage buffers for wave simulation
+        // Three buffers needed to avoid Read-After-Write hazards in compute shaders
         const currentData = new Float32Array(this.count);
         const previousData = new Float32Array(this.count);
+        const tempData = new Float32Array(this.count); // Holds the 'Next' state temporarily
+
         currentData.fill(0);
         previousData.fill(0);
+        tempData.fill(0);
         
         this.currentBuffer = new StorageBufferAttribute(currentData, 1);
         this.previousBuffer = new StorageBufferAttribute(previousData, 1);
+        this.tempBuffer = new StorageBufferAttribute(tempData, 1);
         
         this.currentBuffer.needsUpdate = true;
         this.previousBuffer.needsUpdate = true;
+        this.tempBuffer.needsUpdate = true;
         
         // Uniforms
         this.uMouse = uniform(new THREE.Vector2(-1000, -1000));
@@ -234,14 +222,14 @@ class WebGPUWaterSimulation {
         // Rain Uniforms
         this.uRainPos = uniform(new THREE.Vector2(-1000, -1000));
         this.uRainActive = uniform(0.0);
-        this.uRainSize = uniform(2.0); // Smaller than brush
+        this.uRainSize = uniform(2.0);
         this.uRainStrength = uniform(3.0);
 
         // Storage nodes
         this.currentStorage = storage(this.currentBuffer, 'float', this.count);
         this.previousStorage = storage(this.previousBuffer, 'float', this.count);
+        this.tempStorage = storage(this.tempBuffer, 'float', this.count);
         
-        // Compute shader for wave simulation
         const uMouse = this.uMouse;
         const uMouseActive = this.uMouseActive;
         const uDamping = this.uDamping;
@@ -256,9 +244,11 @@ class WebGPUWaterSimulation {
 
         const currentStorage = this.currentStorage;
         const previousStorage = this.previousStorage;
+        const tempStorage = this.tempStorage;
         const gridSize = this.gridSize;
         
-        const computeWater = Fn(() => {
+        // --- Pass 1: Calculate New State (Writes to Temp) ---
+        const computeCalculate = Fn(() => {
             const index = instanceIndex.toUint();
             
             const x = index.mod(gridSize);
@@ -307,11 +297,24 @@ class WebGPUWaterSimulation {
 
             const finalHeight = damped.add(brushEffect).add(rainEffect);
             
-            previousStorage.element(index).assign(current);
-            currentStorage.element(index).assign(finalHeight);
+            // Write ONLY to Temp
+            tempStorage.element(index).assign(finalHeight);
         });
         
-        this.computeNode = computeWater().compute(this.count);
+        // --- Pass 2: Shift Buffers (Prev <- Cur, Cur <- Temp) ---
+        const computeShift = Fn(() => {
+            const index = instanceIndex.toUint();
+
+            const cur = currentStorage.element(index);
+            const temp = tempStorage.element(index);
+
+            // Shift values
+            previousStorage.element(index).assign(cur);
+            currentStorage.element(index).assign(temp);
+        });
+
+        this.computeCalculateNode = computeCalculate().compute(this.count);
+        this.computeShiftNode = computeShift().compute(this.count);
     }
     
     setupWaterMesh() {
@@ -326,20 +329,19 @@ class WebGPUWaterSimulation {
         
         // Water material using MeshStandardNodeMaterial
         try {
+            // Material only ever needs to read from currentStorage
             const currentStorage = this.currentStorage;
             this.uColor = uniform(new THREE.Color(this.params.color));
             const gridSize = this.gridSize;
             
             this.material = new MeshStandardNodeMaterial({
-                metalness: 0.1, // Water is dielectric, so low metalness
-                roughness: 0.02, // Very smooth surface for sharp reflections
+                metalness: 0.1,
+                roughness: 0.02,
                 side: THREE.DoubleSide,
             });
             
-            // Set color via uniform
             this.material.colorNode = this.uColor;
             
-            // GPU-based vertex displacement
             const heightScale = float(5.0);
             
             this.material.positionNode = Fn(() => {
@@ -349,7 +351,6 @@ class WebGPUWaterSimulation {
                 return vec3(pos.x, height.mul(heightScale), pos.z);
             })();
             
-            // GPU-based normal calculation
             this.material.normalNode = Fn(() => {
                 const idx = vertexIndex.toUint();
                 const x = idx.mod(gridSize);
@@ -392,26 +393,21 @@ class WebGPUWaterSimulation {
     }
     
     setupLights() {
-        // Hemisphere light for soft ambient sky/ground lighting
         const hemiLight = new THREE.HemisphereLight(0x88ccff, 0x224466, 0.6);
         this.scene.add(hemiLight);
         
-        // Main directional light (sun-like)
         const sunLight = new THREE.DirectionalLight(0xffffee, 1.2);
         sunLight.position.set(30, 50, 20);
         this.scene.add(sunLight);
         
-        // Fill light from opposite side
         const fillLight = new THREE.DirectionalLight(0x8888ff, 0.4);
         fillLight.position.set(-30, 20, -20);
         this.scene.add(fillLight);
         
-        // Rim light for specular highlights
         const rimLight = new THREE.PointLight(0xffffff, 0.8, 150);
         rimLight.position.set(0, 30, -50);
         this.scene.add(rimLight);
         
-        // Accent colored light
         const accentLight = new THREE.PointLight(0x00ffff, 0.6, 120);
         accentLight.position.set(-40, 15, 40);
         this.scene.add(accentLight);
@@ -443,23 +439,18 @@ class WebGPUWaterSimulation {
         }
     }
     
-    // Raycast from screen coordinates to find grid position
     raycastToGrid(ndcX, ndcY) {
         if (!this.raycaster) {
             this.raycaster = new THREE.Raycaster();
             this.waterPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // Y-up plane at y=0
         }
         
-        // Set raycaster from camera
         const mouse = new THREE.Vector2(ndcX, ndcY);
         this.raycaster.setFromCamera(mouse, this.camera);
         
-        // Find intersection with water plane
         const intersectPoint = new THREE.Vector3();
         const ray = this.raycaster.ray;
         if (ray.intersectPlane(this.waterPlane, intersectPoint)) {
-            // Convert world position to grid coordinates
-            // Water mesh is 100x100 centered at origin, grid is GRID_SIZE x GRID_SIZE
             const gridX = (intersectPoint.x + 50) / 100 * this.gridSize;
             const gridY = (intersectPoint.z + 50) / 100 * this.gridSize;
             return { x: gridX, y: gridY };
@@ -473,20 +464,15 @@ class WebGPUWaterSimulation {
         }
     }
     
-    // Trigger a single raindrop at a random location
     triggerRainDrop() {
         if (!this.uRainPos || !this.uRainActive) return;
 
-        // Random position on the grid
         const x = Math.random() * this.gridSize;
         const y = Math.random() * this.gridSize;
 
         this.uRainPos.value.set(x, y);
         this.uRainActive.value = 1.0;
 
-        // Reset after one frame (simulated via timeout for now, or handled in animate)
-        // Since WebGPU runs asynchronously, we need to ensure this stays active for at least one compute dispatch.
-        // We'll reset it in the next animate loop call.
         this.rainTriggered = true;
     }
 
@@ -515,18 +501,19 @@ class WebGPUWaterSimulation {
     }
     
     reset() {
-        if (!this.currentBuffer || !this.previousBuffer) return;
+        if (!this.currentBuffer || !this.previousBuffer || !this.tempBuffer) return;
         
         this.currentBuffer.array.fill(0);
         this.previousBuffer.array.fill(0);
+        this.tempBuffer.array.fill(0);
         this.currentBuffer.needsUpdate = true;
         this.previousBuffer.needsUpdate = true;
+        this.tempBuffer.needsUpdate = true;
         
         this.createInitialRipples();
     }
     
     animate() {
-        // Guard against disposed state
         if (this.disposed) return;
         
         this.animationId = requestAnimationFrame(() => this.animate());
@@ -536,16 +523,16 @@ class WebGPUWaterSimulation {
         this.controls.update();
         
         try {
-            if (this.isRunning && this.computeNode) {
-                // Run compute shader on GPU
-                this.renderer.compute(this.computeNode);
+            if (this.isRunning && this.computeCalculateNode && this.computeShiftNode) {
+                // Pass 1: Calculate new state (reads Current/Prev, writes Temp)
+                this.renderer.compute(this.computeCalculateNode);
 
-                // If we triggered rain this frame, turn it off for the next
+                // Pass 2: Shift buffers (reads Current/Temp, writes Prev/Current)
+                this.renderer.compute(this.computeShiftNode);
+
+                // Reset rain trigger after computation
                 if (this.rainTriggered) {
                     this.rainTriggered = false;
-                    // We don't want to turn it off immediately if we want it to persist for exactly one frame?
-                    // Actually, setting it to 0 here means it was 1 for the *just executed* compute pass (above).
-                    // So this is correct.
                     if (this.uRainActive) this.uRainActive.value = 0.0;
                 }
             }
@@ -576,27 +563,24 @@ class WebGPUWaterSimulation {
             this.animationId = null;
         }
         
-        // Clear scene
         if (this.scene) {
             while (this.scene.children.length > 0) {
                 this.scene.remove(this.scene.children[0]);
             }
         }
         
-        // Dispose GPU resources
         this.geometry?.dispose();
         this.material?.dispose();
         this.currentBuffer = null;
         this.previousBuffer = null;
-        this.computeNode = null;
+        this.tempBuffer = null;
+        this.computeCalculateNode = null;
+        this.computeShiftNode = null;
         
-        // Dispose renderer last
         this.renderer?.dispose();
         this.controls?.dispose();
     }
 }
-
-// --- Main Page Component ---
 
 export default function ExperimentalFluidPage() {
     const [params, setParams] = useState({
@@ -609,7 +593,7 @@ export default function ExperimentalFluidPage() {
     const [resolution, setResolution] = useState(256);
     const [isPlaying, setIsPlaying] = useState(true);
     const [isRaining, setIsRaining] = useState(false);
-    const [rainIntensity, setRainIntensity] = useState(5); // 1 to 10
+    const [rainIntensity, setRainIntensity] = useState(5);
     const [error, setError] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isChangingResolution, setIsChangingResolution] = useState(false);
@@ -620,25 +604,16 @@ export default function ExperimentalFluidPage() {
     const initTimeoutRef = useRef(null);
     const isInitialMount = useRef(true);
 
-    // Initialize simulation
     useEffect(() => {
         if (!canvasRef.current) return;
         
-        // Track if this is a resolution change vs initial mount
-        const isResolutionChange = !isInitialMount.current;
         isInitialMount.current = false;
         
-        if (isResolutionChange) {
-            setIsChangingResolution(true);
-        }
-        
-        // Cancel any pending initialization
         if (initTimeoutRef.current) {
             clearTimeout(initTimeoutRef.current);
             initTimeoutRef.current = null;
         }
         
-        // Dispose previous simulation if it exists
         if (simulationRef.current) {
             simulationRef.current.dispose();
             simulationRef.current = null;
@@ -648,7 +623,6 @@ export default function ExperimentalFluidPage() {
         setIsLoading(true);
         setError(null);
         
-        // Defer initialization to avoid React StrictMode double-mount issues
         initTimeoutRef.current = setTimeout(() => {
             if (cancelled || !canvasRef.current) return;
             
@@ -665,7 +639,7 @@ export default function ExperimentalFluidPage() {
                     }
                 }
             );
-        }, 50); // Small delay to let StrictMode finish its unmount cycle
+        }, 50);
         
         return () => {
             cancelled = true;
@@ -676,32 +650,26 @@ export default function ExperimentalFluidPage() {
             simulationRef.current?.dispose();
             simulationRef.current = null;
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [resolution]);
 
-    // Update params
     useEffect(() => {
         simulationRef.current?.updateParams(params);
     }, [params]);
 
-    // Update playing state
     useEffect(() => {
         simulationRef.current?.setPlaying(isPlaying);
     }, [isPlaying]);
 
-    // Handle Rain Loop
     useEffect(() => {
         if (!isRaining || !isPlaying) return;
 
-        // Rain intensity determines frequency
-        // 1 = sparse, 10 = heavy storm
-        // Max delay 500ms, min delay 10ms
         const minDelay = 10;
         const maxDelay = 500;
-        // Inverse linear mapping: intensity 1 -> 500ms, intensity 10 -> 10ms
         const delay = maxDelay - ((rainIntensity - 1) / 9) * (maxDelay - minDelay);
 
         const interval = setInterval(() => {
-            if (simulationRef.current && Math.random() > 0.3) { // 30% chance skip for irregularity
+            if (simulationRef.current && Math.random() > 0.3) {
                  simulationRef.current.triggerRainDrop();
             }
         }, delay);
@@ -709,7 +677,6 @@ export default function ExperimentalFluidPage() {
         return () => clearInterval(interval);
     }, [isRaining, rainIntensity, isPlaying]);
 
-    // Handle resize
     useEffect(() => {
         const handleResize = () => {
             if (containerRef.current && simulationRef.current) {
@@ -729,7 +696,6 @@ export default function ExperimentalFluidPage() {
         const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
         
-        // Use raycasting to get proper grid coordinates regardless of camera angle
         const gridPos = simulationRef.current.raycastToGrid(ndcX, ndcY);
         if (gridPos) {
             simulationRef.current.setMousePosition(gridPos.x, gridPos.y);
@@ -744,7 +710,7 @@ export default function ExperimentalFluidPage() {
     }, []);
 
     const onCanvasPointerDown = useCallback((e) => {
-        if (e.button === 0) { // Left click only
+        if (e.button === 0) {
             simulationRef.current?.setMouseActive(true);
         }
     }, []);
@@ -759,7 +725,6 @@ export default function ExperimentalFluidPage() {
 
     return (
         <div className="w-full h-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden relative">
-            {/* Header */}
             <div className="absolute top-0 left-0 right-0 p-4 z-10 flex justify-between items-start pointer-events-none">
                 <div className="flex flex-col gap-2 pointer-events-auto">
                     <Link to="/" className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-600/50 rounded-lg text-slate-300 hover:text-white text-sm font-medium transition-all backdrop-blur-sm">
@@ -773,7 +738,6 @@ export default function ExperimentalFluidPage() {
                 </div>
             </div>
 
-            {/* Loading Overlay */}
             {isLoading && !isChangingResolution && (
                 <div className="absolute inset-0 z-30 bg-slate-950 flex flex-col items-center justify-center">
                     <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -781,7 +745,6 @@ export default function ExperimentalFluidPage() {
                 </div>
             )}
 
-            {/* Resolution Change Indicator */}
             {isChangingResolution && (
                 <div className="absolute top-20 left-1/2 -translate-x-1/2 z-30 bg-slate-900/90 backdrop-blur-sm px-4 py-2 rounded-lg border border-purple-500/50 flex items-center gap-3">
                     <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
@@ -789,7 +752,6 @@ export default function ExperimentalFluidPage() {
                 </div>
             )}
 
-            {/* Error Overlay */}
             {error && (
                 <div className="absolute inset-0 z-30 bg-slate-950 flex flex-col items-center justify-center p-8">
                     <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
@@ -812,7 +774,6 @@ export default function ExperimentalFluidPage() {
                 </div>
             )}
 
-            {/* Canvas */}
             <div ref={containerRef} className="absolute inset-0 z-0" style={{ minWidth: '100px', minHeight: '100px' }}>
                 <canvas
                     ref={canvasRef}
@@ -825,7 +786,6 @@ export default function ExperimentalFluidPage() {
                 />
             </div>
 
-            {/* Sidebar Controls */}
             {!error && (
                 <aside className="absolute right-0 top-0 bottom-0 w-80 bg-slate-900/90 backdrop-blur-md border-l border-slate-700 p-6 z-20 overflow-y-auto">
                     <div className="mb-6 flex items-center gap-2 text-purple-400">
@@ -888,7 +848,10 @@ export default function ExperimentalFluidPage() {
                                 <label className="text-sm text-slate-400">Resolution</label>
                                 <select
                                     value={resolution}
-                                    onChange={e => setResolution(parseInt(e.target.value, 10))}
+                                    onChange={e => {
+                                        setIsChangingResolution(true);
+                                        setResolution(parseInt(e.target.value, 10));
+                                    }}
                                     className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-200 focus:outline-none focus:border-purple-500"
                                 >
                                     {RESOLUTION_OPTIONS.map(opt => (
@@ -916,7 +879,7 @@ export default function ExperimentalFluidPage() {
                                     <span className="text-slate-200 font-mono">{params.speed.toFixed(1)}</span>
                                 </label>
                                 <input
-                                    type="range" min="0.1" max="5.0" step="0.1"
+                                    type="range" min="0.1" max="1.4" step="0.1"
                                     value={params.speed}
                                     onChange={e => setParams({...params, speed: parseFloat(e.target.value)})}
                                     className="w-full accent-purple-500"
