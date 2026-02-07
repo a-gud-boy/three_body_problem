@@ -132,3 +132,31 @@ test('traceFieldLine: stops at max steps', () => {
     const points = traceFieldLine(startPoint, 1, charges, { maxSteps: 10 });
     assert.strictEqual(points.length, 10);
 });
+
+test('traceFieldLine: terminates when exceeding bounds', () => {
+    const charges = [{ x: 0, y: 0, z: 0, q: 1 }];
+    const startPoint = { x: 10, y: 0, z: 0 };
+
+    // Test positive bounds
+    // With stepSize 6, first step goes from 10 to 16.
+    // If bounds is 15, it should stop after 1st point is added.
+    const pointsPos = traceFieldLine(startPoint, 1, charges, {
+        maxSteps: 100,
+        stepSize: 6,
+        bounds: 15
+    });
+    assert.strictEqual(pointsPos.length, 1, 'Should stop after first point when exceeding positive bounds');
+    assert.strictEqual(pointsPos[0].x, 10);
+
+    // Test negative bounds
+    // Trace away from positive charge in -x direction
+    const startPointNeg = { x: -10, y: 0, z: 0 };
+    // First step goes from -10 to -16 (mag = 16 > 15)
+    const pointsNeg = traceFieldLine(startPointNeg, 1, charges, {
+        maxSteps: 100,
+        stepSize: 6,
+        bounds: 15
+    });
+    assert.strictEqual(pointsNeg.length, 1, 'Should stop after first point when exceeding negative bounds');
+    assert.strictEqual(pointsNeg[0].x, -10);
+});
