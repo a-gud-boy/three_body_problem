@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
-import { 
-    Fn, uniform, storage, float, vec3,
+import {
+    Fn, uniform, storage, float, vec3, int,
     instanceIndex, vertexIndex, positionLocal,
     viewportUV, mix, color
 } from 'three/tsl';
@@ -29,38 +29,38 @@ class WebGPUWaterSimulation {
         this.gridSize = gridSize;
         this.count = gridSize * gridSize;
         this.rainTriggered = false;
-        
+
         this.init();
     }
-    
+
     async init() {
         try {
             if (this.disposed) return;
-            
+
             if (!navigator.gpu) {
                 throw new Error('WebGPU is not supported.');
             }
-            
+
             this.scene = new THREE.Scene();
             this.scene.background = new THREE.Color(0x0f172a);
-            
+
             this.camera = new THREE.PerspectiveCamera(45, this.canvas.clientWidth / this.canvas.clientHeight, 0.1, 1000);
             this.camera.position.set(0, 80, 80);
             this.camera.lookAt(0, 0, 0);
-            
-            this.renderer = new WebGPURenderer({ 
-                canvas: this.canvas, 
+
+            this.renderer = new WebGPURenderer({
+                canvas: this.canvas,
                 antialias: false, // Disabled for stability
                 powerPreference: 'high-performance'
             });
-            
+
             this.renderer.setSize(this.canvas.clientWidth, this.canvas.clientHeight);
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            
+
             await this.renderer.init();
-            
+
             if (this.disposed) return;
-            
+
             this.controls = new OrbitControls(this.camera, this.canvas);
             this.controls.enableDamping = true;
             this.controls.dampingFactor = 0.05;
@@ -76,25 +76,25 @@ class WebGPUWaterSimulation {
                 MIDDLE: THREE.MOUSE.DOLLY,
                 RIGHT: THREE.MOUSE.ROTATE
             };
-            
+
             this.setupCompute();
             this.setupWaterMesh();
             this.setupLights();
             this.setupBackground();
             this.createInitialRipples();
-            
+
             this.initialized = true;
-            
+
             if (this.onReady) this.onReady(null);
-            
+
             this.animate();
-            
+
         } catch (error) {
             console.error('WebGPU Init Error:', error);
             if (this.onReady) this.onReady(error);
         }
     }
-    
+
     setupBackground() {
         const colA = color(new THREE.Color(0x0f172a)); // Deep slate
         const colB = color(new THREE.Color(0x1e293b)); // Lighter slate
@@ -145,13 +145,13 @@ class WebGPUWaterSimulation {
         // Two buffers: Height (Position) and Velocity
         const heightData = new Float32Array(this.count);
         const velocityData = new Float32Array(this.count);
-        
+
         this.heightBuffer = new StorageBufferAttribute(heightData, 1);
         this.velocityBuffer = new StorageBufferAttribute(velocityData, 1);
-        
+
         this.heightStorage = storage(this.heightBuffer, 'float', this.count);
         this.velocityStorage = storage(this.velocityBuffer, 'float', this.count);
-        
+
         // Uniforms
         this.uMouse = uniform(new THREE.Vector2(-1000, -1000));
         this.uMouseActive = uniform(0.0);
@@ -165,36 +165,35 @@ class WebGPUWaterSimulation {
         this.uRainActive = uniform(0.0);
         this.uRainSize = uniform(2.0);
         this.uRainStrength = uniform(3.0);
-        
+
         const gridSize = this.gridSize;
         const heightStorage = this.heightStorage;
         const velocityStorage = this.velocityStorage;
-        
+
         // --- Pass 1: Update Velocity (Force Calculation) ---
         // Reads Height (neighbors), Reads/Writes Velocity
         const computeVelocity = Fn(() => {
             const index = instanceIndex.toUint();
-            const x = index.mod(gridSize);
-            const y = index.div(gridSize);
-            
+            const x = int(index.mod(gridSize));
+            const y = int(index.div(gridSize));
+
             const currentH = heightStorage.element(index);
             const currentV = velocityStorage.element(index);
-            
             const getH = (ix, iy) => {
                 const cX = ix.clamp(0, gridSize - 1);
                 const cY = iy.clamp(0, gridSize - 1);
                 return heightStorage.element(cY.mul(gridSize).add(cX));
             };
-            
+
             const right = getH(x.add(1), y);
             const left = getH(x.sub(1), y);
             const up = getH(x, y.sub(1));
             const down = getH(x, y.add(1));
-            
+
             // Laplacian: sum(neighbors) - 4*current
             const laplacian = right.add(left).add(up).add(down).sub(currentH.mul(4.0));
             const accel = laplacian.mul(this.uSpeed).mul(0.5); // Speed factor
-            
+
             // Mouse Interaction (Force)
             const mousePos = this.uMouse;
             const dx = float(x).sub(mousePos.x);
@@ -212,13 +211,13 @@ class WebGPUWaterSimulation {
             const rain = this.uRainStrength.mul(
                 float(1.0).sub(rdist.div(this.uRainSize)).clamp(0.0, 1.0)
             ).mul(this.uRainActive).mul(0.1);
-            
+
             // v_new = (v + a + brush + rain) * damping
             const newV = currentV.add(accel).add(brush).add(rain).mul(this.uDamping);
-            
+
             velocityStorage.element(index).assign(newV);
         });
-        
+
         // --- Pass 2: Update Height (Advection) ---
         // Reads Velocity, Reads/Writes Height
         const computeHeight = Fn(() => {
@@ -233,26 +232,26 @@ class WebGPUWaterSimulation {
         this.computeVelocityNode = computeVelocity().compute(this.count);
         this.computeHeightNode = computeHeight().compute(this.count);
     }
-    
+
     setupWaterMesh() {
         this.geometry = new THREE.PlaneGeometry(100, 100, this.gridSize - 1, this.gridSize - 1);
         this.geometry.rotateX(-Math.PI / 2);
-        
+
         const heightStorage = this.heightStorage;
         this.uColor = uniform(new THREE.Color(this.params.color));
         const gridSize = this.gridSize;
-        
+
         try {
             this.material = new MeshStandardNodeMaterial({
                 metalness: 0.1,
                 roughness: 0.02,
                 side: THREE.DoubleSide,
             });
-            
+
             this.material.colorNode = this.uColor;
-            
+
             const heightScale = float(5.0);
-            
+
             // Vertex Displacement
             this.material.positionNode = Fn(() => {
                 const idx = vertexIndex.toUint();
@@ -260,46 +259,45 @@ class WebGPUWaterSimulation {
                 const pos = positionLocal;
                 return vec3(pos.x, h.mul(heightScale), pos.z);
             })();
-            
+
             // Normal Recalculation
             this.material.normalNode = Fn(() => {
                 const idx = vertexIndex.toUint();
-                const x = idx.mod(gridSize);
-                const y = idx.div(gridSize);
-                
+                const x = int(idx.mod(gridSize));
+                const y = int(idx.div(gridSize));
+
                 const getH = (ix, iy) => {
                     const cX = ix.clamp(0, gridSize - 1);
                     const cY = iy.clamp(0, gridSize - 1);
                     return heightStorage.element(cY.mul(gridSize).add(cX));
                 };
-                
+
                 const hL = getH(x.sub(1), y);
                 const hR = getH(x.add(1), y);
                 const hD = getH(x, y.sub(1));
                 const hU = getH(x, y.add(1));
-                
+
                 const scale = heightScale.mul(2.0);
                 const dx = hR.sub(hL).mul(scale);
                 const dy = hU.sub(hD).mul(scale);
                 const gridSpacing = float(100.0 / gridSize);
-                
+
                 return vec3(dx.negate(), gridSpacing.mul(2.0), dy.negate()).normalize();
             })();
-            
+
         } catch (e) {
             console.warn("Material fallback", e);
             this.material = new THREE.MeshStandardMaterial({ color: 0x0088ff });
         }
-        
+
         this.mesh = new THREE.Mesh(this.geometry, this.material);
         this.mesh.frustumCulled = false;
         this.scene.add(this.mesh);
     }
-    
+
     setupLights() {
         const hemiLight = new THREE.HemisphereLight(0x88ccff, 0x224466, 0.6);
         this.scene.add(hemiLight);
-
         const sunLight = new THREE.DirectionalLight(0xffffee, 1.2);
         sunLight.position.set(30, 50, 20);
         this.scene.add(sunLight);
@@ -311,28 +309,30 @@ class WebGPUWaterSimulation {
         const rimLight = new THREE.PointLight(0xffffff, 0.8, 150);
         rimLight.position.set(0, 30, -50);
         this.scene.add(rimLight);
-
         const accentLight = new THREE.PointLight(0x00ffff, 0.6, 120);
         accentLight.position.set(-40, 15, 40);
         this.scene.add(accentLight);
     }
-    
+
     createInitialRipples() {
         const h = this.heightBuffer.array;
         const center = Math.floor(this.count / 2 + this.gridSize / 2);
         h[center] = 5.0;
         this.heightBuffer.needsUpdate = true;
     }
-    
+
     setMousePosition(x, y) {
+        if (this.disposed) return;
         if (this.uMouse) this.uMouse.value.set(x, y);
     }
 
     setMouseActive(active) {
+        if (this.disposed) return;
         if (this.uMouseActive) this.uMouseActive.value = active ? 1.0 : 0.0;
     }
 
     triggerRainDrop() {
+        if (this.disposed) return;
         if (!this.uRainPos || !this.uRainActive) return;
 
         const x = Math.random() * this.gridSize;
@@ -343,8 +343,9 @@ class WebGPUWaterSimulation {
 
         this.rainTriggered = true;
     }
-    
+
     raycastToGrid(ndcX, ndcY) {
+        if (this.disposed) return null;
         if (!this.raycaster) {
             this.raycaster = new THREE.Raycaster();
             this.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -360,6 +361,7 @@ class WebGPUWaterSimulation {
     }
 
     updateParams(params) {
+        if (this.disposed) return;
         this.params = params;
         if (this.uDamping) this.uDamping.value = params.damping;
         if (this.uBrushSize) this.uBrushSize.value = params.brushSize;
@@ -367,23 +369,24 @@ class WebGPUWaterSimulation {
         if (this.uSpeed) this.uSpeed.value = params.speed;
         if (this.uColor) this.uColor.value.set(params.color);
     }
-    
+
     setPlaying(p) { this.isRunning = p; }
-    
+
     reset() {
+        if (this.disposed) return;
         this.heightBuffer.array.fill(0);
         this.velocityBuffer.array.fill(0);
         this.heightBuffer.needsUpdate = true;
         this.velocityBuffer.needsUpdate = true;
         this.createInitialRipples();
     }
-    
+
     animate() {
         if (this.disposed || !this.initialized) return;
         this.animationId = requestAnimationFrame(() => this.animate());
-        
+
         this.controls.update();
-        
+
         if (this.isRunning) {
             this.renderer.compute(this.computeVelocityNode);
             this.renderer.compute(this.computeHeightNode);
@@ -397,18 +400,56 @@ class WebGPUWaterSimulation {
 
         this.renderer.render(this.scene, this.camera);
     }
-    
+
     resize(w, h) {
-        if (!this.camera) return;
+        if (this.disposed || !this.camera) return;
         this.camera.aspect = w / h;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(w, h);
     }
-    
+
+    cleanupScene() {
+        if (this.scene) {
+            this.scene.traverse((object) => {
+                if (object.geometry) object.geometry.dispose();
+                if (object.material) {
+                    if (Array.isArray(object.material)) {
+                        object.material.forEach(m => m.dispose());
+                    } else {
+                        object.material.dispose();
+                    }
+                }
+            });
+            if (this.scene.environment) this.scene.environment.dispose();
+            if (this.scene.background && this.scene.background.isTexture) {
+                this.scene.background.dispose();
+            }
+        }
+    }
+
     dispose() {
         this.disposed = true;
         if (this.animationId) cancelAnimationFrame(this.animationId);
-        this.renderer?.dispose();
+        this.controls?.dispose();
+
+        const renderer = this.renderer;
+        this.renderer = null;
+
+        if (renderer) {
+            // Delay disposal slightly to allow pending GPU commands to finish
+            // This prevents "Buffer destroyed" errors if the loop was just active
+            // We also move cleanupScene here to ensure resources aren't freed while GPU is busy
+            setTimeout(() => {
+                try {
+                    this.cleanupScene();
+                    renderer.dispose();
+                } catch (e) {
+                    console.error('Error disposing WebGPU renderer:', e);
+                }
+            }, 100);
+        } else {
+            this.cleanupScene();
+        }
     }
 }
 
@@ -433,18 +474,18 @@ export default function ExperimentalFluidPage() {
 
     useEffect(() => {
         if (!canvasRef.current) return;
-        
+
         if (simulationRef.current) {
             simulationRef.current.dispose();
             simulationRef.current = null;
         }
-        
+
         setIsLoading(true);
         setError(null);
-        
+
         const timeout = setTimeout(() => {
             simulationRef.current = new WebGPUWaterSimulation(
-                canvasRef.current, 
+                canvasRef.current,
                 params,
                 resolution,
                 (err) => {
@@ -453,7 +494,7 @@ export default function ExperimentalFluidPage() {
                 }
             );
         }, 100);
-        
+
         return () => {
             clearTimeout(timeout);
             simulationRef.current?.dispose();
@@ -478,7 +519,7 @@ export default function ExperimentalFluidPage() {
 
         const interval = setInterval(() => {
             if (simulationRef.current && Math.random() > 0.3) {
-                 simulationRef.current.triggerRainDrop();
+                simulationRef.current.triggerRainDrop();
             }
         }, delay);
 
@@ -588,11 +629,10 @@ export default function ExperimentalFluidPage() {
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => setIsPlaying(!isPlaying)}
-                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-semibold transition-all ${
-                                        isPlaying
-                                        ? 'bg-amber-500/10 text-amber-500 border border-amber-500/50 hover:bg-amber-500/20'
-                                        : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg'
-                                    }`}
+                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-semibold transition-all ${isPlaying
+                                            ? 'bg-amber-500/10 text-amber-500 border border-amber-500/50 hover:bg-amber-500/20'
+                                            : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg'
+                                        }`}
                                 >
                                     {isPlaying ? <><Pause className="w-4 h-4" /> Pause</> : <><Play className="w-4 h-4" /> Resume</>}
                                 </button>
@@ -608,11 +648,10 @@ export default function ExperimentalFluidPage() {
                             <div className="space-y-2 pt-2 border-t border-slate-700/50">
                                 <button
                                     onClick={() => setIsRaining(!isRaining)}
-                                    className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg font-medium transition-all ${
-                                        isRaining
-                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
-                                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                                    }`}
+                                    className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg font-medium transition-all ${isRaining
+                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                        }`}
                                 >
                                     <CloudRain className={`w-4 h-4 ${isRaining ? 'animate-bounce' : ''}`} />
                                     {isRaining ? 'Rain Active' : 'Enable Rain'}
@@ -655,7 +694,7 @@ export default function ExperimentalFluidPage() {
                                 <input
                                     type="range" min="0.900" max="0.999" step="0.001"
                                     value={params.damping}
-                                    onChange={e => setParams({...params, damping: parseFloat(e.target.value)})}
+                                    onChange={e => setParams({ ...params, damping: parseFloat(e.target.value) })}
                                     className="w-full accent-purple-500"
                                 />
                             </div>
@@ -668,7 +707,7 @@ export default function ExperimentalFluidPage() {
                                 <input
                                     type="range" min="0.1" max="1.4" step="0.1"
                                     value={params.speed}
-                                    onChange={e => setParams({...params, speed: parseFloat(e.target.value)})}
+                                    onChange={e => setParams({ ...params, speed: parseFloat(e.target.value) })}
                                     className="w-full accent-purple-500"
                                 />
                             </div>
@@ -681,7 +720,7 @@ export default function ExperimentalFluidPage() {
                                 <input
                                     type="range" min="1.0" max="30.0" step="0.5"
                                     value={params.brushSize}
-                                    onChange={e => setParams({...params, brushSize: parseFloat(e.target.value)})}
+                                    onChange={e => setParams({ ...params, brushSize: parseFloat(e.target.value) })}
                                     className="w-full accent-purple-500"
                                 />
                             </div>
@@ -694,7 +733,7 @@ export default function ExperimentalFluidPage() {
                                 <input
                                     type="range" min="0.1" max="10.0" step="0.1"
                                     value={params.brushStrength}
-                                    onChange={e => setParams({...params, brushStrength: parseFloat(e.target.value)})}
+                                    onChange={e => setParams({ ...params, brushStrength: parseFloat(e.target.value) })}
                                     className="w-full accent-purple-500"
                                 />
                             </div>
@@ -705,7 +744,7 @@ export default function ExperimentalFluidPage() {
                                     {['#0088ff', '#00ffcc', '#ff0088', '#8800ff'].map(c => (
                                         <button
                                             key={c}
-                                            onClick={() => setParams({...params, color: c})}
+                                            onClick={() => setParams({ ...params, color: c })}
                                             className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${params.color === c ? 'border-white scale-110' : 'border-transparent'}`}
                                             style={{ backgroundColor: c }}
                                         />

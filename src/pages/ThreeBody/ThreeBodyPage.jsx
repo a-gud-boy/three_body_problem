@@ -3547,6 +3547,11 @@ const BodyLabelsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, selectedB
             const meshes = meshRefs.current;
             const bodies = bodiesRef.current;
 
+            if (!mountRef.current) {
+                // If unmounted, just stop the loop (cleanup will cancel frame, but this is safe)
+                return;
+            }
+
             if (!meshes || meshes.length === 0 || !bodies) {
                 animationFrameId = requestAnimationFrame(updateLabels);
                 return;
@@ -3668,6 +3673,8 @@ const VelocityVectorsOverlay = ({ bodiesRef, meshRefs, cameraRef, mountRef, scal
         let animationFrameId;
 
         const updateVectors = () => {
+            if (!mountRef.current) return;
+
             if (!meshRefs.current || meshRefs.current.length === 0 || !bodiesRef.current) {
                 animationFrameId = requestAnimationFrame(updateVectors);
                 return;
