@@ -12,8 +12,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 
 import {
     calculateTotalEnergy,
-    calculateField,
-    calculateElectrostaticForce
+    calculateField
 } from '../../utils/physicsUtils';
 import './ElectromagneticPage.css';
 
@@ -503,23 +502,22 @@ export default function ElectromagneticPage() {
             ? chargeMeshesRef.current.map(m => m ? { x: m.position.x, y: m.position.y, z: m.position.z } : null)
             : charges.map(c => ({ x: c.x, y: c.y, z: c.z }));
 
+        // Create a clean array of charges for calculation
+        const validCharges = positions.map((p, index) =>
+            p ? { ...p, q: charges[index].q } : null
+        ).filter(c => c !== null);
+
         charges.forEach((charge, i) => {
             if (!positions[i]) return;
 
-            let fx = 0, fy = 0, fz = 0;
-            charges.forEach((other, j) => {
-                if (i === j || !positions[j]) return;
-                const dx = positions[i].x - positions[j].x;
-                const dy = positions[i].y - positions[j].y;
-                const dz = positions[i].z - positions[j].z;
-                const distSq = dx * dx + dy * dy + dz * dz;
-                const dist = Math.sqrt(distSq);
-                if (dist < 1) return;
-                const forceMag = calculateElectrostaticForce(charge.q, other.q, distSq);
-                fx += forceMag * (dx / dist);
-                fy += forceMag * (dy / dist);
-                fz += forceMag * (dz / dist);
-            });
+            // Calculate field at this position from all other charges
+            // Using minDistance = 1 to match original logic
+            const field = calculateField(positions[i], validCharges, 1);
+
+            // F = qE
+            const fx = field.x * charge.q;
+            const fy = field.y * charge.q;
+            const fz = field.z * charge.q;
 
             const forceMag = Math.sqrt(fx * fx + fy * fy + fz * fz);
             if (forceMag < 0.005) return; // Lower threshold to show more arrows
@@ -558,30 +556,29 @@ export default function ElectromagneticPage() {
 
             const meshes = chargeMeshesRef.current;
 
+            // Snapshot of current charges for consistent force calculation
+            const currentCharges = meshes
+                .filter(m => m && m.visible !== false)
+                .map(m => ({
+                    x: m.position.x,
+                    y: m.position.y,
+                    z: m.position.z,
+                    q: m.userData.charge
+                }));
+
             // Update positions directly on the existing mesh positions
             meshes.forEach((mesh, i) => {
                 if (!mesh) return;
                 const chargeQ = mesh.userData.charge;
                 if (chargeQ === undefined) return;
 
-                // Calculate forces from other charges using mesh positions and userData
-                let fx = 0, fy = 0, fz = 0;
-                meshes.forEach((otherMesh, j) => {
-                    if (i === j || !otherMesh) return;
-                    const otherQ = otherMesh.userData.charge;
-                    if (otherQ === undefined) return;
+                // Calculate electric field at this position from all charges
+                const field = calculateField(mesh.position, currentCharges, CHARGE_RADIUS * 2);
 
-                    const dx = mesh.position.x - otherMesh.position.x;
-                    const dy = mesh.position.y - otherMesh.position.y;
-                    const dz = mesh.position.z - otherMesh.position.z;
-                    const distSq = dx * dx + dy * dy + dz * dz;
-                    const dist = Math.sqrt(distSq);
-                    if (dist < CHARGE_RADIUS * 2) return;
-                    const forceMag = calculateElectrostaticForce(chargeQ, otherQ, distSq);
-                    fx += forceMag * (dx / dist);
-                    fy += forceMag * (dy / dist);
-                    fz += forceMag * (dz / dist);
-                });
+                // F = qE
+                const fx = field.x * chargeQ;
+                const fy = field.y * chargeQ;
+                const fz = field.z * chargeQ;
 
                 // Update velocity (stored in userData)
                 // INCREASED FORCE FACTOR for visibility:

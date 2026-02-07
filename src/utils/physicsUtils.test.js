@@ -75,3 +75,18 @@ test('calculateElectrostaticForce: calculates force correctly', () => {
     // k * 1 * -1 / 100 = -89.9
     assert.ok(Math.abs(f - (-89.9)) < 0.01, `Expected -89.9, got ${f}`);
 });
+
+test('calculateField: respects custom minDistance', () => {
+    const charges = [{ x: 0, y: 0, z: 0, q: 1 }];
+    const point = { x: 4, y: 0, z: 0 }; // dist = 4
+
+    // Default minDistance is 5, so it should be skipped (0 field)
+    let field = calculateField(point, charges);
+    assert.strictEqual(field.x, 0);
+
+    // With minDistance = 3, it should be calculated
+    field = calculateField(point, charges, 3);
+    assert.notStrictEqual(field.x, 0);
+    // Mag = 8.99e3 / 16 = 561.875
+    assert.ok(Math.abs(field.x - 561.875) < 0.1, `Expected ~561.875, got ${field.x}`);
+});
