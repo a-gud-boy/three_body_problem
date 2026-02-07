@@ -15,6 +15,7 @@ import {
     calculateElectrostaticForce,
     traceFieldLine
 } from '../../utils/physicsUtils';
+import { generateSpherePoints, generateRandomCharges } from './utils';
 import './ElectromagneticPage.css';
 
 // ============== CONSTANTS ==============
@@ -79,15 +80,6 @@ const SCENARIOS = {
         charges: []
     }
 };
-
-function generateRandomCharges(count = 15) {
-    return Array.from({ length: count }, () => ({
-        x: (Math.random() - 0.5) * 200,
-        y: (Math.random() - 0.5) * 200,
-        z: (Math.random() - 0.5) * 50,
-        q: Math.random() > 0.5 ? 1 : -1
-    }));
-}
 
 // ============== MAIN COMPONENT ==============
 
