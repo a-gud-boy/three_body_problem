@@ -161,6 +161,53 @@ class WebGPUWaterSimulation {
         // if y=0 (bottom), we want colB. if y=1 (top), we want colA.
         // So mix(colB, colA, viewportUV.y)
         this.scene.backgroundNode = mix(colB, colA, viewportUV.y);
+
+        // --- NEW: Generate a simple procedural environment map ---
+        // Since we can't use PMREMGenerator or load external assets easily here,
+        // we'll create a DataTexture that acts as a simple environment map (gradient).
+        const width = 256;
+        const height = 128;
+        const size = width * height;
+        const data = new Uint8Array(4 * size);
+
+        for (let i = 0; i < size; i++) {
+            // const x = i % width;
+            const y = Math.floor(i / width);
+            // const u = x / width;
+            const v = y / height; // 0 at top, 1 at bottom usually, or vice-versa
+
+            // Simple sky gradient: blue at top, white at horizon, dark blue at bottom
+            // Horizon is at v=0.5
+            let r, g, b;
+
+            if (v < 0.5) {
+                // Sky (top half) - lighter blue to white
+                const t = v * 2; // 0 to 1
+                r = Math.floor(THREE.MathUtils.lerp(135, 255, t));
+                g = Math.floor(THREE.MathUtils.lerp(206, 255, t));
+                b = Math.floor(THREE.MathUtils.lerp(235, 255, t));
+            } else {
+                // Ground/Sea (bottom half) - dark blue
+                const t = (v - 0.5) * 2; // 0 to 1
+                r = Math.floor(THREE.MathUtils.lerp(255, 15, t));
+                g = Math.floor(THREE.MathUtils.lerp(255, 23, t));
+                b = Math.floor(THREE.MathUtils.lerp(255, 42, t));
+            }
+
+            data[i * 4] = r;
+            data[i * 4 + 1] = g;
+            data[i * 4 + 2] = b;
+            data[i * 4 + 3] = 255; // Alpha
+        }
+
+        const envTexture = new THREE.DataTexture(data, width, height, THREE.RGBAFormat);
+        envTexture.colorSpace = THREE.SRGBColorSpace;
+        envTexture.mapping = THREE.EquirectangularReflectionMapping;
+        envTexture.needsUpdate = true;
+
+        this.scene.environment = envTexture;
+        // Optionally blur the background reflection slightly? Not easy without PMREM.
+        this.scene.environmentIntensity = 1.0;
     }
 
     setupCompute() {
@@ -261,8 +308,8 @@ class WebGPUWaterSimulation {
             const gridSize = this.gridSize;
             
             this.material = new MeshStandardNodeMaterial({
-                metalness: 0.5, // Reduced from 0.8 for less harsh metallic look, but kept for shininess
-                roughness: 0.05, // Smooth surface
+                metalness: 0.1, // Water is dielectric, so low metalness
+                roughness: 0.02, // Very smooth surface for sharp reflections
                 side: THREE.DoubleSide,
             });
             
@@ -310,8 +357,8 @@ class WebGPUWaterSimulation {
             console.warn('Failed to create node material, using fallback:', materialErr);
             this.material = new THREE.MeshStandardMaterial({
                 color: this.params.color,
-                metalness: 0.5,
-                roughness: 0.05,
+                metalness: 0.1,
+                roughness: 0.02,
                 side: THREE.DoubleSide,
             });
         }
