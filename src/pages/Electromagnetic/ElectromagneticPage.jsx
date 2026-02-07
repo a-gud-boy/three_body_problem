@@ -17,6 +17,7 @@ import {
     traceFieldLine
 } from '../../utils/physicsUtils';
 import { generateSpherePoints, generateRandomCharges } from './utils';
+import { SCENARIOS } from './scenarios';
 import './ElectromagneticPage.css';
 
 // ============== CONSTANTS ==============
@@ -24,94 +25,8 @@ const CHARGE_RADIUS = 15;
 const FIELD_LINE_SEGMENTS = 3000; // Increased length for closed loops
 const FIELD_LINE_STEP = 6;
 
-// ============== SCENARIOS ==============
-const SCENARIOS = {
-    DIPOLE: {
-        name: "Electric Dipole",
-        description: "Two opposite charges",
-        charges: [
-            { x: -60, y: 0, z: 0, q: 1 },
-            { x: 60, y: 0, z: 0, q: -1 }
-        ]
-    },
-    QUADRUPOLE: {
-        name: "Quadrupole",
-        description: "Four alternating charges",
-        charges: [
-            { x: -50, y: -50, z: 0, q: 1 },
-            { x: 50, y: -50, z: 0, q: -1 },
-            { x: 50, y: 50, z: 0, q: 1 },
-            { x: -50, y: 50, z: 0, q: -1 }
-        ]
-    },
-    LINEAR: {
-        name: "Linear Array",
-        description: "Five alternating charges",
-        charges: [
-            { x: -100, y: 0, z: 0, q: 1 },
-            { x: -50, y: 0, z: 0, q: -1 },
-            { x: 0, y: 0, z: 0, q: 1 },
-            { x: 50, y: 0, z: 0, q: -1 },
-            { x: 100, y: 0, z: 0, q: 1 }
-        ]
-    },
-    CAPACITOR: {
-        name: "Capacitor",
-        description: "Parallel plate charges",
-        charges: [
-            { x: -80, y: 50, z: 0, q: 1 }, { x: -40, y: 50, z: 0, q: 1 },
-            { x: 0, y: 50, z: 0, q: 1 }, { x: 40, y: 50, z: 0, q: 1 }, { x: 80, y: 50, z: 0, q: 1 },
-            { x: -80, y: -50, z: 0, q: -1 }, { x: -40, y: -50, z: 0, q: -1 },
-            { x: 0, y: -50, z: 0, q: -1 }, { x: 40, y: -50, z: 0, q: -1 }, { x: 80, y: -50, z: 0, q: -1 }
-        ]
-    },
-    RING: {
-        name: "Charge Ring",
-        description: "Circular arrangement",
-        charges: Array.from({ length: 12 }, (_, i) => ({
-            x: Math.cos((i / 12) * Math.PI * 2) * 80,
-            y: Math.sin((i / 12) * Math.PI * 2) * 80,
-            z: 0,
-            q: i % 2 === 0 ? 1 : -1
-        }))
-    },
-    RANDOM: {
-        name: "Random Cloud",
-        description: "Random charges",
-        charges: []
-    }
-};
 
 // ============== MAIN COMPONENT ==============
-
-// Generate symmetric 3D spherical distribution of starting points
-// Uses regular latitude-longitude pattern for symmetric appearance
-function generateSpherePoints(count) {
-    const points = [];
-    // Calculate number of latitude bands
-    const latBands = Math.max(2, Math.ceil(Math.sqrt(count)));
-    const lonPoints = Math.ceil(count / latBands);
-
-    for (let lat = 0; lat < latBands; lat++) {
-        // Latitude from -PI/2 to PI/2 (avoiding exact poles for better distribution)
-        const theta = ((lat + 0.5) / latBands) * Math.PI - Math.PI / 2;
-        const cosTheta = Math.cos(theta);
-        const sinTheta = Math.sin(theta);
-
-        // Number of longitude points scales with latitude (fewer near poles)
-        const numLon = Math.max(1, Math.round(lonPoints * cosTheta));
-
-        for (let lon = 0; lon < numLon; lon++) {
-            const phi = (lon / numLon) * Math.PI * 2;
-            points.push({
-                x: Math.cos(phi) * cosTheta,
-                y: sinTheta,
-                z: Math.sin(phi) * cosTheta
-            });
-        }
-    }
-    return points;
-}
 
 
 export default function ElectromagneticPage() {
@@ -166,7 +81,7 @@ export default function ElectromagneticPage() {
 
         // Fallback to state if meshes not ready (though meshes should be ready if scene is)
         if (currentCharges.length === 0 && charges.length > 0) {
-             currentCharges = charges;
+            currentCharges = charges;
         }
 
         // Remove old field lines
@@ -272,7 +187,7 @@ export default function ElectromagneticPage() {
                         const dx = lastPoint.x - p.x;
                         const dy = lastPoint.y - p.y;
                         const dz = lastPoint.z - p.z;
-                        return (dx*dx + dy*dy + dz*dz) < (CHARGE_RADIUS * 2.5) ** 2;
+                        return (dx * dx + dy * dy + dz * dz) < (CHARGE_RADIUS * 2.5) ** 2;
                     });
                     if (hitPositive) return;
 
