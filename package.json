@@ -12,9 +12,12 @@
     "deploy": "npm run build && npx gh-pages -d dist"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
     "@tailwindcss/vite": "^4.1.17",
     "autoprefixer": "^10.4.22",
     "lucide-react": "^0.554.0",
+    "playwright": "^1.58.2",
     "postcss": "^8.5.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
