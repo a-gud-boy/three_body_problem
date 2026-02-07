@@ -4,7 +4,8 @@ import {
     COULOMB_K,
     calculateTotalEnergy,
     calculateField,
-    calculateElectrostaticForce
+    calculateElectrostaticForce,
+    traceFieldLine
 } from './physicsUtils.js';
 
 test('calculateTotalEnergy: calculates correct energy for a dipole', () => {
@@ -74,4 +75,45 @@ test('calculateElectrostaticForce: calculates force correctly', () => {
     const f = calculateElectrostaticForce(1, -1, 100);
     // k * 1 * -1 / 100 = -89.9
     assert.ok(Math.abs(f - (-89.9)) < 0.01, `Expected -89.9, got ${f}`);
+});
+
+test('traceFieldLine: traces away from positive charge', () => {
+    const charges = [{ x: 0, y: 0, z: 0, q: 1 }];
+    const startPoint = { x: 10, y: 0, z: 0 };
+    const points = traceFieldLine(startPoint, 1, charges, { maxSteps: 5, stepSize: 1 });
+
+    // Should move further away in +x direction
+    assert.strictEqual(points.length, 5);
+    // Initial point
+    assert.strictEqual(points[0].x, 10);
+    // Next points should increase x
+    assert.ok(points[1].x > 10);
+    assert.ok(points[4].x > points[1].x);
+});
+
+test('traceFieldLine: terminates when close to charge', () => {
+    // Start at -20, charge at 0. Trace towards charge.
+    const charges = [{ x: 0, y: 0, z: 0, q: -1 }];
+    const startPoint = { x: -40, y: 0, z: 0 };
+
+    const points = traceFieldLine(startPoint, 1, charges, {
+        maxSteps: 100,
+        stepSize: 2,
+        terminateAt: 'negative',
+        chargeRadius: 10
+    });
+
+    // It should stop before 100 steps if it hits the charge
+    assert.ok(points.length < 100, `Expected trace to stop before 100 steps, took ${points.length}`);
+    const last = points[points.length - 1];
+    // Should be close to 0 (within radius * 1.5 = 15)
+    // We started at -40.
+    assert.ok(Math.abs(last.x) <= 15, `Ended at ${last.x}, expected <= 15`);
+});
+
+test('traceFieldLine: stops at max steps', () => {
+    const charges = [{ x: 0, y: 0, z: 0, q: 1 }];
+    const startPoint = { x: 10, y: 0, z: 0 };
+    const points = traceFieldLine(startPoint, 1, charges, { maxSteps: 10 });
+    assert.strictEqual(points.length, 10);
 });
