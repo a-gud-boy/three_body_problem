@@ -33,9 +33,12 @@ export default function TSLParticles({ params, isPlaying }) {
     // Update Uniforms
     useEffect(() => {
         uMass.value = params.blackHoleMass;
-        uSpeedOfLight.value = params.speedOfLight;
+        // Ensure c is at least 10 to avoid huge Rs or div by zero
+        const safeC = Math.max(params.speedOfLight, 10.0);
+        uSpeedOfLight.value = safeC;
         // Rs = 2GM/c^2
-        uRs.value = (2.0 * 1.0 * params.blackHoleMass) / (params.speedOfLight * params.speedOfLight);
+        const rsVal = (2.0 * 1.0 * params.blackHoleMass) / (safeC * safeC);
+        uRs.value = rsVal;
     }, [params]);
 
     // Compute Shader Node
@@ -52,25 +55,20 @@ export default function TSLParticles({ params, isPlaying }) {
             const rs = uRs;
 
             // Physics
-            const d = pos.length(); // Distance from (0,0,0)
-            const safeD = d.max(0.001); // Prevent division by zero
+            const d = pos.length().max(0.001); // Safe distance from (0,0,0)
 
             // Paczyński-Wiita potential: F = -GM / (r-rs)^2
-            // Direction is -pos/r
+            // To avoid singularity at r=rs, we soften the denominator
+            const diff = d.sub(rs);
+            // We use a softened squared distance: (r-rs)^2 + epsilon
+            // This guarantees positive, non-zero denominator
+            const distSq = diff.mul(diff).add(0.1);
 
-            // Avoid division by zero and singularity in potential
-            // r_eff = max(r - rs, 0.1)
-            const r_eff = d.sub(rs).max(0.1);
-            const denom = r_eff.mul(r_eff).mul(safeD); // r(r-rs)^2 (using safeD for r)
+            // Acceleration Magnitude
+            const accelMag = G.mul(mass).div(distSq).min(5000.0); // Clamp max acceleration
 
-            // Calculate magnitude: GM / denom
-            // Clamp acceleration to prevent numerical explosion near event horizon or center
-            const accelMag = G.mul(mass).div(denom).min(5000.0);
-
-            // Assign acceleration
-            // Use manual normalization with safeD to avoid normalize(0)
-            // direction = -pos / safeD
-            const direction = pos.negate().div(safeD);
+            // Direction: -pos / r (Normalized towards center)
+            const direction = pos.negate().div(d);
             const accel = direction.mul(accelMag);
 
             // Update Velocity

@@ -60,6 +60,19 @@ export default function GeneralRelativityPage() {
                  originalRender(scene, camera);
              };
 
+             // Monkey-patch dispose to prevent "Buffer destroyed" errors during quick unmounts
+             // We defer disposal to ensure GPU has finished pending frames
+             const originalDispose = renderer.dispose.bind(renderer);
+             renderer.dispose = () => {
+                 setTimeout(() => {
+                     try {
+                         originalDispose();
+                     } catch (e) {
+                         console.warn("WebGPURenderer disposal warning:", e);
+                     }
+                 }, 100);
+             };
+
              renderer.init().catch(e => {
                  console.error("WebGPU Init Failed", e);
                  // We can't use state setters here directly without causing potential loops or issues during render phase
