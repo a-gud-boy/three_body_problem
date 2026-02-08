@@ -1,10 +1,10 @@
-import React, { useMemo } from 'react';
-import { Fn, uniform, float, vec3, positionLocal, distance, mix, clamp, color } from 'three/tsl';
+import React, { useMemo, useEffect } from 'react';
+import { uniform, float, vec3, positionLocal, distance, mix, clamp, color } from 'three/tsl';
 import { MeshStandardNodeMaterial } from 'three/webgpu';
 import * as THREE from 'three';
 
-// TSL Function for Grid Displacement
-const calculateDisplacement = Fn((pos, massPos, mass, G, intensity) => {
+// Standard JS Function returning TSL node graph
+const calculateDisplacement = (pos, massPos, mass, G, intensity) => {
     // d = distance(pos.xz, massPos.xz)
     const d = distance(pos.xz, massPos.xz);
     const r = d.max(2.0); // Softening
@@ -16,10 +16,10 @@ const calculateDisplacement = Fn((pos, massPos, mass, G, intensity) => {
     const newY = pos.y.sub(depth.mul(0.1).mul(intensity));
 
     return vec3(pos.x, newY, pos.z);
-});
+};
 
-// TSL Function for Grid Color
-const calculateColor = Fn((pos, massPos, mass, G, baseColor) => {
+// Standard JS Function returning TSL node graph
+const calculateColor = (pos, massPos, mass, G, baseColor) => {
     const d = distance(pos.xz, massPos.xz);
     const r = d.max(2.0);
     const depth = G.mul(mass).div(r);
@@ -29,21 +29,22 @@ const calculateColor = Fn((pos, massPos, mass, G, baseColor) => {
     const hotColor = vec3(1.0, 0.2, 0.1);
 
     return mix(baseColor, hotColor, t);
-});
+};
 
 export default function TSLGrid({ params }) {
     // Uniforms
-    const uMassPos = uniform(new THREE.Vector3(0, 0, 0));
-    const uMass = uniform(params.blackHoleMass);
-    const uG = uniform(1.0);
-    const uIntensity = uniform(params.gridIntensity);
-    const uColor = uniform(new THREE.Color(0x44aaff));
+    // Use useMemo to ensure we reuse the SAME UniformNode instance across renders
+    const uMassPos = useMemo(() => uniform(new THREE.Vector3(0, 0, 0)), []);
+    const uMass = useMemo(() => uniform(params.blackHoleMass), []);
+    const uG = useMemo(() => uniform(1.0), []);
+    const uIntensity = useMemo(() => uniform(params.gridIntensity), []);
+    const uColor = useMemo(() => uniform(new THREE.Color(0x44aaff)), []);
 
-    // Update uniforms
-    useMemo(() => {
+    // Update uniforms when params change
+    useEffect(() => {
         uMass.value = params.blackHoleMass;
         uIntensity.value = params.gridIntensity;
-    }, [params.blackHoleMass, params.gridIntensity]);
+    }, [params.blackHoleMass, params.gridIntensity, uMass, uIntensity]);
 
     const material = useMemo(() => {
         const mat = new MeshStandardNodeMaterial();
@@ -56,14 +57,11 @@ export default function TSLGrid({ params }) {
         mat.positionNode = newPos;
 
         // Fragment Color Logic
-        // We need the displaced position for color? Actually original position is fine for radial gradient.
-        // Or re-calculate depth based on world pos?
-        // Let's use local position for consistency.
         mat.colorNode = calculateColor(positionLocal, uMassPos, uMass, uG, uColor);
         mat.opacity = 0.6;
 
         return mat;
-    }, []);
+    }, [uMassPos, uMass, uG, uIntensity, uColor]);
 
     return (
         <mesh material={material} rotation={[-Math.PI / 2, 0, 0]} position={[0, -10, 0]}>
