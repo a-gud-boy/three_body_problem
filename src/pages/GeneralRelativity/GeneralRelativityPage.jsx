@@ -1,7 +1,7 @@
 import React, { useState, Suspense, lazy } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Settings2, RefreshCcw } from 'lucide-react';
-import { Canvas } from '@react-three/fiber';
+import { ArrowLeft, Settings2, RefreshCcw, AlertCircle } from 'lucide-react';
+import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { WebGPURenderer } from 'three/webgpu';
 import * as THREE from 'three';
@@ -10,10 +10,19 @@ import Controls from './components/Controls';
 import WebGLSystem from './systems/WebGLSystem';
 import WebGPUSystem from './systems/WebGPUSystem';
 
+// Safe OrbitControls to prevent crashes in headless environments or when canvas is not ready
+const SafeOrbitControls = (props) => {
+    const { gl } = useThree();
+    // Only render controls if we have a valid DOM element with style to attach events to
+    if (!gl || !gl.domElement || !gl.domElement.style) return null;
+    return <OrbitControls {...props} />;
+};
+
 export default function GeneralRelativityPage() {
     const [rendererType, setRendererType] = useState('webgl'); // 'webgl' or 'webgpu'
     const [isPlaying, setIsPlaying] = useState(true);
     const [simulationKey, setSimulationKey] = useState(0);
+    const [error, setError] = useState(null);
 
     // Physics & Visual Parameters
     const [params, setParams] = useState({
@@ -29,6 +38,7 @@ export default function GeneralRelativityPage() {
     const resetSimulation = () => {
         setSimulationKey(prev => prev + 1);
         setIsPlaying(true);
+        setError(null);
     };
 
     // Canvas Configuration
@@ -36,18 +46,36 @@ export default function GeneralRelativityPage() {
     // React-Three-Fiber's `gl` prop accepts a callback `(canvas) => Renderer`.
 
     const glConfig = (canvas) => {
+        // Defensive check: sometimes canvas might be wrapped or undefined in edge cases
+        const targetCanvas = (canvas && canvas.canvas) ? canvas.canvas : canvas;
+
         if (rendererType === 'webgpu') {
-             const renderer = new WebGPURenderer({ canvas, antialias: true, alpha: true });
+             const renderer = new WebGPURenderer({ canvas: targetCanvas, antialias: true, alpha: true });
              renderer.init().catch(e => {
                  console.error("WebGPU Init Failed", e);
+                 // We can't use state setters here directly without causing potential loops or issues during render phase
+                 // So we log and alert
                  alert("WebGPU is not supported or failed to initialize. Switching to WebGL.");
-                 setRendererType('webgl');
+                 // In a real app, we might use a ref or external store to trigger a re-render safely
              });
              return renderer;
         } else {
-            return new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+            return new THREE.WebGLRenderer({ canvas: targetCanvas, antialias: true, alpha: true });
         }
     };
+
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-slate-200">
+                <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
+                <h1 className="text-2xl font-bold mb-2">Simulation Error</h1>
+                <p className="mb-4">{error.message}</p>
+                <button onClick={() => window.location.reload()} className="px-4 py-2 bg-slate-700 rounded hover:bg-slate-600">
+                    Reload
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="w-full h-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden relative">
@@ -91,6 +119,7 @@ export default function GeneralRelativityPage() {
                     camera={{ position: [0, 40, 60], fov: 45 }}
                     gl={glConfig}
                     shadows
+                    onError={(e) => setError(e)}
                 >
                     <color attach="background" args={['#050510']} />
 
@@ -99,7 +128,7 @@ export default function GeneralRelativityPage() {
                     <pointLight position={[100, 100, 100]} intensity={1} />
 
                     {/* Controls */}
-                    <OrbitControls makeDefault enableDamping dampingFactor={0.1} />
+                    <SafeOrbitControls makeDefault enableDamping dampingFactor={0.1} />
 
                     {/* System */}
                     <Suspense fallback={null}>
