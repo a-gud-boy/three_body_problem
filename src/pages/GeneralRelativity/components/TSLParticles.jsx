@@ -21,28 +21,9 @@ export default function TSLParticles({ params, isPlaying }) {
     }, []);
 
     // Create Storage Buffers (Read/Write on GPU)
-    // We need to wrap the Float32Arrays in StorageBufferAttribute or similar?
-    // In TSL, `storage(bufferAttribute, type, count)` creates a node.
-    // We must pass the attribute itself.
-
-    // Actually, TSL storage uses `THREE.InstancedBufferAttribute` directly if passed to `storage`?
-    // Let's check `ExperimentalFluidPage.jsx`.
-    // `const currentBuffer = storage(new Float32Array(COUNT), 'float', COUNT);`
-    // It passes a TypedArray.
-
-    // But for `instancedMesh`, we want to use the buffer for rendering too.
-    // If we use `storage(typedArray)`, we get a node we can read/write.
-    // To render instances at those positions, we assign `material.positionNode = storageNode.element(instanceIndex)`.
-
-    // So we keep the TypedArrays.
-    const posArray = useMemo(() => positionBuffer.array, [positionBuffer]);
-    const velArray = useMemo(() => velocityBuffer.array, [velocityBuffer]);
-    // Color is static for now, so we can use attribute or storage. Let's use attribute for color to save compute?
-    // Actually, if we want to change color based on radius, we need compute or node logic.
-    // Let's just use `storage` for Pos and Vel.
-
-    const posStorage = useMemo(() => storage(posArray, 'vec3', COUNT), [posArray]);
-    const velStorage = useMemo(() => storage(velArray, 'vec3', COUNT), [velArray]);
+    // passing the InstancedBufferAttribute directly to storage() preserves the buffer metadata
+    const posStorage = useMemo(() => storage(positionBuffer, 'vec3', COUNT), [positionBuffer]);
+    const velStorage = useMemo(() => storage(velocityBuffer, 'vec3', COUNT), [velocityBuffer]);
 
     // Uniforms
     const uMass = useMemo(() => uniform(params.blackHoleMass), []);

@@ -4,7 +4,7 @@ import { MeshStandardNodeMaterial } from 'three/webgpu';
 import * as THREE from 'three';
 
 // TSL Function for Grid Displacement
-const calculateDisplacement = Fn(([pos, massPos, mass, G, intensity]) => {
+const calculateDisplacement = Fn((pos, massPos, mass, G, intensity) => {
     // d = distance(pos.xz, massPos.xz)
     const d = distance(pos.xz, massPos.xz);
     const r = d.max(2.0); // Softening
@@ -19,7 +19,7 @@ const calculateDisplacement = Fn(([pos, massPos, mass, G, intensity]) => {
 });
 
 // TSL Function for Grid Color
-const calculateColor = Fn(([pos, massPos, mass, G, baseColor]) => {
+const calculateColor = Fn((pos, massPos, mass, G, baseColor) => {
     const d = distance(pos.xz, massPos.xz);
     const r = d.max(2.0);
     const depth = G.mul(mass).div(r);
