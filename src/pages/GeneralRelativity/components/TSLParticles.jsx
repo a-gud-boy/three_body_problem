@@ -48,29 +48,30 @@ export default function TSLParticles({ params, isPlaying }) {
 
             const mass = uMass;
             const G = uG;
-            // const c = uSpeedOfLight; // Unused
             const dt = uDeltaTime;
             const rs = uRs;
 
             // Physics
             const d = pos.length(); // Distance from (0,0,0)
+            const safeD = d.max(0.001); // Prevent division by zero
 
             // Paczyński-Wiita potential: F = -GM / (r-rs)^2
             // Direction is -pos/r
-            // a_vec = -GM / (r(r-rs)^2) * pos
 
-            const accel = vec3(0.0).toVar();
-
-            // Avoid division by zero and singularity
+            // Avoid division by zero and singularity in potential
             // r_eff = max(r - rs, 0.1)
             const r_eff = d.sub(rs).max(0.1);
-            const denom = r_eff.mul(r_eff).mul(d); // r(r-rs)^2
+            const denom = r_eff.mul(r_eff).mul(safeD); // r(r-rs)^2 (using safeD for r)
 
             // Calculate magnitude: GM / denom
-            const accelMag = G.mul(mass).div(denom);
+            // Clamp acceleration to prevent numerical explosion near event horizon or center
+            const accelMag = G.mul(mass).div(denom).min(5000.0);
 
             // Assign acceleration
-            accel.assign( pos.negate().mul(accelMag) );
+            // Use manual normalization with safeD to avoid normalize(0)
+            // direction = -pos / safeD
+            const direction = pos.negate().div(safeD);
+            const accel = direction.mul(accelMag);
 
             // Update Velocity
             const newVel = vel.add(accel.mul(dt));
