@@ -9,6 +9,7 @@ import WaveInterferencePage from './pages/WaveInterference/WaveInterferencePage'
 import SoftBodyPage from './pages/SoftBody/SoftBodyPage';
 import ConceptPage from './pages/Concept/ConceptPage';
 import ExperimentalFluidPage from './pages/ExperimentalFluid/ExperimentalFluidPage';
+import GeneralRelativityPage from './pages/GeneralRelativity/GeneralRelativityPage';
 
 const router = createBrowserRouter([
     {
@@ -46,6 +47,10 @@ const router = createBrowserRouter([
     {
         path: '/experimental-fluid',
         element: <ExperimentalFluidPage />,
+    },
+    {
+        path: '/general-relativity',
+        element: <GeneralRelativityPage />,
     },
     {
         path: '/concept/:id',
