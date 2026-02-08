@@ -80,30 +80,31 @@ export default function GeneralRelativityPage() {
     return (
         <div className="w-full h-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden relative">
             {/* Header */}
-            <div className="absolute top-0 left-0 right-0 p-4 z-10 flex justify-between items-start pointer-events-none">
-                <div className="flex flex-col gap-2 pointer-events-auto">
+            <div className="absolute top-0 left-0 right-0 p-4 z-10 flex flex-col gap-4 pointer-events-none max-w-[calc(100%-20rem)]">
+                <div className="flex flex-col gap-2 pointer-events-auto items-start">
                     <Link to="/" className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-600/50 rounded-lg text-slate-300 hover:text-white text-sm font-medium transition-all backdrop-blur-sm">
                         <ArrowLeft className="w-4 h-4" />
                         Back to Hub
                     </Link>
-                    <h1 className="text-2xl font-bold text-slate-200 drop-shadow-lg flex items-center gap-2">
-                        General Relativity Simulator <span className="text-xs bg-purple-600 text-white px-1.5 py-0.5 rounded">BETA</span>
-                    </h1>
-                </div>
-
-                <div className="pointer-events-auto bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg p-2 flex gap-2 shadow-xl">
-                    <button
-                        onClick={() => setRendererType('webgl')}
-                        className={`px-3 py-1 rounded text-xs font-mono transition-colors ${rendererType === 'webgl' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-                    >
-                        WebGL
-                    </button>
-                    <button
-                        onClick={() => setRendererType('webgpu')}
-                        className={`px-3 py-1 rounded text-xs font-mono transition-colors ${rendererType === 'webgpu' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-                    >
-                        WebGPU
-                    </button>
+                    <div className="flex items-center gap-4 flex-wrap">
+                        <h1 className="text-2xl font-bold text-slate-200 drop-shadow-lg flex items-center gap-2">
+                            General Relativity Simulator <span className="text-xs bg-purple-600 text-white px-1.5 py-0.5 rounded">BETA</span>
+                        </h1>
+                        <div className="pointer-events-auto bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg p-1.5 flex gap-1 shadow-xl">
+                            <button
+                                onClick={() => setRendererType('webgl')}
+                                className={`px-3 py-1 rounded text-xs font-mono transition-colors ${rendererType === 'webgl' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                            >
+                                WebGL
+                            </button>
+                            <button
+                                onClick={() => setRendererType('webgpu')}
+                                className={`px-3 py-1 rounded text-xs font-mono transition-colors ${rendererType === 'webgpu' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                            >
+                                WebGPU
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
