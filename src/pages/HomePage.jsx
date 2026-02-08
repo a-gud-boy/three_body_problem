@@ -126,6 +126,15 @@ const simulations = [
         status: 'available',
         path: '/soft-body',
     },
+    {
+        id: 'general-relativity',
+        title: 'General Relativity',
+        description: 'Spacetime curvature simulator. Black holes, gravitational lensing, and geodesics in dual WebGL/WebGPU modes.',
+        icon: '🌌',
+        iconBg: 'rgba(168, 85, 247, 0.15)',
+        status: 'available',
+        path: '/general-relativity',
+    },
 ];
 
 function OrbitalAnimation() {
