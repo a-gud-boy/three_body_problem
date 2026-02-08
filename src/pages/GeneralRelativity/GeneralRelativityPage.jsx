@@ -51,7 +51,20 @@ export default function GeneralRelativityPage() {
 
         if (rendererType === 'webgpu') {
              const renderer = new WebGPURenderer({ canvas: targetCanvas, antialias: true, alpha: true });
-             renderer.init().catch(e => console.error("WebGPU Init Failed", e));
+
+             // Monkey-patch render to handle async init
+             const originalRender = renderer.render.bind(renderer);
+             renderer.render = () => {}; // No-op until initialized
+
+             renderer.init()
+                .then(() => {
+                    renderer.render = originalRender; // Restore render
+                })
+                .catch(e => {
+                    console.error("WebGPU Init Failed", e);
+                    setError(e);
+                });
+
              return renderer;
         } else {
             return new THREE.WebGLRenderer({ canvas: targetCanvas, antialias: true, alpha: true });
