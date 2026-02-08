@@ -41,7 +41,9 @@ export default function TSLParticles({ params, isPlaying }) {
 
     // Compute Shader Node
     const computeShader = useMemo(() => {
-        return Fn(() => {
+        // Fn returns a function builder. We must call it Fn(...)() to get the shader node,
+        // then call .compute(COUNT) on that node.
+        const shaderFn = Fn(() => {
             const index = instanceIndex;
             const pos = posStorage.element(index);
             const vel = velStorage.element(index);
@@ -81,7 +83,11 @@ export default function TSLParticles({ params, isPlaying }) {
             velStorage.element(index).assign(newVel);
             posStorage.element(index).assign(newPos);
 
-        }).compute(COUNT);
+        });
+
+        // Invoke the Fn builder and then chain .compute()
+        return shaderFn().compute(COUNT);
+
     }, [posStorage, velStorage, uMass, uSpeedOfLight, uG, uDeltaTime, uRs]);
 
     // Material
@@ -106,7 +112,10 @@ export default function TSLParticles({ params, isPlaying }) {
 
         uDeltaTime.value = 0.016; // Fixed step
 
-        if (gl.compute) {
+        // Use computeAsync if available (WebGPURenderer) to handle async initialization
+        if (gl.computeAsync) {
+            gl.computeAsync(computeShader);
+        } else if (gl.compute) {
             gl.compute(computeShader);
         }
     });
