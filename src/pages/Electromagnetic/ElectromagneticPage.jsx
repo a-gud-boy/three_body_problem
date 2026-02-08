@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Play, Pause, RotateCcw, Plus, Minus, Zap,
-    Eye, Trash2, ChevronRight, ChevronLeft
+    Eye, Trash2, ChevronRight, ChevronLeft, ArrowLeft
 } from 'lucide-react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
@@ -554,9 +554,9 @@ export default function ElectromagneticPage() {
 
             {/* Header */}
             <div className="em-header">
-                <Link to="/three_body_problem" className="em-back-link">
-                    <ChevronLeft size={18} />
-                    <span>Home</span>
+                <Link to="/" className="em-back-link">
+                    <ArrowLeft size={20} />
+                    <span>Back to Hub</span>
                 </Link>
                 <h1 className="em-title">
                     <Zap className="em-title-icon" />
