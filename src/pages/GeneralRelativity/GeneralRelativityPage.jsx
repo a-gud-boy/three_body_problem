@@ -51,6 +51,15 @@ export default function GeneralRelativityPage() {
 
         if (rendererType === 'webgpu') {
              const renderer = new WebGPURenderer({ canvas: targetCanvas, antialias: true, alpha: true });
+
+             // Monkey-patch render to prevent premature execution before backend init
+             // This solves the race condition where R3F starts the loop before WebGPU backend is ready
+             const originalRender = renderer.render.bind(renderer);
+             renderer.render = (scene, camera) => {
+                 if (renderer.backend && !renderer.backend.isInitialized) return;
+                 originalRender(scene, camera);
+             };
+
              renderer.init().catch(e => {
                  console.error("WebGPU Init Failed", e);
                  // We can't use state setters here directly without causing potential loops or issues during render phase

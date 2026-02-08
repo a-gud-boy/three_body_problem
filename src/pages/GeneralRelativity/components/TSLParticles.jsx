@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Fn, uniform, storage, float, vec3, color, instanceIndex, positionLocal, If } from 'three/tsl';
+import { Fn, uniform, storage, float, vec3, color, instanceIndex, positionLocal } from 'three/tsl';
 import { MeshStandardNodeMaterial, StorageInstancedBufferAttribute } from 'three/webgpu';
 import * as THREE from 'three';
 import { createAccretionDisk } from '../utils/initializers';
@@ -20,7 +20,6 @@ export default function TSLParticles({ params, isPlaying }) {
     }, []);
 
     // Create Storage Buffers (Read/Write on GPU)
-    // passing the InstancedBufferAttribute directly to storage() preserves the buffer metadata
     const posStorage = useMemo(() => storage(positionBuffer, 'vec3', COUNT), [positionBuffer]);
     const velStorage = useMemo(() => storage(velocityBuffer, 'vec3', COUNT), [velocityBuffer]);
 
@@ -40,37 +39,37 @@ export default function TSLParticles({ params, isPlaying }) {
     }, [params]);
 
     // Compute Shader Node
-    const computeShader = useMemo(() => {
-        // Fn returns a function builder. We must call it Fn(...)() to get the shader node,
-        // then call .compute(COUNT) on that node.
-        const shaderFn = Fn(() => {
+    const computeNode = useMemo(() => {
+        // Define and invoke the compute shader logic in one go
+        return Fn(() => {
             const index = instanceIndex;
             const pos = posStorage.element(index);
             const vel = velStorage.element(index);
 
             const mass = uMass;
             const G = uG;
-            const c = uSpeedOfLight;
+            // const c = uSpeedOfLight; // Unused
             const dt = uDeltaTime;
             const rs = uRs;
 
             // Physics
             const d = pos.length(); // Distance from (0,0,0)
 
-            // Force/Acceleration
-            // Newtonian: a = -GM/r^3 * pos
-            // Relativistic (Paczyński-Wiita): a = -GM / (r-rs)^2 * (pos/r)
-
-            const accel = vec3(0.0).toVar();
-
-            // PW potential: F = -GM / (r-rs)^2
+            // Paczyński-Wiita potential: F = -GM / (r-rs)^2
             // Direction is -pos/r
             // a_vec = -GM / (r(r-rs)^2) * pos
 
-            const r_eff = d.sub(rs).max(0.1); // r - rs
-            const denom = r_eff.mul(r_eff).mul(d); // r(r-rs)^2
-            const accelMag = G.mul(mass).div(denom); // GM / ...
+            const accel = vec3(0.0).toVar();
 
+            // Avoid division by zero and singularity
+            // r_eff = max(r - rs, 0.1)
+            const r_eff = d.sub(rs).max(0.1);
+            const denom = r_eff.mul(r_eff).mul(d); // r(r-rs)^2
+
+            // Calculate magnitude: GM / denom
+            const accelMag = G.mul(mass).div(denom);
+
+            // Assign acceleration
             accel.assign( pos.negate().mul(accelMag) );
 
             // Update Velocity
@@ -79,14 +78,10 @@ export default function TSLParticles({ params, isPlaying }) {
             // Update Position
             const newPos = pos.add(newVel.mul(dt));
 
-            // Write back
+            // Write back to storage
             velStorage.element(index).assign(newVel);
             posStorage.element(index).assign(newPos);
-
-        });
-
-        // Invoke the Fn builder and then chain .compute()
-        return shaderFn().compute(COUNT);
+        })().compute(COUNT);
 
     }, [posStorage, velStorage, uMass, uSpeedOfLight, uG, uDeltaTime, uRs]);
 
@@ -95,7 +90,6 @@ export default function TSLParticles({ params, isPlaying }) {
         const mat = new MeshStandardNodeMaterial();
 
         // Position from storage
-        // We use positionLocal (vertex) + instancePos (offset)
         const instancePos = posStorage.element(instanceIndex);
         mat.positionNode = positionLocal.add(instancePos);
 
@@ -110,13 +104,19 @@ export default function TSLParticles({ params, isPlaying }) {
     useFrame(({ gl }) => {
         if (!isPlaying) return;
 
-        uDeltaTime.value = 0.016; // Fixed step
+        // Robust check for backend initialization
+        if (gl.backend && !gl.backend.isInitialized) return;
 
-        // Use computeAsync if available (WebGPURenderer) to handle async initialization
-        if (gl.computeAsync) {
-            gl.computeAsync(computeShader);
-        } else if (gl.compute) {
-            gl.compute(computeShader);
+        try {
+            // Use computeAsync if available (WebGPURenderer)
+            if (gl.computeAsync) {
+                gl.computeAsync(computeNode);
+            } else if (gl.compute) {
+                // Fallback
+                gl.compute(computeNode);
+            }
+        } catch (e) {
+            console.error("Compute error:", e);
         }
     });
 
