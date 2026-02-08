@@ -103,9 +103,6 @@ export default function TSLParticles({ params, isPlaying }) {
     useFrame(({ gl }) => {
         if (!isPlaying) return;
 
-        // Robust check for backend initialization
-        if (gl.backend && !gl.backend.isInitialized) return;
-
         try {
             // Use computeAsync if available (WebGPURenderer)
             if (gl.computeAsync) {
@@ -115,7 +112,7 @@ export default function TSLParticles({ params, isPlaying }) {
                 gl.compute(computeNode);
             }
         } catch (e) {
-            console.error("Compute error:", e);
+            // Suppress frame-level errors if backend is not ready
         }
     });
 
