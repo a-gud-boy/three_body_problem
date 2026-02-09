@@ -161,9 +161,9 @@ void main() {
 
             // Accumulate
             // Boost alpha for visibility
-            float alpha = density * 0.5 * stepDist;
+            float alpha = density * 1.5 * stepDist;
             // Boost color intensity
-            color += (diskCol * 2.0) * alpha * (1.0 - opacity);
+            color += (diskCol * 4.0) * alpha * (1.0 - opacity);
             opacity += alpha;
 
             if (opacity > 0.95) break;

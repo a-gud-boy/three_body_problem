@@ -180,9 +180,9 @@ export default function TSLLensing({ params }) {
                         diskCol.mulAssign(float(1.0).sub(doppler.mul(0.5)));
 
                         // Accumulate
-                        const alpha = density.mul(0.5).mul(stepDist);
+                        const alpha = density.mul(1.5).mul(stepDist);
                         // Boost color
-                        color.addAssign(diskCol.mul(2.0).mul(alpha).mul(float(1.0).sub(opacity)));
+                        color.addAssign(diskCol.mul(4.0).mul(alpha).mul(float(1.0).sub(opacity)));
                         opacity.addAssign(alpha);
 
                         If( opacity.greaterThan(0.95), () => {
