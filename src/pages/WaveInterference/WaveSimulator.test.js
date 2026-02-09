@@ -38,16 +38,40 @@ test('WaveSimulator: setWall', () => {
 });
 
 test('WaveSimulator: addDisturbance', () => {
-    const sim = new WaveSimulator(5, 5);
-    // Center disturbance at (2,2)
-    sim.addDisturbance(2, 2, 1.0);
-    // index = 12
-    assert.strictEqual(sim.current[12], 1.0);
+    const w = 5;
+    const h = 5;
+    const sim = new WaveSimulator(w, h);
 
-    // Boundary check (should not set if on edge x=0 or x=width-1)
-    // x=0
-    sim.addDisturbance(0, 2, 1.0);
-    assert.strictEqual(sim.current[2 * 5 + 0], 0);
+    // Valid disturbance (within boundaries)
+    sim.addDisturbance(2, 2, 1.0);
+    assert.strictEqual(sim.current[2 * w + 2], 1.0);
+
+    // Boundary conditions: x=0, y=0, x=width-1, y=height-1
+    // None of these should change the grid
+    const boundaries = [
+        [0, 0], [1, 0], [2, 0], [3, 0], [4, 0], // Top edge
+        [0, 4], [1, 4], [2, 4], [3, 4], [4, 4], // Bottom edge
+        [0, 1], [0, 2], [0, 3],                 // Left edge
+        [4, 1], [4, 2], [4, 3]                  // Right edge
+    ];
+
+    for (const [x, y] of boundaries) {
+        sim.current.fill(0);
+        sim.addDisturbance(x, y, 1.0);
+        assert.strictEqual(sim.current[y * w + x], 0, `Disturbance should not be allowed at boundary (${x}, ${y})`);
+    }
+
+    // Out of bounds
+    const outOfBounds = [
+        [-1, 2], [w, 2], [2, -1], [2, h]
+    ];
+    for (const [x, y] of outOfBounds) {
+        sim.current.fill(0);
+        sim.addDisturbance(x, y, 1.0);
+        // We don't check a specific index if it's out of bounds to avoid out of range access if the code was buggy,
+        // but we check that the whole buffer remains zero.
+        assert.ok(sim.current.every(val => val === 0), `Out of bounds disturbance at (${x}, ${y}) should have no effect`);
+    }
 });
 
 test('WaveSimulator: addSource', () => {
