@@ -30,12 +30,13 @@ uniform bool uShowDisk;
 varying vec3 vWorldPosition;
 
 // Constants
-#define MAX_STEPS 100
+#define MAX_STEPS 300
 #define STEP_SIZE 0.05
 #define PI 3.14159265359
 
 // Noise Functions
 float hash(float n) { return fract(sin(n) * 43758.5453123); }
+float random(vec2 st) { return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123); }
 float noise(vec3 x) {
     vec3 p = floor(x);
     vec3 f = fract(x);
@@ -78,6 +79,10 @@ void main() {
     // Schwarzschild Radius
     float rs = 2.0 * uG * uMass / (uC * uC);
 
+    // Dithering to break up banding
+    float jitter = random(gl_FragCoord.xy);
+    rayPos += rayDir * jitter * 0.05; // Offset start slightly
+
     // Accumulator
     vec3 color = vec3(0.0);
     float opacity = 0.0;
@@ -118,9 +123,9 @@ void main() {
         // Let's retry the integration step carefully.
         // Using a fixed small step in "coordinate time" might be slow.
         // Let's use a dynamic step size.
-        float stepDist = max(0.1, (r - rs) * 0.2);
+        float stepDist = max(0.05, (r - rs) * 0.15);
         // Clamp step to avoid overshooting thin disk
-        if (abs(p.y) < uDiskHeight * 2.0) stepDist = min(stepDist, 0.1);
+        if (abs(p.y) < uDiskHeight * 3.0) stepDist = min(stepDist, 0.025);
 
         // Update Position
         rayPos += rayDir * stepDist;

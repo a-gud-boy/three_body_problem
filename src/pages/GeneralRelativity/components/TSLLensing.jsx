@@ -113,8 +113,12 @@ export default function TSLLensing({ params }) {
                 const opacity = Var(float(0.0));
 
                 // Constants
-                const MAX_STEPS = 100;
+                const MAX_STEPS = 300;
                 const STEP_SIZE = float(0.05);
+
+                // Jitter for dithering
+                const jitter = hash(dot(viewDir, vec3(12.9898, 78.233, 54.53)));
+                rayPos.addAssign(rayDir.mul(jitter.mul(0.05)));
 
                 // Loop
                 Loop({ start: 0, end: MAX_STEPS }, () => {
@@ -142,10 +146,10 @@ export default function TSLLensing({ params }) {
                     rayDir.assign(normalize(rayDir));
 
                     // Step Size
-                    const stepDist = Var(max(0.1, r.sub(uRs).mul(0.2)));
+                    const stepDist = Var(max(0.05, r.sub(uRs).mul(0.15)));
 
-                    If( abs(p.y).lessThan(uDiskHeight.mul(2.0)), () => {
-                        stepDist.assign(min(stepDist, 0.1));
+                    If( abs(p.y).lessThan(uDiskHeight.mul(3.0)), () => {
+                        stepDist.assign(min(stepDist, 0.025));
                     });
 
                     rayPos.addAssign(rayDir.mul(stepDist));
