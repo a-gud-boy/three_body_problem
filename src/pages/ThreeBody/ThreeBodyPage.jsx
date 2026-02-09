@@ -13,6 +13,7 @@ import { usePhysicsWorker } from '../../hooks/usePhysicsWorker';
 const DEFAULT_PANEL_WIDTH = 380;
 const MIN_PANEL_WIDTH = 260;
 const MAX_PANEL_WIDTH = 600;
+const MAX_BODIES = 100;
 const PANEL_STORAGE_KEY = 'tbp-panel-width';
 
 const clampPanelWidth = (value) => Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, value));
@@ -673,6 +674,10 @@ const ThreeBodyPage = () => {
 
 
     const handleAddBody = () => {
+        if (bodiesRef.current.length >= MAX_BODIES) {
+            alert(`Maximum number of bodies (${MAX_BODIES}) reached.`);
+            return;
+        }
         const newBody = generateRandomBody(bodiesRef.current);
         bodiesRef.current.push(newBody);
         addBodyVisuals(newBody);
@@ -703,6 +708,10 @@ const ThreeBodyPage = () => {
                     // Validate structure
                     if (!state.bodies || !Array.isArray(state.bodies)) {
                         throw new Error('Invalid file: missing bodies array');
+                    }
+
+                    if (state.bodies.length > MAX_BODIES) {
+                        throw new Error(`Too many bodies in file (max ${MAX_BODIES})`);
                     }
 
                     // Clear existing visuals
