@@ -28,7 +28,7 @@ export default function GeneralRelativityPage() {
     const [params, setParams] = useState({
         physicsModel: 'newtonian', // 'newtonian', 'relativistic'
         blackHoleMass: 1000,
-        speedOfLight: 100,
+        speedOfLight: 30, // Lower c to make Rs visible (~2.2 units)
         showGrid: true,
         showDisk: true,
         enableLensing: true,

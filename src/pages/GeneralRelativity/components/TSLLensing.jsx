@@ -1,35 +1,35 @@
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Fn, uniform, float, vec3, vec4, positionWorld, cameraPosition, normalize, dot, mix, length, floor, fract, sqrt, max, min, step, select, sin, cos } from 'three/tsl';
+import { Fn, uniform, float, vec3, vec4, positionWorld, cameraPosition, normalize, dot, mix, length, floor, fract, sqrt, max, min, step, select, sin, cos, abs, smoothstep, cross, If, Loop, Var, Break, int, atan } from 'three/tsl';
 import { MeshBasicNodeMaterial } from 'three/webgpu';
 import * as THREE from 'three';
 
 // --- Procedural Noise Functions (TSL Port) ---
 
-// float hash(vec3 p)
-const hash = Fn(([p]) => {
-    const p1 = p.mul(0.3183099).add(0.1).fract();
-    const p2 = p1.mul(17.0);
-    return p2.x.mul(p2.y).mul(p2.z).mul(p2.x.add(p2.y).add(p2.z)).fract();
+// float hash(float n)
+const hash = Fn(([n]) => {
+    return fract(sin(n).mul(43758.5453123));
 });
 
-// float noise(in vec3 x)
+// float noise(vec3 x)
 const noise = Fn(([x]) => {
-    const i = x.floor();
-    const f = x.fract();
+    const p = floor(x);
+    const f = fract(x);
     // f = f * f * (3.0 - 2.0 * f)
     const u = f.mul(f).mul(float(3.0).sub(f.mul(2.0)));
 
-    // Mix 8 corners
+    // n = p.x + p.y * 57.0 + 113.0 * p.z;
+    const n = p.x.add(p.y.mul(57.0)).add(p.z.mul(113.0));
+
     const res = mix(
         mix(
-            mix(hash(i.add(vec3(0, 0, 0))), hash(i.add(vec3(1, 0, 0))), u.x),
-            mix(hash(i.add(vec3(0, 1, 0))), hash(i.add(vec3(1, 1, 0))), u.x),
+            mix(hash(n.add(0.0)), hash(n.add(1.0)), u.x),
+            mix(hash(n.add(57.0)), hash(n.add(58.0)), u.x),
             u.y
         ),
         mix(
-            mix(hash(i.add(vec3(0, 0, 1))), hash(i.add(vec3(1, 0, 1))), u.x),
-            mix(hash(i.add(vec3(0, 1, 1))), hash(i.add(vec3(1, 1, 1))), u.x),
+            mix(hash(n.add(113.0)), hash(n.add(114.0)), u.x),
+            mix(hash(n.add(170.0)), hash(n.add(171.0)), u.x),
             u.y
         ),
         u.z
@@ -41,11 +41,10 @@ const noise = Fn(([x]) => {
 const getBackground = Fn(([dir, time]) => {
     // Stars
     const n = noise(dir.mul(200.0));
-    const starVal = step(0.98, n); // if n > 0.98 then 1.0 else 0.0
+    const starVal = step(0.98, n);
     const stars = vec3(starVal);
 
     // Nebula
-    // noise(dir * 3.0 + vec3(time * 0.05))
     const nebulaScale = dir.mul(3.0).add(vec3(time.mul(0.05)));
     const n2 = noise(nebulaScale);
     const nebula = vec3(0.1, 0.0, 0.2).mul(n2).mul(0.5);
@@ -53,6 +52,10 @@ const getBackground = Fn(([dir, time]) => {
     return stars.add(nebula);
 });
 
+// vec3 getDiskColor(float t)
+const getDiskColor = Fn(([t]) => {
+    return mix(vec3(1.0, 0.3, 0.05), vec3(0.1, 0.4, 1.0), t);
+});
 
 export default function TSLLensing({ params }) {
 
@@ -65,11 +68,27 @@ export default function TSLLensing({ params }) {
     const uC = useMemo(() => uniform(params.speedOfLight), []);
     const uEnabled = useMemo(() => uniform(params.enableLensing ? 1 : 0), []);
     const uTime = useMemo(() => uniform(0.0), []);
+    const uShowDisk = useMemo(() => uniform(1), []);
+    const uShowGrid = useMemo(() => uniform(1), []);
+
+    // Derived Uniforms
+    const uRs = useMemo(() => uniform(0.0), []);
+    const uDiskInner = useMemo(() => uniform(2.0), []);
+    const uDiskOuter = useMemo(() => uniform(8.0), []);
+    const uDiskHeight = useMemo(() => uniform(0.2), []);
 
     useEffect(() => {
         uMass.value = params.blackHoleMass;
         uC.value = Math.max(params.speedOfLight, 10.0);
         uEnabled.value = params.enableLensing ? 1 : 0;
+        uShowDisk.value = params.showDisk !== false ? 1 : 0;
+        uShowGrid.value = params.showGrid !== false ? 1 : 0;
+
+        const rsVal = (2.0 * 1.0 * params.blackHoleMass) / (uC.value * uC.value);
+        uRs.value = rsVal;
+        uDiskInner.value = rsVal * 3.0;
+        uDiskOuter.value = rsVal * 12.0;
+        uDiskHeight.value = rsVal * 0.2;
     }, [params]);
 
     // Material Logic
@@ -78,45 +97,117 @@ export default function TSLLensing({ params }) {
         mat.side = THREE.BackSide;
         mat.depthWrite = false;
 
-        // Fragment Logic
         const colorNode = Fn(() => {
+
+            const finalColor = Var(vec3(0.0));
             const viewDir = normalize(positionWorld.sub(cameraPosition));
 
-            const camToMass = uMassPos.sub(cameraPosition);
-            const distToMass = length(camToMass);
-            const dirToMass = normalize(camToMass);
+            // Logic Split
+            If(uEnabled.lessThan(0.5), () => {
+                 finalColor.assign(getBackground(viewDir, uTime));
+            }).Else(() => {
+                // Initialize Variables for Ray Marching
+                const rayPos = Var(cameraPosition);
+                const rayDir = Var(viewDir); // Copy viewDir
+                const color = Var(vec3(0.0));
+                const opacity = Var(float(0.0));
 
-            const cosTheta = dot(viewDir, dirToMass).clamp(-1.0, 1.0);
-            const sinTheta = sqrt(float(1.0).sub(cosTheta.mul(cosTheta)));
+                // Constants
+                const MAX_STEPS = 100;
+                const STEP_SIZE = float(0.05);
 
-            const b = distToMass.mul(sinTheta);
+                // Loop
+                Loop({ start: 0, end: MAX_STEPS }, () => {
 
-            const rs = uG.mul(uMass).mul(2.0).div(uC.mul(uC));
-            const shadowRad = rs.mul(2.6);
+                    const p = rayPos.sub(uMassPos);
+                    const r = length(p);
 
-            // Deflection
-            // alpha = 4GM / (c^2 * b)
-            const safeB = max(b, 0.01);
-            const alpha = uG.mul(uMass).mul(4.0).div(uC.mul(uC).mul(safeB));
+                    // Horizon Collision
+                    If( r.lessThan(uRs), () => {
+                        color.assign(vec3(0.0));
+                        opacity.assign(1.0);
+                        Break();
+                    });
 
-            // Deflect viewDir
-            // vPerp = normalize(dirToMass - viewDir * cosTheta)
-            const vPerpRaw = dirToMass.sub(viewDir.mul(cosTheta));
-            const vPerp = normalize(vPerpRaw);
+                    // Escape
+                    If( r.greaterThan(100.0), () => {
+                        Break();
+                    });
 
-            // Sample direction: viewDir - vPerp * alpha
-            const deflectedDir = normalize(viewDir.sub(vPerp.mul(alpha)));
+                    // Gravity Bending
+                    const distSq = dot(p, p);
+                    const accel = normalize(p).negate().mul(uRs.mul(1.5).div(distSq));
 
-            // Check Shadow
-            // Condition: b < shadowRad && cosTheta > 0.0
-            const isShadow = b.lessThan(shadowRad).and(cosTheta.greaterThan(0.0));
+                    rayDir.addAssign(accel.mul(STEP_SIZE));
+                    rayDir.assign(normalize(rayDir));
 
-            // Colors
-            const deflectedColor = select(isShadow, vec3(0.0), getBackground(deflectedDir, uTime));
-            const normalColor = getBackground(viewDir, uTime);
+                    // Step Size
+                    const stepDist = Var(max(0.1, r.sub(uRs).mul(0.2)));
 
-            // Final Selection
-            const finalColor = select(uEnabled.greaterThan(0.5), deflectedColor, normalColor);
+                    If( abs(p.y).lessThan(uDiskHeight.mul(2.0)), () => {
+                        stepDist.assign(min(stepDist, 0.1));
+                    });
+
+                    rayPos.addAssign(rayDir.mul(stepDist));
+
+                    // --- Disk Rendering ---
+                    const r_plane = length(p.xz);
+
+                    If( uShowDisk.greaterThan(0.5).and(abs(p.y).lessThan(uDiskHeight)).and(r_plane.greaterThan(uDiskInner)).and(r_plane.lessThan(uDiskOuter)), () => {
+
+                        // Density
+                        const densityBase = float(1.0).sub(smoothstep(0.0, uDiskHeight, abs(p.y)));
+
+                        const noiseCoord = vec3(
+                            r_plane.mul(2.0),
+                            atan(p.z, p.x).mul(5.0).add(uTime),
+                            uTime.mul(0.2)
+                        );
+                        const radialDensity = noise(noiseCoord);
+                        const density = densityBase.mul(radialDensity);
+
+                        // Color
+                        const temp = float(1.0).sub(smoothstep(uDiskInner, uDiskOuter, r_plane));
+                        const diskCol = Var(getDiskColor(temp));
+
+                        // Doppler
+                        const vel = normalize(cross(vec3(0.0, 1.0, 0.0), p));
+                        const doppler = dot(vel, rayDir);
+                        diskCol.mulAssign(float(1.0).sub(doppler.mul(0.5)));
+
+                        // Accumulate
+                        const alpha = density.mul(0.5).mul(stepDist);
+                        // Boost color
+                        color.addAssign(diskCol.mul(2.0).mul(alpha).mul(float(1.0).sub(opacity)));
+                        opacity.addAssign(alpha);
+
+                        If( opacity.greaterThan(0.95), () => {
+                            Break();
+                        });
+                    });
+
+                    // --- Grid Rendering ---
+                    If( uShowGrid.greaterThan(0.5).and(abs(p.y).lessThan(0.05)).and(r_plane.greaterThan(uRs.mul(1.5))).and(r_plane.lessThan(50.0)), () => {
+                        const gridX = abs(fract(p.x).sub(0.5));
+                        const gridZ = abs(fract(p.z).sub(0.5));
+                        const gridWidth = r_plane.div(10.0).mul(0.02);
+
+                        If( gridX.lessThan(gridWidth).or(gridZ.lessThan(gridWidth)), () => {
+                            const gridColor = vec3(0.2, 0.2, 0.2);
+                            const gridAlpha = stepDist.mul(0.2);
+                            color.addAssign(gridColor.mul(gridAlpha).mul(float(1.0).sub(opacity)));
+                            opacity.addAssign(gridAlpha);
+                        });
+                    });
+
+                }); // End Loop
+
+                // Background
+                const bg = getBackground(rayDir, uTime);
+                color.addAssign(bg.mul(float(1.0).sub(opacity)));
+
+                finalColor.assign(color);
+            });
 
             return vec4(finalColor, 1.0);
         });
@@ -124,7 +215,7 @@ export default function TSLLensing({ params }) {
         mat.colorNode = colorNode();
 
         return mat;
-    }, [uMassPos, uMass, uG, uC, uEnabled, uTime]);
+    }, [uMassPos, uMass, uG, uC, uEnabled, uTime, uRs, uDiskInner, uDiskOuter, uDiskHeight, uShowDisk, uShowGrid]);
 
     useFrame((state) => {
         uTime.value = state.clock.elapsedTime;
