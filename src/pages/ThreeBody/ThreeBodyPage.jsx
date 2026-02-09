@@ -1494,7 +1494,8 @@ const ThreeBodyPage = () => {
                     physicsMode,
                     collisionMode,
                     skipIndex: draggedBodyIndexRef.current,
-                    currentTime: timeRef.current
+                    currentTime: timeRef.current,
+                    shouldCalculateEnergy: frameCountRef.current % 30 === 0
                 };
 
                 workerUpdatePhysics(bodiesRef.current, config, (result) => {
@@ -1562,8 +1563,8 @@ const ThreeBodyPage = () => {
                         }
                     }
 
-                    // Throttled stats update
-                    if (frameCountRef.current % 30 === 0) {
+                    // Throttled stats update (triggered only when worker provides energy data)
+                    if (stats.total !== undefined) {
                         // Track energy drift
                         if (initialEnergy === null) {
                             setInitialEnergy(stats.total);
