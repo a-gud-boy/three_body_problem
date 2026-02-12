@@ -30,8 +30,8 @@ uniform bool uShowDisk;
 varying vec3 vWorldPosition;
 
 // Constants
-#define MAX_STEPS 300
-#define STEP_SIZE 0.05
+#define MAX_STEPS 1000
+#define STEP_SIZE 0.02
 #define PI 3.14159265359
 
 // Noise Functions
@@ -87,6 +87,8 @@ void main() {
     vec3 color = vec3(0.0);
     float opacity = 0.0;
 
+    float maxDistance = max(100.0, length(cameraPosition - uMassPos) * 1.5);
+
     // Ray Marching Loop
     for(int i = 0; i < MAX_STEPS; i++) {
         vec3 p = rayPos - uMassPos;
@@ -100,7 +102,7 @@ void main() {
         }
 
         // Escape condition
-        if (r > 100.0) {
+        if (r > maxDistance) {
             break;
         }
 
@@ -127,6 +129,15 @@ void main() {
         // Clamp step to avoid overshooting thin disk
         if (abs(p.y) < uDiskHeight * 3.0) stepDist = min(stepDist, 0.025);
 
+        // Prevent skipping the horizon when stepping at shallow angles
+        vec3 nextPos = rayPos + rayDir * stepDist;
+        float nextR = length(nextPos - uMassPos);
+        if (nextR < rs) {
+            color = vec3(0.0);
+            opacity = 1.0;
+            break;
+        }
+
         // Update Position
         rayPos += rayDir * stepDist;
 
@@ -136,6 +147,10 @@ void main() {
         // r_plane is distance in XZ plane
         float r_plane = length(p.xz);
 
+        // --- Accretion Disk Rendering (Volumetric) ---
+        // Check if within disk bounds
+        // p2.y is height from equatorial plane
+        // r_plane is distance in XZ plane
         if (uShowDisk && abs(p.y) < uDiskHeight && r_plane > uDiskInner && r_plane < uDiskOuter) {
             // Density Profile
             // Falloff from center radius
@@ -233,7 +248,7 @@ export default function LensingEffect({ params }) {
     });
 
     return (
-        <mesh ref={meshRef} scale={[900, 900, 900]}>
+        <mesh ref={meshRef} scale={[900, 900, 900]} frustumCulled={false} renderOrder={-1}>
             <sphereGeometry args={[1, 64, 64]} />
             <shaderMaterial
                 vertexShader={vertexShader}
@@ -241,6 +256,7 @@ export default function LensingEffect({ params }) {
                 uniforms={uniforms}
                 side={THREE.BackSide}
                 depthWrite={false}
+                depthTest={false}
                 transparent={true}
             />
         </mesh>

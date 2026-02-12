@@ -96,6 +96,7 @@ export default function TSLLensing({ params }) {
         const mat = new MeshBasicNodeMaterial();
         mat.side = THREE.BackSide;
         mat.depthWrite = false;
+        mat.depthTest = false;
 
         const colorNode = Fn(() => {
 
@@ -113,12 +114,14 @@ export default function TSLLensing({ params }) {
                 const opacity = Var(float(0.0));
 
                 // Constants
-                const MAX_STEPS = 300;
-                const STEP_SIZE = float(0.05);
+                const MAX_STEPS = 1000;
+                const STEP_SIZE = float(0.02);
 
                 // Jitter for dithering
                 const jitter = hash(dot(viewDir, vec3(12.9898, 78.233, 54.53)));
                 rayPos.addAssign(rayDir.mul(jitter.mul(0.05)));
+
+                const maxDistance = max(float(100.0), length(cameraPosition.sub(uMassPos)).mul(1.5));
 
                 // Loop
                 Loop({ start: 0, end: MAX_STEPS }, () => {
@@ -134,7 +137,7 @@ export default function TSLLensing({ params }) {
                     });
 
                     // Escape
-                    If( r.greaterThan(100.0), () => {
+                    If( r.greaterThan(maxDistance), () => {
                         Break();
                     });
 
@@ -152,11 +155,20 @@ export default function TSLLensing({ params }) {
                         stepDist.assign(min(stepDist, 0.025));
                     });
 
+                    // Prevent skipping the horizon when stepping at shallow angles
+                    const nextPos = rayPos.add(rayDir.mul(stepDist));
+                    const nextR = length(nextPos.sub(uMassPos));
+                    If( nextR.lessThan(uRs), () => {
+                        color.assign(vec3(0.0));
+                        opacity.assign(1.0);
+                        Break();
+                    });
+
                     rayPos.addAssign(rayDir.mul(stepDist));
 
-                    // --- Disk Rendering ---
                     const r_plane = length(p.xz);
 
+                    // --- Disk Rendering ---
                     If( uShowDisk.greaterThan(0.5).and(abs(p.y).lessThan(uDiskHeight)).and(r_plane.greaterThan(uDiskInner)).and(r_plane.lessThan(uDiskOuter)), () => {
 
                         // Density
@@ -229,7 +241,7 @@ export default function TSLLensing({ params }) {
     });
 
     return (
-        <mesh ref={meshRef} scale={[900, 900, 900]}>
+        <mesh ref={meshRef} scale={[900, 900, 900]} frustumCulled={false} renderOrder={-1}>
             <sphereGeometry args={[1, 64, 64]} />
             <primitive object={material} attach="material" />
         </mesh>
