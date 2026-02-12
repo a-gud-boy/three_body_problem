@@ -55,7 +55,7 @@ export default function GeneralRelativityPage() {
         const targetCanvas = (canvas && canvas.canvas) ? canvas.canvas : canvas;
 
         if (rendererType === 'webgpu') {
-            const renderer = new WebGPURenderer({ canvas: targetCanvas, antialias: true, alpha: true });
+            const renderer = new WebGPURenderer({ canvas: targetCanvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
 
             // Monkey-patch render to handle async init
             const originalRender = renderer.render.bind(renderer);
