@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Fn, uniform, float, vec3, vec4, positionWorld, cameraPosition, normalize, dot, mix, length, floor, fract, sqrt, max, min, step, select, sin, cos, abs, smoothstep, cross, If, Loop, Var, Break, int, atan } from 'three/tsl';
+import { Fn, uniform, float, vec3, vec4, positionWorld, cameraPosition, normalize, dot, mix, length, floor, fract, sqrt, max, min, step, select, sin, cos, abs, smoothstep, cross, If, Loop, Var, Break, int, atan, acos, clamp, exp, pow } from 'three/tsl';
 import { MeshBasicNodeMaterial } from 'three/webgpu';
 import * as THREE from 'three';
 
@@ -37,8 +37,8 @@ const noise = Fn(([x]) => {
     return res;
 });
 
-// vec3 getBackground(vec3 dir, float time)
-const getBackground = Fn(([dir, time]) => {
+// vec3 getBackground(vec3 dir, float time, float showEinsteinRing)
+const getBackground = Fn(([dir, time, showEinsteinRing]) => {
     // Stars
     const n = noise(dir.mul(200.0));
     const starVal = step(0.98, n);
@@ -49,12 +49,35 @@ const getBackground = Fn(([dir, time]) => {
     const n2 = noise(nebulaScale);
     const nebula = vec3(0.1, 0.0, 0.2).mul(n2).mul(0.5);
 
-    return stars.add(nebula);
+    const bg = Var(stars.add(nebula));
+
+    // Einstein Ring: bright background source behind the black hole
+    If(showEinsteinRing.greaterThan(0.5), () => {
+        const sourceDir = normalize(vec3(0.0, 0.0, -1.0));
+        const angDist = acos(clamp(dot(dir, sourceDir), -1.0, 1.0));
+        const sourceBright = exp(angDist.mul(angDist).negate().div(0.006));
+        const sourceColor = vec3(0.9, 0.85, 1.0).mul(sourceBright).mul(8.0);
+        bg.addAssign(sourceColor);
+    });
+
+    return bg;
 });
 
-// vec3 getDiskColor(float t)
+// vec3 getDiskColor(float t) — proper blackbody spectrum
 const getDiskColor = Fn(([t]) => {
-    return mix(vec3(1.0, 0.3, 0.05), vec3(0.1, 0.4, 1.0), t);
+    const c1 = vec3(0.6, 0.1, 0.0);   // Deep red (coolest)
+    const c2 = vec3(1.0, 0.5, 0.1);   // Orange
+    const c3 = vec3(1.0, 0.9, 0.6);   // Yellow-white
+    const c4 = vec3(0.7, 0.85, 1.0);  // Blue-white (hottest)
+
+    const color = Var(mix(c1, c2, clamp(t.div(0.33), 0.0, 1.0)));
+    If(t.greaterThan(0.33), () => {
+        color.assign(mix(c2, c3, clamp(t.sub(0.33).div(0.33), 0.0, 1.0)));
+    });
+    If(t.greaterThan(0.66), () => {
+        color.assign(mix(c3, c4, clamp(t.sub(0.66).div(0.34), 0.0, 1.0)));
+    });
+    return color;
 });
 
 export default function TSLLensing({ params }) {
@@ -66,10 +89,12 @@ export default function TSLLensing({ params }) {
     const uMass = useMemo(() => uniform(params.blackHoleMass), []);
     const uG = useMemo(() => uniform(1.0), []);
     const uC = useMemo(() => uniform(params.speedOfLight), []);
+    const uSpin = useMemo(() => uniform(params.kerrSpinParameter || 0), []);
     const uEnabled = useMemo(() => uniform(params.enableLensing ? 1 : 0), []);
     const uTime = useMemo(() => uniform(0.0), []);
     const uShowDisk = useMemo(() => uniform(1), []);
     const uShowGrid = useMemo(() => uniform(1), []);
+    const uShowEinsteinRing = useMemo(() => uniform(params.showEinsteinRing ? 1 : 0), []);
 
     // Derived Uniforms
     const uRs = useMemo(() => uniform(0.0), []);
@@ -81,8 +106,10 @@ export default function TSLLensing({ params }) {
         uMass.value = params.blackHoleMass;
         uC.value = Math.max(params.speedOfLight, 10.0);
         uEnabled.value = params.enableLensing ? 1 : 0;
+        uSpin.value = params.kerrSpinParameter || 0;
         uShowDisk.value = params.showDisk !== false ? 1 : 0;
         uShowGrid.value = params.showGrid !== false ? 1 : 0;
+        uShowEinsteinRing.value = params.showEinsteinRing ? 1 : 0;
 
         const rsVal = (2.0 * 1.0 * params.blackHoleMass) / (uC.value * uC.value);
         uRs.value = rsVal;
@@ -105,7 +132,7 @@ export default function TSLLensing({ params }) {
 
             // Logic Split
             If(uEnabled.lessThan(0.5), () => {
-                 finalColor.assign(getBackground(viewDir, uTime));
+                finalColor.assign(getBackground(viewDir, uTime, uShowEinsteinRing));
             }).Else(() => {
                 // Initialize Variables for Ray Marching
                 const rayPos = Var(cameraPosition);
@@ -130,20 +157,26 @@ export default function TSLLensing({ params }) {
                     const r = length(p);
 
                     // Horizon Collision
-                    If( r.lessThan(uRs), () => {
+                    If(r.lessThan(uRs), () => {
                         color.assign(vec3(0.0));
                         opacity.assign(1.0);
                         Break();
                     });
 
                     // Escape
-                    If( r.greaterThan(maxDistance), () => {
+                    If(r.greaterThan(maxDistance), () => {
                         Break();
                     });
 
                     // Gravity Bending
                     const distSq = dot(p, p);
-                    const accel = normalize(p).negate().mul(uRs.mul(1.5).div(distSq));
+                    const accelBase = normalize(p).negate().mul(uRs.mul(1.5).div(distSq));
+
+                    // Kerr frame-dragging: add tangential deflection
+                    const radDir = normalize(p);
+                    const tangent = cross(vec3(0.0, 1.0, 0.0), radDir);
+                    const dragStrength = uSpin.mul(uRs).mul(uRs).div(r.mul(r).mul(r)).mul(2.0);
+                    const accel = accelBase.add(tangent.mul(dragStrength));
 
                     rayDir.addAssign(accel.mul(STEP_SIZE));
                     rayDir.assign(normalize(rayDir));
@@ -151,14 +184,14 @@ export default function TSLLensing({ params }) {
                     // Step Size
                     const stepDist = Var(max(0.05, r.sub(uRs).mul(0.15)));
 
-                    If( abs(p.y).lessThan(uDiskHeight.mul(3.0)), () => {
+                    If(abs(p.y).lessThan(uDiskHeight.mul(3.0)), () => {
                         stepDist.assign(min(stepDist, 0.025));
                     });
 
                     // Prevent skipping the horizon when stepping at shallow angles
                     const nextPos = rayPos.add(rayDir.mul(stepDist));
                     const nextR = length(nextPos.sub(uMassPos));
-                    If( nextR.lessThan(uRs), () => {
+                    If(nextR.lessThan(uRs), () => {
                         color.assign(vec3(0.0));
                         opacity.assign(1.0);
                         Break();
@@ -169,7 +202,7 @@ export default function TSLLensing({ params }) {
                     const r_plane = length(p.xz);
 
                     // --- Disk Rendering ---
-                    If( uShowDisk.greaterThan(0.5).and(abs(p.y).lessThan(uDiskHeight)).and(r_plane.greaterThan(uDiskInner)).and(r_plane.lessThan(uDiskOuter)), () => {
+                    If(uShowDisk.greaterThan(0.5).and(abs(p.y).lessThan(uDiskHeight)).and(r_plane.greaterThan(uDiskInner)).and(r_plane.lessThan(uDiskOuter)), () => {
 
                         // Density
                         const densityBase = float(1.0).sub(smoothstep(0.0, uDiskHeight, abs(p.y)));
@@ -197,18 +230,18 @@ export default function TSLLensing({ params }) {
                         color.addAssign(diskCol.mul(4.0).mul(alpha).mul(float(1.0).sub(opacity)));
                         opacity.addAssign(alpha);
 
-                        If( opacity.greaterThan(0.95), () => {
+                        If(opacity.greaterThan(0.95), () => {
                             Break();
                         });
                     });
 
                     // --- Grid Rendering ---
-                    If( uShowGrid.greaterThan(0.5).and(abs(p.y).lessThan(0.05)).and(r_plane.greaterThan(uRs.mul(1.5))).and(r_plane.lessThan(50.0)), () => {
+                    If(uShowGrid.greaterThan(0.5).and(abs(p.y).lessThan(0.05)).and(r_plane.greaterThan(uRs.mul(1.5))).and(r_plane.lessThan(50.0)), () => {
                         const gridX = abs(fract(p.x).sub(0.5));
                         const gridZ = abs(fract(p.z).sub(0.5));
                         const gridWidth = r_plane.div(10.0).mul(0.02);
 
-                        If( gridX.lessThan(gridWidth).or(gridZ.lessThan(gridWidth)), () => {
+                        If(gridX.lessThan(gridWidth).or(gridZ.lessThan(gridWidth)), () => {
                             const gridColor = vec3(0.2, 0.2, 0.2);
                             const gridAlpha = stepDist.mul(0.2);
                             color.addAssign(gridColor.mul(gridAlpha).mul(float(1.0).sub(opacity)));
@@ -219,7 +252,7 @@ export default function TSLLensing({ params }) {
                 }); // End Loop
 
                 // Background
-                const bg = getBackground(rayDir, uTime);
+                const bg = getBackground(rayDir, uTime, uShowEinsteinRing);
                 color.addAssign(bg.mul(float(1.0).sub(opacity)));
 
                 finalColor.assign(color);
@@ -231,7 +264,7 @@ export default function TSLLensing({ params }) {
         mat.colorNode = colorNode();
 
         return mat;
-    }, [uMassPos, uMass, uG, uC, uEnabled, uTime, uRs, uDiskInner, uDiskOuter, uDiskHeight, uShowDisk, uShowGrid]);
+    }, [uMassPos, uMass, uG, uC, uSpin, uEnabled, uTime, uRs, uDiskInner, uDiskOuter, uDiskHeight, uShowDisk, uShowGrid, uShowEinsteinRing]);
 
     useFrame((state) => {
         uTime.value = state.clock.elapsedTime;

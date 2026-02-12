@@ -18,7 +18,9 @@ uniform vec3 uMassPos;
 uniform float uMass;     // Black Hole Mass
 uniform float uG;        // Gravitational Constant
 uniform float uC;        // Speed of Light
+uniform float uSpin;     // Kerr Spin Parameter (0-1)
 uniform bool uEnabled;
+uniform bool uShowEinsteinRing;
 
 // Disk Params
 uniform float uDiskInner;
@@ -30,8 +32,8 @@ uniform bool uShowDisk;
 varying vec3 vWorldPosition;
 
 // Constants
-#define MAX_STEPS 1000
-#define STEP_SIZE 0.02
+#define MAX_STEPS 300
+#define STEP_SIZE 0.03
 #define PI 3.14159265359
 
 // Noise Functions
@@ -57,13 +59,41 @@ vec3 getBackground(vec3 dir) {
     float n2 = noise(dir * 3.0 + vec3(uTime * 0.05));
     vec3 nebula = vec3(0.1, 0.0, 0.2) * n2 * 0.5;
 
-    return vec3(stars) + nebula;
+    vec3 bg = vec3(stars) + nebula;
+
+    // Einstein Ring: bright background source behind the black hole
+    if (uShowEinsteinRing) {
+        // Place source behind BH from default camera perspective (along -Z)
+        vec3 sourceDir = normalize(vec3(0.0, 0.0, -1.0));
+        float angDist = acos(clamp(dot(dir, sourceDir), -1.0, 1.0));
+        // Gaussian bright blob — angular radius ~0.05 radians
+        float sourceBright = exp(-angDist * angDist / (2.0 * 0.003));
+        // Warm white-blue galaxy glow
+        vec3 sourceColor = vec3(0.9, 0.85, 1.0) * sourceBright * 8.0;
+        bg += sourceColor;
+    }
+
+    return bg;
 }
 
-// Color Palette for Accretion Disk (Blackbody-ish)
+// Color Palette for Accretion Disk (Blackbody Spectrum)
+// t=0 (cool/outer): deep red → t=1 (hot/inner): blue-white
 vec3 getDiskColor(float t) {
-    // t is 0 (cool) to 1 (hot)
-    return mix(vec3(1.0, 0.3, 0.05), vec3(0.1, 0.4, 1.0), t); // Orange to Blue
+    // Multi-stop blackbody gradient: red → orange → yellow → white → blue-white
+    vec3 c1 = vec3(0.6, 0.1, 0.0);   // Deep red (coolest)
+    vec3 c2 = vec3(1.0, 0.5, 0.1);   // Orange
+    vec3 c3 = vec3(1.0, 0.9, 0.6);   // Yellow-white
+    vec3 c4 = vec3(0.7, 0.85, 1.0);  // Blue-white (hottest)
+
+    vec3 color;
+    if (t < 0.33) {
+        color = mix(c1, c2, t / 0.33);
+    } else if (t < 0.66) {
+        color = mix(c2, c3, (t - 0.33) / 0.33);
+    } else {
+        color = mix(c3, c4, (t - 0.66) / 0.34);
+    }
+    return color;
 }
 
 void main() {
@@ -115,16 +145,18 @@ void main() {
         // We use a small step integration
         vec3 accel = -normalize(p) * (1.5 * rs / distSq);
 
+        // Kerr frame-dragging: add tangential deflection
+        if (uSpin > 0.0) {
+            vec3 radDir = normalize(p);
+            vec3 tangent = cross(vec3(0.0, 1.0, 0.0), radDir);
+            float dragStrength = uSpin * rs * rs / (r * r * r) * 2.0;
+            accel += tangent * dragStrength;
+        }
+
         rayDir += accel * STEP_SIZE;
         rayDir = normalize(rayDir);
-        rayPos += rayDir * STEP_SIZE * r; // Adaptive step size based on distance?
-        // Actually, fixed step in curved space is tricky.
-        // Let's use simpler adaptive step: smaller near BH.
-        // step = STEP_SIZE * max(r - rs, 0.1);
 
-        // Let's retry the integration step carefully.
-        // Using a fixed small step in "coordinate time" might be slow.
-        // Let's use a dynamic step size.
+        // Dynamic step size: smaller near BH for accuracy, larger far away for speed
         float stepDist = max(0.05, (r - rs) * 0.15);
         // Clamp step to avoid overshooting thin disk
         if (abs(p.y) < uDiskHeight * 3.0) stepDist = min(stepDist, 0.025);
@@ -219,7 +251,9 @@ export default function LensingEffect({ params }) {
         uMass: { value: params.blackHoleMass },
         uG: { value: 1.0 },
         uC: { value: params.speedOfLight },
+        uSpin: { value: params.kerrSpinParameter || 0 },
         uEnabled: { value: params.enableLensing },
+        uShowEinsteinRing: { value: params.showEinsteinRing || false },
         uShowDisk: { value: true },
         uShowGrid: { value: true },
         uDiskInner: { value: 2.0 },
@@ -232,7 +266,9 @@ export default function LensingEffect({ params }) {
             meshRef.current.material.uniforms.uTime.value = state.clock.elapsedTime;
             meshRef.current.material.uniforms.uMass.value = params.blackHoleMass;
             meshRef.current.material.uniforms.uC.value = params.speedOfLight;
+            meshRef.current.material.uniforms.uSpin.value = params.kerrSpinParameter || 0;
             meshRef.current.material.uniforms.uEnabled.value = params.enableLensing;
+            meshRef.current.material.uniforms.uShowEinsteinRing.value = params.showEinsteinRing || false;
             meshRef.current.material.uniforms.uShowDisk.value = params.showDisk !== false;
             meshRef.current.material.uniforms.uShowGrid.value = params.showGrid !== false;
 

@@ -32,6 +32,11 @@ export default function GeneralRelativityPage() {
         showGrid: true,
         showDisk: true,
         enableLensing: true,
+        showPhotonSphere: true,
+        showEventHorizon: true,
+        showTimeDilation: false,
+        showEinsteinRing: false,
+        kerrSpinParameter: 0, // 0 = Schwarzschild, 0–1 = Kerr spin
         gridIntensity: 0.5,
     });
 
@@ -50,13 +55,13 @@ export default function GeneralRelativityPage() {
         const targetCanvas = (canvas && canvas.canvas) ? canvas.canvas : canvas;
 
         if (rendererType === 'webgpu') {
-             const renderer = new WebGPURenderer({ canvas: targetCanvas, antialias: true, alpha: true });
+            const renderer = new WebGPURenderer({ canvas: targetCanvas, antialias: true, alpha: true });
 
-             // Monkey-patch render to handle async init
-             const originalRender = renderer.render.bind(renderer);
-             renderer.render = () => {}; // No-op until initialized
+            // Monkey-patch render to handle async init
+            const originalRender = renderer.render.bind(renderer);
+            renderer.render = () => { }; // No-op until initialized
 
-             renderer.init()
+            renderer.init()
                 .then(() => {
                     renderer.render = originalRender; // Restore render
                 })
@@ -65,7 +70,7 @@ export default function GeneralRelativityPage() {
                     setError(e);
                 });
 
-             return renderer;
+            return renderer;
         } else {
             return new THREE.WebGLRenderer({ canvas: targetCanvas, antialias: true, alpha: true });
         }
@@ -148,6 +153,22 @@ export default function GeneralRelativityPage() {
                     </Suspense>
                 </Canvas>
             </div>
+
+            {/* Time Dilation Color Legend */}
+            {params.showTimeDilation && !params.enableLensing && (
+                <div className="absolute bottom-6 left-6 z-10 bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-lg p-3 shadow-xl">
+                    <p className="text-xs font-bold text-slate-300 mb-2">Time Dilation (dτ/dt)</p>
+                    <div className="flex items-center gap-2">
+                        <div className="w-32 h-3 rounded-full" style={{
+                            background: 'linear-gradient(to right, #1a4dff, #1acc4d, #e6e633, #ffffff)'
+                        }} />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-slate-400 mt-1 w-32">
+                        <span>0 (horizon)</span>
+                        <span>1 (far)</span>
+                    </div>
+                </div>
+            )}
 
             {/* Sidebar Controls */}
             <aside className="absolute right-0 top-0 bottom-0 w-80 bg-slate-900/90 backdrop-blur-md border-l border-slate-700 p-6 z-20 overflow-y-auto shadow-2xl">
