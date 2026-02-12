@@ -9,10 +9,12 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 
 import './ThreeBodyPage.css';
 import { usePhysicsWorker } from '../../hooks/usePhysicsWorker';
+import EditableValue from './components/EditableValue';
 
 const DEFAULT_PANEL_WIDTH = 380;
 const MIN_PANEL_WIDTH = 260;
 const MAX_PANEL_WIDTH = 600;
+const MAX_BODIES = 100;
 const PANEL_STORAGE_KEY = 'tbp-panel-width';
 
 const clampPanelWidth = (value) => Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, value));
@@ -673,6 +675,10 @@ const ThreeBodyPage = () => {
 
 
     const handleAddBody = () => {
+        if (bodiesRef.current.length >= MAX_BODIES) {
+            alert(`Maximum number of bodies (${MAX_BODIES}) reached.`);
+            return;
+        }
         const newBody = generateRandomBody(bodiesRef.current);
         bodiesRef.current.push(newBody);
         addBodyVisuals(newBody);
@@ -703,6 +709,10 @@ const ThreeBodyPage = () => {
                     // Validate structure
                     if (!state.bodies || !Array.isArray(state.bodies)) {
                         throw new Error('Invalid file: missing bodies array');
+                    }
+
+                    if (state.bodies.length > MAX_BODIES) {
+                        throw new Error(`Too many bodies in file (max ${MAX_BODIES})`);
                     }
 
                     // Clear existing visuals
@@ -1494,7 +1504,8 @@ const ThreeBodyPage = () => {
                     physicsMode,
                     collisionMode,
                     skipIndex: draggedBodyIndexRef.current,
-                    currentTime: timeRef.current
+                    currentTime: timeRef.current,
+                    shouldCalculateEnergy: frameCountRef.current % 30 === 0
                 };
 
                 workerUpdatePhysics(bodiesRef.current, config, (result) => {
@@ -1562,8 +1573,8 @@ const ThreeBodyPage = () => {
                         }
                     }
 
-                    // Throttled stats update
-                    if (frameCountRef.current % 30 === 0) {
+                    // Throttled stats update (triggered only when worker provides energy data)
+                    if (stats.total !== undefined) {
                         // Track energy drift
                         if (initialEnergy === null) {
                             setInitialEnergy(stats.total);
@@ -2984,60 +2995,6 @@ const ThreeBodyPage = () => {
 
 export default ThreeBodyPage;
 
-// Helper component for inline editing
-const EditableValue = ({ field, value, editing, setEditing, editValue, setEditValue, onApply, onLiveUpdate, color = "text-white" }) => {
-    // Derived check for changes to avoid state sync issues
-    const handleBlur = () => {
-        let isDirty = false;
-        if (typeof value === 'number') {
-            const numVal = parseFloat(editValue);
-            isDirty = !isNaN(numVal) && numVal !== value;
-        } else {
-            isDirty = editValue !== value;
-        }
-        onApply(isDirty);
-    };
-
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            e.target.blur();
-        }
-        if (e.key === 'Escape') setEditing(null);
-    };
-
-    if (editing === field) {
-        return (
-            <input
-                type="text"
-                value={editValue}
-                onChange={(e) => {
-                    const val = e.target.value;
-                    setEditValue(val);
-                    if (onLiveUpdate) onLiveUpdate(val);
-                }}
-                onKeyDown={handleKeyDown}
-                onBlur={handleBlur}
-                autoFocus
-                className="bg-slate-700 text-white px-1 py-0.5 rounded w-full text-center font-semibold"
-                onClick={(e) => e.stopPropagation()}
-            />
-        );
-    }
-    return (
-        <div
-            onClick={(e) => {
-                e.stopPropagation();
-                setEditing(field);
-                setEditValue(typeof value === 'number' ? value.toFixed(field === 'mass' ? 3 : 2) : value.toString());
-            }}
-            className={`${color} font-semibold cursor-pointer hover: bg-slate-700 px-1 py-0.5 rounded transition-colors`}
-            title="Click to edit, Enter to apply"
-        >
-            {typeof value === 'number' ? value.toFixed(field === 'mass' ? 3 : 2) : value}
-        </div>
-    );
-};
 
 
 

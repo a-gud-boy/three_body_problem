@@ -444,8 +444,11 @@ self.onmessage = function (e) {
             removedIndices = result.removedIndices;
         }
 
-        // Calculate energy stats
-        const energy = calculateEnergy(updatedBodies, gravityG, coulombK);
+        // Calculate energy stats (Throttled via config)
+        let energy = {};
+        if (config.shouldCalculateEnergy) {
+            energy = calculateEnergy(updatedBodies, gravityG, coulombK);
+        }
 
         // Send results back
         self.postMessage({
