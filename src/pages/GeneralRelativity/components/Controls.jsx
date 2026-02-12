@@ -13,11 +13,10 @@ export default function Controls({ params, setParams, isPlaying, setIsPlaying, o
             <div className="flex gap-2">
                 <button
                     onClick={() => setIsPlaying(!isPlaying)}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg font-semibold transition-all ${
-                        isPlaying
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg font-semibold transition-all ${isPlaying
                         ? 'bg-amber-500/10 text-amber-500 border border-amber-500/50 hover:bg-amber-500/20'
                         : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg'
-                    }`}
+                        }`}
                 >
                     {isPlaying ? <><Pause className="w-4 h-4" /> Pause</> : <><Play className="w-4 h-4" /> Resume</>}
                 </button>
@@ -56,8 +55,8 @@ export default function Controls({ params, setParams, isPlaying, setIsPlaying, o
                     </button>
                     <button
                         onClick={() => {
-                             setParams(prev => ({ ...prev, blackHoleMass: 5000, speedOfLight: 100, physicsModel: 'relativistic' }));
-                             onReset();
+                            setParams(prev => ({ ...prev, blackHoleMass: 5000, speedOfLight: 100, physicsModel: 'relativistic' }));
+                            onReset();
                         }}
                         className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-300 border border-slate-700"
                     >
@@ -71,6 +70,15 @@ export default function Controls({ params, setParams, isPlaying, setIsPlaying, o
                         className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-300 border border-slate-700"
                     >
                         Extreme Curvature
+                    </button>
+                    <button
+                        onClick={() => {
+                            setParams(prev => ({ ...prev, blackHoleMass: 2000, speedOfLight: 50, physicsModel: 'relativistic', kerrSpinParameter: 0.8, showPhotonSphere: true }));
+                            onReset();
+                        }}
+                        className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-300 border border-slate-700"
+                    >
+                        ⟳ Spinning BH
                     </button>
                 </div>
             </div>
@@ -128,7 +136,21 @@ export default function Controls({ params, setParams, isPlaying, setIsPlaying, o
                         onChange={(e) => handleChange('speedOfLight', parseFloat(e.target.value))}
                         className="w-full accent-purple-500"
                     />
-                     <p className="text-[10px] text-slate-500">Lower 'c' makes relativistic effects more obvious.</p>
+                    <p className="text-[10px] text-slate-500">Lower 'c' makes relativistic effects more obvious.</p>
+                </div>
+
+                <div className="space-y-1">
+                    <label className="text-sm text-slate-400 flex justify-between">
+                        Black Hole Spin (a)
+                        <span className="font-mono text-slate-200">{(params.kerrSpinParameter || 0).toFixed(2)}</span>
+                    </label>
+                    <input
+                        type="range" min="0" max="1" step="0.05"
+                        value={params.kerrSpinParameter || 0}
+                        onChange={(e) => handleChange('kerrSpinParameter', parseFloat(e.target.value))}
+                        className="w-full accent-purple-500"
+                    />
+                    <p className="text-[10px] text-slate-500">0 = Schwarzschild (non-rotating). Higher values add frame-dragging (Kerr metric).</p>
                 </div>
             </div>
 
@@ -168,7 +190,57 @@ export default function Controls({ params, setParams, isPlaying, setIsPlaying, o
                     />
                 </div>
 
-                 <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                    <label className="text-sm text-slate-300">Photon Sphere</label>
+                    <input
+                        type="checkbox"
+                        checked={params.showPhotonSphere}
+                        onChange={(e) => handleChange('showPhotonSphere', e.target.checked)}
+                        className="accent-cyan-500"
+                    />
+                </div>
+
+                <div className="flex items-center justify-between">
+                    <label className="text-sm text-slate-300">Event Horizon</label>
+                    <input
+                        type="checkbox"
+                        checked={params.showEventHorizon}
+                        onChange={(e) => handleChange('showEventHorizon', e.target.checked)}
+                        className="accent-cyan-500"
+                    />
+                </div>
+
+                <div className="flex items-center justify-between">
+                    <label className="text-sm text-slate-300">Time Dilation Colors</label>
+                    <input
+                        type="checkbox"
+                        checked={params.showTimeDilation}
+                        onChange={(e) => handleChange('showTimeDilation', e.target.checked)}
+                        className="accent-cyan-500"
+                    />
+                </div>
+                {params.showTimeDilation && (
+                    <p className="text-[10px] text-cyan-300/80 leading-tight">
+                        Particles color-coded by gravitational time dilation: blue (extreme) → green → yellow → white (none).
+                    </p>
+                )}
+
+                <div className="flex items-center justify-between">
+                    <label className="text-sm text-slate-300">Einstein Ring</label>
+                    <input
+                        type="checkbox"
+                        checked={params.showEinsteinRing}
+                        onChange={(e) => handleChange('showEinsteinRing', e.target.checked)}
+                        className="accent-cyan-500"
+                    />
+                </div>
+                {params.showEinsteinRing && (
+                    <p className="text-[10px] text-cyan-300/80 leading-tight">
+                        Places a bright background source behind the black hole. Orbit the camera to align and see the Einstein ring.
+                    </p>
+                )}
+
+                <div className="space-y-1">
                     <label className="text-sm text-slate-400 flex justify-between">
                         Grid Intensity
                         <span className="font-mono text-slate-200">{params.gridIntensity.toFixed(1)}</span>

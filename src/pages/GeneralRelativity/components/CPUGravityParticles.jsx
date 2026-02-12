@@ -1,114 +1,276 @@
-import React, { useRef, useMemo, useEffect } from 'react';
+import React, { useRef, useMemo, useEffect, useCallback } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { createAccretionDisk } from '../utils/initializers';
-import { calculateAcceleration, calculatePotential, C } from '../utils/physics';
+import { calculateAcceleration, calculateOrbitalVelocity, calculateSchwarzschildRadius } from '../utils/physics';
+
+// Time dilation color gradient: blue (extreme dilation) → green → yellow → white (no dilation)
+function timeDilationColor(factor, out) {
+    // factor: 0 = at horizon (max dilation), 1 = far away (no dilation)
+    const t = Math.max(0, Math.min(1, factor));
+    if (t < 0.33) {
+        // Blue → Green
+        const s = t / 0.33;
+        out[0] = 0.1 * (1 - s) + 0.1 * s;
+        out[1] = 0.3 * (1 - s) + 0.8 * s;
+        out[2] = 1.0 * (1 - s) + 0.3 * s;
+    } else if (t < 0.66) {
+        // Green → Yellow
+        const s = (t - 0.33) / 0.33;
+        out[0] = 0.1 * (1 - s) + 1.0 * s;
+        out[1] = 0.8 * (1 - s) + 0.9 * s;
+        out[2] = 0.3 * (1 - s) + 0.2 * s;
+    } else {
+        // Yellow → White
+        const s = (t - 0.66) / 0.34;
+        out[0] = 1.0 * (1 - s) + 1.0 * s;
+        out[1] = 0.9 * (1 - s) + 1.0 * s;
+        out[2] = 0.2 * (1 - s) + 1.0 * s;
+    }
+}
+
+// Main-thread fallback physics (used when Web Worker is unavailable)
+function runMainThreadPhysics(p, v, count, params) {
+    const dt = params.dt;
+    const halfDt = dt * 0.5;
+    const halfDtSq = 0.5 * dt * dt;
+    const mass = params.mass;
+    const type = params.physicsModel;
+    const c = params.speedOfLight;
+    const spin = params.spin;
+    const bounds = params.bounds;
+    const iscoR = params.iscoR;
+    const maxSpawnR = params.maxSpawnR;
+    const rs = calculateSchwarzschildRadius(mass, c);
+    const massPos = { x: 0, y: 0, z: 0 };
+    const accelOld = { x: 0, y: 0, z: 0 };
+    const accelNew = { x: 0, y: 0, z: 0 };
+
+    for (let i = 0; i < count; i++) {
+        const i3 = i * 3;
+
+        // Step 1: Acceleration at current position
+        const pos = { x: p[i3], y: p[i3 + 1], z: p[i3 + 2] };
+        accelOld.x = 0; accelOld.y = 0; accelOld.z = 0;
+        calculateAcceleration(pos, massPos, mass, accelOld, type, c);
+
+        if (spin > 0) {
+            const rx = pos.x, rz = pos.z;
+            const r = Math.sqrt(rx * rx + pos.y * pos.y + rz * rz);
+            if (r > 0.1) {
+                const invR = 1.0 / r;
+                const dragMag = spin * rs * rs / (r * r * r) * mass;
+                accelOld.x += rz * invR * dragMag;
+                accelOld.z += -rx * invR * dragMag;
+            }
+        }
+
+        // Step 2: drift
+        p[i3] += v[i3] * dt + accelOld.x * halfDtSq;
+        p[i3 + 1] += v[i3 + 1] * dt + accelOld.y * halfDtSq;
+        p[i3 + 2] += v[i3 + 2] * dt + accelOld.z * halfDtSq;
+
+        // Step 3: Acceleration at new position
+        const newPos = { x: p[i3], y: p[i3 + 1], z: p[i3 + 2] };
+        accelNew.x = 0; accelNew.y = 0; accelNew.z = 0;
+        calculateAcceleration(newPos, massPos, mass, accelNew, type, c);
+
+        if (spin > 0) {
+            const rx = newPos.x, rz = newPos.z;
+            const r = Math.sqrt(rx * rx + newPos.y * newPos.y + rz * rz);
+            if (r > 0.1) {
+                const invR = 1.0 / r;
+                const dragMag = spin * rs * rs / (r * r * r) * mass;
+                accelNew.x += rz * invR * dragMag;
+                accelNew.z += -rx * invR * dragMag;
+            }
+        }
+
+        // Step 4: kick
+        v[i3] += (accelOld.x + accelNew.x) * halfDt;
+        v[i3 + 1] += (accelOld.y + accelNew.y) * halfDt;
+        v[i3 + 2] += (accelOld.z + accelNew.z) * halfDt;
+
+        // Respawn
+        const rSq = p[i3] * p[i3] + p[i3 + 1] * p[i3 + 1] + p[i3 + 2] * p[i3 + 2];
+        if (rSq < rs * rs * 1.1 || rSq > bounds * bounds) {
+            const angle = Math.random() * Math.PI * 2;
+            const r = iscoR + Math.random() * (maxSpawnR - iscoR);
+            p[i3] = Math.cos(angle) * r;
+            p[i3 + 1] = (Math.random() - 0.5) * 2;
+            p[i3 + 2] = Math.sin(angle) * r;
+            const vMag = calculateOrbitalVelocity(mass, r, type, c);
+            v[i3] = -Math.sin(angle) * vMag;
+            v[i3 + 1] = 0;
+            v[i3 + 2] = Math.cos(angle) * vMag;
+        }
+    }
+}
 
 export default function CPUGravityParticles({ params, isPlaying }) {
     const meshRef = useRef();
     const count = 5000;
 
-    // Create initial data
-    const { positions, velocities, colors } = useMemo(() => {
-        // Start with a generic 'Newtonian' layout, physics will adjust dynamically
+    // Create initial data (including per-particle colors based on radial temperature)
+    const { positions, velocities, colors: initialColors } = useMemo(() => {
         return createAccretionDisk(count, params.blackHoleMass, 10, 80, 'newtonian', params.speedOfLight);
-    }, [count]); // Only re-create on count change, not params change (to preserve state)
+    }, [count]);
 
-    // Store state in refs to persist across renders without re-allocation
+    // Instance colors: initialized from the blackbody gradient generated by createAccretionDisk
+    const instanceColors = useMemo(() => new Float32Array(initialColors), [initialColors]);
+
+    // Position / velocity state
     const posRef = useRef(positions);
     const velRef = useRef(velocities);
     const dummy = useMemo(() => new THREE.Object3D(), []);
-    const tempVec = useMemo(() => new THREE.Vector3(), []);
-    const massPos = useMemo(() => new THREE.Vector3(0, 0, 0), []); // Center of black hole
+    const colorOut = useMemo(() => [0, 0, 0], []);
 
-    // Reset logic if params change drastically (e.g. mass doubles)?
-    // For now, let's keep particles where they are and just update forces.
+    // --- Web Worker integration ---
+    const workerRef = useRef(null);
+    const workerReady = useRef(false);
+    const workerBusy = useRef(false);
 
-    // Update colors based on depth (potential)
-    // We can't update buffer attributes every frame efficiently for 5000 particles in CPU easily without upload overhead.
-    // Let's just update positions.
+    useEffect(() => {
+        try {
+            const worker = new Worker(
+                new URL('../../../workers/grParticleWorker.js', import.meta.url),
+                { type: 'module' }
+            );
+
+            worker.onmessage = (e) => {
+                const { type: msgType } = e.data;
+                if (msgType === 'READY') {
+                    // Send initial buffers
+                    const posCopy = new Float32Array(posRef.current);
+                    const velCopy = new Float32Array(velRef.current);
+                    worker.postMessage(
+                        { type: 'INIT', positions: posCopy.buffer, velocities: velCopy.buffer, count },
+                        [posCopy.buffer, velCopy.buffer]
+                    );
+                    workerReady.current = true;
+                } else if (msgType === 'RESULT') {
+                    // Receive updated buffers
+                    const newPos = new Float32Array(e.data.positions);
+                    const newVel = new Float32Array(e.data.velocities);
+                    posRef.current = newPos;
+                    velRef.current = newVel;
+                    workerBusy.current = false;
+                }
+            };
+
+            worker.onerror = () => {
+                console.warn('GR particle worker failed, using main thread fallback');
+                workerReady.current = false;
+                workerRef.current = null;
+            };
+
+            workerRef.current = worker;
+        } catch {
+            console.warn('Web Workers not supported, using main thread fallback');
+        }
+
+        return () => {
+            if (workerRef.current) {
+                workerRef.current.terminate();
+                workerRef.current = null;
+            }
+        };
+    }, [count]);
 
     useFrame((state, delta) => {
         if (!isPlaying || !meshRef.current) return;
 
-        // Cap delta to avoid explosion if tab inactive
         const dt = Math.min(delta, 0.05);
+        const mass = params.blackHoleMass;
+        const type = params.physicsModel;
+        const c = params.speedOfLight;
+        const spin = params.kerrSpinParameter || 0;
+        const showDilation = params.showTimeDilation;
+        const rs = calculateSchwarzschildRadius(mass, c);
+        const iscoR = type === 'relativistic' ? Math.max(rs * 3.0, 10) : 10;
+        const maxSpawnR = 80;
+        const bounds = 150;
 
         const p = posRef.current;
         const v = velRef.current;
-        const mass = params.blackHoleMass;
-        const type = params.physicsModel; // 'newtonian' or 'relativistic'
-        const c = params.speedOfLight;
 
-        // Safety bounds
-        const bounds = 150;
-        const rs = (2 * 1.0 * mass) / (c*c);
+        // --- Physics: Web Worker or main thread fallback ---
+        if (workerRef.current && workerReady.current && !workerBusy.current) {
+            // Send current buffers to worker (transferable, zero-copy)
+            const posCopy = new Float32Array(p);
+            const velCopy = new Float32Array(v);
+            workerRef.current.postMessage({
+                type: 'UPDATE',
+                params: { dt, mass, physicsModel: type, speedOfLight: c, spin, bounds, iscoR, maxSpawnR },
+                positions: posCopy.buffer,
+                velocities: velCopy.buffer
+            });
+            workerBusy.current = true;
+        } else if (!workerRef.current) {
+            // Main thread fallback
+            runMainThreadPhysics(p, v, count, { dt, mass, physicsModel: type, speedOfLight: c, spin, bounds, iscoR, maxSpawnR });
+        }
 
+        // --- Coloring + Matrix updates (always on main thread) ---
         for (let i = 0; i < count; i++) {
             const i3 = i * 3;
+            const rSq = p[i3] * p[i3] + p[i3 + 1] * p[i3 + 1] + p[i3 + 2] * p[i3 + 2];
+            const dist = Math.sqrt(rSq);
 
-            // Current position
-            const x = p[i3];
-            const y = p[i3+1];
-            const z = p[i3+2];
-
-            // Get Acceleration
-            // We can inline logic for speed or call utility. Utility is cleaner.
-            const pos = { x, y, z };
-
-            // Calculate Force/Acceleration
-            // Mutates tempVec
-            tempVec.set(0,0,0);
-            calculateAcceleration(pos, massPos, mass, tempVec, type, c);
-
-            // Update Velocity (Euler for simplicity, or semi-implicit Euler)
-            v[i3] += tempVec.x * dt;
-            v[i3+1] += tempVec.y * dt;
-            v[i3+2] += tempVec.z * dt;
-
-            // Update Position
-            p[i3] += v[i3] * dt;
-            p[i3+1] += v[i3+1] * dt;
-            p[i3+2] += v[i3+2] * dt;
-
-            // Simple boundary wrap / reset if fell in
-            const rSq = x*x + y*y + z*z;
-
-            // If fell into Event Horizon (or close to center)
-            if (rSq < rs*rs * 1.1) { // 10% margin
-                 // Respawn at outer edge
-                 const angle = Math.random() * Math.PI * 2;
-                 const r = 80;
-                 p[i3] = Math.cos(angle) * r;
-                 p[i3+1] = (Math.random()-0.5) * 2;
-                 p[i3+2] = Math.sin(angle) * r;
-
-                 // Reset velocity to circular
-                 const vMag = Math.sqrt((1.0 * mass) / r); // Approx Newtonian velocity
-                 v[i3] = -Math.sin(angle) * vMag;
-                 v[i3+1] = 0;
-                 v[i3+2] = Math.cos(angle) * vMag;
-            } else if (rSq > bounds*bounds) {
-                 // Too far, wrap? Or let fly?
-                 // Let fly for now.
+            // Per-particle coloring
+            if (showDilation) {
+                const dilationFactor = dist > rs ? Math.sqrt(1.0 - rs / dist) : 0.0;
+                timeDilationColor(dilationFactor, colorOut);
+                instanceColors[i3] = colorOut[0];
+                instanceColors[i3 + 1] = colorOut[1];
+                instanceColors[i3 + 2] = colorOut[2];
+            } else {
+                // Blackbody temperature gradient: inner (hot) = blue-white, outer (cool) = red
+                const t = Math.max(0, Math.min(1, 1.0 - (dist - iscoR) / (maxSpawnR - iscoR)));
+                if (t < 0.33) {
+                    const s = t / 0.33;
+                    instanceColors[i3] = 0.6 * (1 - s) + 1.0 * s;
+                    instanceColors[i3 + 1] = 0.1 * (1 - s) + 0.5 * s;
+                    instanceColors[i3 + 2] = 0.0 * (1 - s) + 0.1 * s;
+                } else if (t < 0.66) {
+                    const s = (t - 0.33) / 0.33;
+                    instanceColors[i3] = 1.0 * (1 - s) + 1.0 * s;
+                    instanceColors[i3 + 1] = 0.5 * (1 - s) + 0.9 * s;
+                    instanceColors[i3 + 2] = 0.1 * (1 - s) + 0.6 * s;
+                } else {
+                    const s = (t - 0.66) / 0.34;
+                    instanceColors[i3] = 1.0 * (1 - s) + 0.7 * s;
+                    instanceColors[i3 + 1] = 0.9 * (1 - s) + 0.85 * s;
+                    instanceColors[i3 + 2] = 0.6 * (1 - s) + 1.0 * s;
+                }
             }
 
-            // Update Instance Matrix
-            dummy.position.set(p[i3], p[i3+1], p[i3+2]);
-            // Scale based on proximity?
-            const scale = Math.max(0.1, 1.0 - (10.0 / (Math.sqrt(rSq)+0.1))); // Shrink near center
+            // Update instance matrix
+            dummy.position.set(p[i3], p[i3 + 1], p[i3 + 2]);
+            const scale = Math.max(0.1, 1.0 - (10.0 / (dist + 0.1)));
             dummy.scale.setScalar(scale * 0.5);
             dummy.updateMatrix();
             meshRef.current.setMatrixAt(i, dummy.matrix);
         }
 
         meshRef.current.instanceMatrix.needsUpdate = true;
+
+        // Always update instance colors (either blackbody gradient or time dilation)
+        if (meshRef.current.instanceColor) {
+            meshRef.current.instanceColor.needsUpdate = true;
+        }
     });
 
     return (
         <instancedMesh ref={meshRef} args={[null, null, count]}>
             <sphereGeometry args={[0.3, 8, 8]} />
-            <meshStandardMaterial color="#ffa500" emissive="#ff4400" emissiveIntensity={0.5} toneMapped={false} />
+            <meshStandardMaterial
+                vertexColors={true}
+                emissive={params.showTimeDilation ? "#331100" : "#ff4400"}
+                emissiveIntensity={params.showTimeDilation ? 0.3 : 0.5}
+                toneMapped={false}
+            />
+            <instancedBufferAttribute attach="instanceColor" args={[instanceColors, 3]} />
         </instancedMesh>
     );
 }

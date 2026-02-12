@@ -16,17 +16,26 @@ void main() {
     vUv = uv;
     vec3 pos = position;
 
-    // Simple Newtonian-ish deformation: y = -GM/r
-    // Avoid singularity with softening
-    float d = distance(pos.xz, uMassPos.xz);
+    // Position is LOCAL space.
+    // Plane is X-Y plane (z=0) initially.
+    // We are rotating it -90 on X, so Y becomes Z?
+    // Wait, geometry is PlaneGeometry. By default it lies in X-Y plane.
+    // With rotation [-PI/2, 0, 0], Local X -> World X. Local Y -> World -Z. Local Z -> World Y.
+
+    // We want radial distance from center (0,0,0) in world space (which is 0,0 local)
+    // d = length(pos.xy) in local space
+    float d = length(pos.xy);
     float r = max(d, 2.0); // Softening radius 2.0
 
-    // Depth is negative potential (inverted well)
-    // Scale factor for visibility
+    // Potential depth
     float depth = (uG * uMass) / r;
 
-    // Apply intensity
-    pos.y -= depth * 0.1 * uIntensity;
+    // Displace "down" in world Y.
+    // World Y corresponds to Local Z.
+    // We want to move in -World Y, which is -Local Z.
+    // So pos.z -= depth ...
+
+    pos.z -= depth * 0.1 * uIntensity;
 
     vDepth = depth;
 
@@ -38,6 +47,7 @@ void main() {
 const fragmentShader = `
 uniform vec3 uColor;
 uniform float uIntensity;
+uniform float uTime; // Unused but kept for consistency
 
 varying float vDepth;
 varying vec2 vUv;
@@ -45,10 +55,8 @@ varying vec2 vUv;
 void main() {
     // Brighter deeper down
     vec3 color = uColor;
-    float alpha = 0.3 + (vDepth * 0.005);
-
-    // Grid lines logic (simple)
-    // Using wireframe prop on material handles lines, but let's do color modulation
+    // float alpha = 0.3 + (vDepth * 0.005);
+    float alpha = 0.6; // Consistent with WebGPU
 
     // Heat map color
     vec3 hotColor = vec3(1.0, 0.2, 0.1);
