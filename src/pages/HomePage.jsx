@@ -92,21 +92,12 @@ const simulations = [
     },
     {
         id: 'fluid-dynamics',
-        title: 'Fluid Dynamics (SPH)',
-        description: 'Interactive particle-based fluid simulation. Pour, stir, and play with viscosity.',
-        icon: '💧',
-        iconBg: 'rgba(14, 165, 233, 0.15)',
-        status: 'available',
-        path: '/fluid-dynamics',
-    },
-    {
-        id: 'experimental-fluid',
-        title: 'Water Ripples (WebGPU)',
+        title: 'Fluid Dynamics',
         description: 'Next-gen fluid simulation using WebGPU Compute Shaders. Interactive water surface with real-time wave propagation.',
         icon: '🌊',
         iconBg: 'rgba(124, 58, 237, 0.15)',
         status: 'available',
-        path: '/experimental-fluid',
+        path: '/fluid-dynamics',
     },
     {
         id: 'wave-interference',
