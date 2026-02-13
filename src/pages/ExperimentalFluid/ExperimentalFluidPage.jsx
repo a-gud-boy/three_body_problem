@@ -51,13 +51,18 @@ class WebGPUWaterSimulation {
             this.renderer = new WebGPURenderer({
                 canvas: this.canvas,
                 antialias: false, // Disabled for stability
-                powerPreference: 'high-performance'
+                // powerPreference: 'high-performance' // Removed for better compatibility on Linux
             });
 
             this.renderer.setSize(this.canvas.clientWidth, this.canvas.clientHeight);
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
             await this.renderer.init();
+
+            // Verify backend is actually WebGPU
+            if (!this.renderer.backend.isWebGPUBackend) {
+                throw new Error('WebGPU backend failed to initialize. Falling back to WebGL2 which is not supported for this simulation.');
+            }
 
             if (this.disposed) return;
 
@@ -81,7 +86,6 @@ class WebGPUWaterSimulation {
             this.setupWaterMesh();
             this.setupLights();
             this.setupBackground();
-            this.createInitialRipples();
 
             this.initialized = true;
 
@@ -467,6 +471,7 @@ export default function ExperimentalFluidPage() {
     const [rainIntensity, setRainIntensity] = useState(5);
     const [error, setError] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [adapterInfo, setAdapterInfo] = useState(null);
 
     const canvasRef = useRef(null);
     const simulationRef = useRef(null);
@@ -491,6 +496,42 @@ export default function ExperimentalFluidPage() {
                 (err) => {
                     setIsLoading(false);
                     if (err) setError(err.message || 'WebGPU Init Failed');
+
+                    // Always try to get adapter info for debugging, even on error
+                    // Robust Adapter Info Fetching
+                    const getAdapterInfo = async () => {
+                        try {
+                            let info = null;
+                            // Method 1: Try getting it from the renderer's device (most accurate for what's being used)
+                            if (simulationRef.current?.renderer?.backend?.device?.adapter?.requestAdapterInfo) {
+                                info = await simulationRef.current.renderer.backend.device.adapter.requestAdapterInfo();
+                            }
+                            // Method 2: Fallback to a new request if renderer isn't ready or failed
+                            else if (navigator.gpu) {
+                                const adapter = await navigator.gpu.requestAdapter();
+                                if (adapter) {
+                                    // standard spec: adapter.info
+                                    if (adapter.info) info = adapter.info;
+                                    // older spec: requestAdapterInfo()
+                                    else if (adapter.requestAdapterInfo) info = await adapter.requestAdapterInfo();
+                                }
+                            }
+
+                            if (info) {
+                                setAdapterInfo({
+                                    vendor: info.vendor || 'Unknown Vendor',
+                                    architecture: info.architecture || 'Unknown Arch',
+                                    device: info.device || 'Unknown Device',
+                                    description: info.description || 'Unknown Description',
+                                    driver: info.driver || 'Unknown Driver'
+                                });
+                            }
+                        } catch (e) {
+                            console.warn("Failed to get adapter info:", e);
+                        }
+                    };
+
+                    getAdapterInfo();
                 }
             );
         }, 100);
@@ -601,8 +642,20 @@ export default function ExperimentalFluidPage() {
             {error && (
                 <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950 text-red-500 p-8 text-center flex-col gap-4">
                     <AlertCircle className="w-16 h-16 text-red-500" />
-                    <p>{error}</p>
-                    <Link to="/" className="px-4 py-2 bg-slate-800 rounded">Return Home</Link>
+                    <p className="text-xl font-bold">{error}</p>
+                    {adapterInfo && (
+                        <div className="p-4 bg-slate-900 rounded-lg text-xs text-slate-400 border border-slate-700/50 max-w-md text-left">
+                            <p className="font-semibold text-slate-300 mb-2 border-b border-slate-700 pb-1">Active GPU Adapter</p>
+                            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                                <span className="text-slate-500">Vendor:</span> <span className="text-slate-200 font-mono">{adapterInfo.vendor}</span>
+                                <span className="text-slate-500">Arch:</span> <span className="text-slate-200 font-mono">{adapterInfo.architecture}</span>
+                                <span className="text-slate-500">Device:</span> <span className="text-slate-200 font-mono">{adapterInfo.device}</span>
+                                <span className="text-slate-500">Desc:</span> <span className="text-slate-200 font-mono">{adapterInfo.description}</span>
+                                <span className="text-slate-500">Driver:</span> <span className="text-slate-200 font-mono">{adapterInfo.driver}</span>
+                            </div>
+                        </div>
+                    )}
+                    <Link to="/" className="px-4 py-2 bg-slate-800 rounded hover:bg-slate-700 text-white transition-colors">Return Home</Link>
                 </div>
             )}
 
@@ -770,6 +823,19 @@ export default function ExperimentalFluidPage() {
                             <p className="font-semibold">100% GPU Accelerated</p>
                             <p className="text-purple-400 mt-1">Wave simulation AND vertex displacement run entirely on GPU using WebGPU compute shaders with {resolution}x{resolution} = {(resolution * resolution).toLocaleString()} vertices.</p>
                         </div>
+
+                        {adapterInfo && (
+                            <div className="p-3 bg-slate-800/50 rounded-lg text-xs text-slate-400 border border-slate-700/50 mt-4">
+                                <p className="font-semibold text-slate-300 mb-1">Active GPU Adapter</p>
+                                <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
+                                    <span>Vendor:</span> <span className="text-slate-200 font-mono">{adapterInfo.vendor}</span>
+                                    <span>Arch:</span> <span className="text-slate-200 font-mono">{adapterInfo.architecture}</span>
+                                    <span>Device:</span> <span className="text-slate-200 font-mono">{adapterInfo.device}</span>
+                                    <span>Desc:</span> <span className="text-slate-200 font-mono">{adapterInfo.description}</span>
+                                    <span>Driver:</span> <span className="text-slate-200 font-mono">{adapterInfo.driver}</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </aside>
             )}
