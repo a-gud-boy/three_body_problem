@@ -261,11 +261,17 @@ class WebGPUWaterSimulation {
             ).mul(this.uPulseActive).mul(0.1);
 
             // Storm (Waves)
-            // sin(x*0.1 + t) * sin(y*0.1 + t*1.3)
-            const t = this.uTime.mul(2.0);
-            const sx = float(x).mul(0.1).add(t).sin();
-            const sy = float(y).mul(0.08).add(t.mul(1.2)).sin();
-            const storm = sx.mul(sy).mul(0.02).mul(this.uStormActive);
+            // Combined sines for broader, rolling waves
+            const t = this.uTime.mul(1.5);
+
+            // Primary wave direction (diagonal)
+            const w1 = float(x).mul(0.05).add(float(y).mul(0.03)).add(t).sin();
+
+            // Secondary wave (opposing direction, slightly faster)
+            const w2 = float(x).mul(0.03).sub(float(y).mul(0.06)).add(t.mul(1.4)).cos();
+
+            // Reduce amplitude significantly to avoid energy buildup
+            const storm = w1.add(w2.mul(0.5)).mul(0.002).mul(this.uStormActive);
 
             // v_new = (v + a + brush + rain + pulse + storm) * damping
             const newV = currentV.add(accel).add(brush).add(rain).add(pulse).add(storm)

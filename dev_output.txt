@@ -14,3 +14,5 @@
 8:40:11 PM [vite] (client) hmr update /src/index.css
 8:43:40 PM [vite] (client) hmr update /src/index.css
 8:43:40 PM [vite] (client) hmr update /src/index.css
+8:51:21 PM [vite] (client) hmr update /src/pages/FluidDynamics/FluidDynamicsPage.jsx, /src/index.css
+8:51:21 PM [vite] (client) hmr update /src/index.css
