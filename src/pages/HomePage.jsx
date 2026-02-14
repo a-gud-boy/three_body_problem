@@ -126,6 +126,15 @@ const simulations = [
         status: 'available',
         path: '/general-relativity',
     },
+    {
+        id: 'quantum-sandbox',
+        title: 'Quantum Wave Sandbox',
+        description: 'Visualize quantum tunneling and interference with the Schrödinger equation using WebGPU compute shaders.',
+        icon: '🔬',
+        iconBg: 'rgba(147, 51, 234, 0.15)',
+        status: 'available',
+        path: '/quantum-sandbox',
+    },
 ];
 
 function OrbitalAnimation() {

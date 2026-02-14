@@ -1,0 +1,293 @@
+/* ===== Quantum Sandbox Layout ===== */
+.quantum-sandbox {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: #0a0a1a;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.quantum-sandbox canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+}
+
+/* ===== Top Bar ===== */
+.qs-top-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    z-index: 10;
+    pointer-events: none;
+    background: linear-gradient(to bottom, rgba(10, 10, 26, 0.8) 0%, transparent 100%);
+}
+
+.qs-top-bar > * {
+    pointer-events: auto;
+}
+
+.qs-back-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(255, 255, 255, 0.7);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 8px;
+    transition: all 0.2s;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+}
+
+.qs-back-link:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.qs-title-block {
+    text-align: center;
+}
+
+.qs-title {
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: 0.02em;
+    background: linear-gradient(135deg, #c084fc, #818cf8, #67e8f9);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.qs-subtitle {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.7rem;
+    margin: 2px 0 0 0;
+    font-weight: 400;
+}
+
+.qs-top-spacer {
+    width: 100px;
+}
+
+/* ===== Controls Panel ===== */
+.qs-controls {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: rgba(15, 15, 30, 0.85);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.qs-controls-divider {
+    width: 1px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+}
+
+.qs-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 7px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.qs-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.qs-btn.active {
+    background: rgba(139, 92, 246, 0.25);
+    border-color: rgba(139, 92, 246, 0.5);
+    color: #c4b5fd;
+}
+
+.qs-slider-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 100px;
+}
+
+.qs-slider-label {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.45);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.qs-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.qs-slider-value {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.65);
+    font-variant-numeric: tabular-nums;
+    min-width: 20px;
+    text-align: right;
+}
+
+.qs-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 80px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.12);
+    outline: none;
+    cursor: pointer;
+}
+
+.qs-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #a78bfa;
+    border: 2px solid rgba(15, 15, 30, 0.8);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.qs-slider::-webkit-slider-thumb:hover {
+    background: #c4b5fd;
+}
+
+.qs-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #a78bfa;
+    border: 2px solid rgba(15, 15, 30, 0.8);
+    cursor: pointer;
+}
+
+/* ===== Select ===== */
+.qs-select {
+    padding: 5px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.72rem;
+    font-family: inherit;
+    cursor: pointer;
+    outline: none;
+}
+
+.qs-select option {
+    background: #1a1a2e;
+    color: #fff;
+}
+
+/* ===== Loading / Error ===== */
+.qs-loading-overlay,
+.qs-error-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    background: rgba(10, 10, 26, 0.95);
+}
+
+.qs-loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(139, 92, 246, 0.15);
+    border-top-color: #a78bfa;
+    border-radius: 50%;
+    animation: qs-spin 0.8s linear infinite;
+    margin-bottom: 16px;
+}
+
+@keyframes qs-spin {
+    to { transform: rotate(360deg); }
+}
+
+.qs-loading-text {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.qs-error-icon {
+    color: #f87171;
+    margin-bottom: 12px;
+}
+
+.qs-error-text {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.9rem;
+    max-width: 400px;
+    text-align: center;
+    line-height: 1.5;
+}
+
+/* ===== Info Hint ===== */
+.qs-hint {
+    position: absolute;
+    top: 64px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    padding: 6px 14px;
+    background: rgba(15, 15, 30, 0.75);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.7rem;
+    pointer-events: none;
+    transition: opacity 0.5s;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 900px) {
+    .qs-controls {
+        flex-wrap: wrap;
+        max-width: 90vw;
+        justify-content: center;
+    }
+}
