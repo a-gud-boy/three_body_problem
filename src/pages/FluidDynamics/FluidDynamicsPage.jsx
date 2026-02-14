@@ -3,24 +3,39 @@ import * as THREE from 'three';
 import {
     Fn, uniform, storage, float, vec3, int,
     instanceIndex, vertexIndex, positionLocal,
-    viewportUV, mix, color
+    viewportUV, mix, color, varying, sin, cos
 } from 'three/tsl';
 import { WebGPURenderer, StorageBufferAttribute, MeshStandardNodeMaterial } from 'three/webgpu';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Play, Pause, Settings2, MousePointer2, AlertCircle, RotateCcw, CloudRain } from 'lucide-react';
 
-const RESOLUTION_OPTIONS = [
+const GRID_SIZE_OPTIONS = [
     { label: '64x64 (Low)', value: 64 },
     { label: '128x128 (Medium)', value: 128 },
     { label: '256x256 (High)', value: 256 },
     { label: '512x512 (Ultra)', value: 512 },
 ];
 
+const RENDER_RESOLUTION_OPTIONS = [
+    { label: 'Native (Full Window)', value: 0 },
+    { label: '720p', value: 720 },
+    { label: '1080p', value: 1080 },
+    { label: '1440p', value: 1440 },
+];
+
+const SCENARIO_OPTIONS = [
+    { label: 'Open Water', value: 'open' },
+    { label: 'Islands', value: 'islands' },
+    { label: 'Rocky', value: 'rocks' },
+];
+
 class WebGPUWaterSimulation {
-    constructor(canvas, params, gridSize, onReady) {
+    constructor(canvas, params, gridSize, renderResolution, scenario, onReady) {
         this.canvas = canvas;
         this.params = params;
+        this.renderResolution = renderResolution;
+        this.scenario = scenario;
         this.onReady = onReady;
         this.isRunning = true;
         this.animationId = null;
@@ -29,8 +44,13 @@ class WebGPUWaterSimulation {
         this.gridSize = gridSize;
         this.count = gridSize * gridSize;
         this.rainTriggered = false;
+        this.pulseTriggered = false;
 
         this.init();
+    }
+
+    setStorm(active) {
+        if (this.uStormActive) this.uStormActive.value = active ? 1.0 : 0.0;
     }
 
     async init() {
@@ -54,7 +74,7 @@ class WebGPUWaterSimulation {
                 // powerPreference: 'high-performance' // Removed for better compatibility on Linux
             });
 
-            this.renderer.setSize(this.canvas.clientWidth, this.canvas.clientHeight);
+            this.resize(this.canvas.clientWidth, this.canvas.clientHeight);
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
             await this.renderer.init();
@@ -86,6 +106,8 @@ class WebGPUWaterSimulation {
             this.setupWaterMesh();
             this.setupLights();
             this.setupBackground();
+
+            this.generateObstacles(this.scenario);
 
             this.initialized = true;
 
@@ -146,15 +168,18 @@ class WebGPUWaterSimulation {
     }
 
     setupCompute() {
-        // Two buffers: Height (Position) and Velocity
+        // Buffers: Height, Velocity, Obstacles
         const heightData = new Float32Array(this.count);
         const velocityData = new Float32Array(this.count);
+        const obstacleData = new Float32Array(this.count);
 
         this.heightBuffer = new StorageBufferAttribute(heightData, 1);
         this.velocityBuffer = new StorageBufferAttribute(velocityData, 1);
+        this.obstacleBuffer = new StorageBufferAttribute(obstacleData, 1);
 
         this.heightStorage = storage(this.heightBuffer, 'float', this.count);
         this.velocityStorage = storage(this.velocityBuffer, 'float', this.count);
+        this.obstacleStorage = storage(this.obstacleBuffer, 'float', this.count);
 
         // Uniforms
         this.uMouse = uniform(new THREE.Vector2(-1000, -1000));
@@ -170,9 +195,18 @@ class WebGPUWaterSimulation {
         this.uRainSize = uniform(2.0);
         this.uRainStrength = uniform(3.0);
 
+        // Storm & Pulse Uniforms
+        this.uTime = uniform(0.0);
+        this.uStormActive = uniform(0.0);
+        this.uPulsePos = uniform(new THREE.Vector2(-1000, -1000));
+        this.uPulseActive = uniform(0.0);
+        this.uPulseSize = uniform(20.0);
+        this.uPulseStrength = uniform(15.0);
+
         const gridSize = this.gridSize;
         const heightStorage = this.heightStorage;
         const velocityStorage = this.velocityStorage;
+        const obstacleStorage = this.obstacleStorage;
 
         // --- Pass 1: Update Velocity (Force Calculation) ---
         // Reads Height (neighbors), Reads/Writes Velocity
@@ -181,6 +215,7 @@ class WebGPUWaterSimulation {
             const x = int(index.mod(gridSize));
             const y = int(index.div(gridSize));
 
+            const obs = obstacleStorage.element(index);
             const currentH = heightStorage.element(index);
             const currentV = velocityStorage.element(index);
             const getH = (ix, iy) => {
@@ -216,8 +251,31 @@ class WebGPUWaterSimulation {
                 float(1.0).sub(rdist.div(this.uRainSize)).clamp(0.0, 1.0)
             ).mul(this.uRainActive).mul(0.1);
 
-            // v_new = (v + a + brush + rain) * damping
-            const newV = currentV.add(accel).add(brush).add(rain).mul(this.uDamping);
+            // Pulse Interaction
+            const pulsePos = this.uPulsePos;
+            const pdx = float(x).sub(pulsePos.x);
+            const pdy = float(y).sub(pulsePos.y);
+            const pdist = pdx.mul(pdx).add(pdy.mul(pdy)).sqrt();
+            const pulse = this.uPulseStrength.mul(
+                float(1.0).sub(pdist.div(this.uPulseSize)).clamp(0.0, 1.0)
+            ).mul(this.uPulseActive).mul(0.1);
+
+            // Storm (Waves)
+            // Combined sines for broader, rolling waves
+            const t = this.uTime.mul(1.5);
+
+            // Primary wave direction (diagonal)
+            const w1 = float(x).mul(0.05).add(float(y).mul(0.03)).add(t).sin();
+
+            // Secondary wave (opposing direction, slightly faster)
+            const w2 = float(x).mul(0.03).sub(float(y).mul(0.06)).add(t.mul(1.4)).cos();
+
+            // Reduce amplitude significantly to avoid energy buildup
+            const storm = w1.add(w2.mul(0.5)).mul(0.002).mul(this.uStormActive);
+
+            // v_new = (v + a + brush + rain + pulse + storm) * damping
+            const newV = currentV.add(accel).add(brush).add(rain).add(pulse).add(storm)
+                .mul(this.uDamping).mul(float(1.0).sub(obs));
 
             velocityStorage.element(index).assign(newV);
         });
@@ -228,9 +286,10 @@ class WebGPUWaterSimulation {
             const index = instanceIndex.toUint();
             const v = velocityStorage.element(index);
             const h = heightStorage.element(index);
+            const obs = obstacleStorage.element(index);
 
             // h_new = h + v
-            heightStorage.element(index).assign(h.add(v));
+            heightStorage.element(index).assign(h.add(v).mul(float(1.0).sub(obs)));
         });
 
         this.computeVelocityNode = computeVelocity().compute(this.count);
@@ -242,6 +301,7 @@ class WebGPUWaterSimulation {
         this.geometry.rotateX(-Math.PI / 2);
 
         const heightStorage = this.heightStorage;
+        const obstacleStorage = this.obstacleStorage;
         this.uColor = uniform(new THREE.Color(this.params.color));
         const gridSize = this.gridSize;
 
@@ -252,16 +312,44 @@ class WebGPUWaterSimulation {
                 side: THREE.DoubleSide,
             });
 
-            this.material.colorNode = this.uColor;
-
             const heightScale = float(5.0);
+
+            // Data at vertex
+            const vIdx = vertexIndex.toUint();
+            const hNode = heightStorage.element(vIdx);
+            const obsNode = obstacleStorage.element(vIdx);
+
+            const vHeight = varying(hNode);
+            const vObs = varying(obsNode);
 
             // Vertex Displacement
             this.material.positionNode = Fn(() => {
-                const idx = vertexIndex.toUint();
-                const h = heightStorage.element(idx);
                 const pos = positionLocal;
-                return vec3(pos.x, h.mul(heightScale), pos.z);
+                const isObs = obsNode.greaterThan(0.5);
+                const y = mix(hNode.mul(heightScale), float(5.0), isObs);
+                return vec3(pos.x, y, pos.z);
+            })();
+
+            // Fragment Color (Height-based + Obstacles)
+            this.material.colorNode = Fn(() => {
+                const h = vHeight;
+                const obs = vObs;
+                const isObs = obs.greaterThan(0.5);
+
+                const baseCol = this.uColor;
+                const darkCol = baseCol.mul(0.3); // Deep water
+                const foamCol = vec3(0.95); // White-ish foam
+                const rockCol = vec3(0.3, 0.25, 0.2); // Rock
+
+                // Water gradient
+                const depthMix = h.add(0.5).smoothstep(-1.0, 1.0); // Adjust range as needed
+                const waterCol = mix(darkCol, baseCol, depthMix);
+
+                // Foam at peaks
+                const foamMix = h.smoothstep(1.5, 3.0);
+                const finalWater = mix(waterCol, foamCol, foamMix);
+
+                return mix(finalWater, rockCol, isObs);
             })();
 
             // Normal Recalculation
@@ -325,6 +413,58 @@ class WebGPUWaterSimulation {
         this.heightBuffer.needsUpdate = true;
     }
 
+    generateObstacles(scenario) {
+        if (this.disposed) return;
+        const obs = this.obstacleBuffer.array;
+        obs.fill(0);
+
+        const gs = this.gridSize;
+
+        if (scenario === 'islands') {
+            const centers = [
+                { x: gs * 0.3, y: gs * 0.3, r: gs * 0.1 },
+                { x: gs * 0.7, y: gs * 0.7, r: gs * 0.15 },
+                { x: gs * 0.2, y: gs * 0.8, r: gs * 0.08 }
+            ];
+
+            for (let y = 0; y < gs; y++) {
+                for (let x = 0; x < gs; x++) {
+                    const i = y * gs + x;
+                    for (const c of centers) {
+                        const dx = x - c.x;
+                        const dy = y - c.y;
+                        if (dx*dx + dy*dy < c.r*c.r) {
+                            obs[i] = 1.0;
+                        }
+                    }
+                }
+            }
+        } else if (scenario === 'rocks') {
+             for (let i = 0; i < this.count; i++) {
+                 if (Math.random() > 0.995) {
+                     const cx = i % gs;
+                     const cy = Math.floor(i / gs);
+                     const r = Math.random() * (gs * 0.03) + 2;
+
+                     for(let ry = -r; ry <= r; ry++) {
+                         for(let rx = -r; rx <= r; rx++) {
+                             const tx = cx + rx;
+                             const ty = cy + ry;
+                             if(tx >=0 && tx < gs && ty >=0 && ty < gs) {
+                                 if (rx*rx + ry*ry < r*r) {
+                                     obs[ty * gs + tx] = 1.0;
+                                 }
+                             }
+                         }
+                     }
+                 }
+             }
+        }
+
+        this.obstacleBuffer.needsUpdate = true;
+        this.scenario = scenario;
+    }
+
     setMousePosition(x, y) {
         if (this.disposed) return;
         if (this.uMouse) this.uMouse.value.set(x, y);
@@ -346,6 +486,14 @@ class WebGPUWaterSimulation {
         this.uRainActive.value = 1.0;
 
         this.rainTriggered = true;
+    }
+
+    triggerPulse() {
+        if (this.disposed) return;
+        const c = this.gridSize / 2;
+        this.uPulsePos.value.set(c, c);
+        this.uPulseActive.value = 1.0;
+        this.pulseTriggered = true;
     }
 
     raycastToGrid(ndcX, ndcY) {
@@ -392,24 +540,47 @@ class WebGPUWaterSimulation {
         this.controls.update();
 
         if (this.isRunning) {
+            // Update time
+            this.uTime.value += 0.01;
+
             this.renderer.compute(this.computeVelocityNode);
             this.renderer.compute(this.computeHeightNode);
 
-            // Reset rain after one frame
+            // Reset triggers
             if (this.rainTriggered) {
                 this.rainTriggered = false;
                 if (this.uRainActive) this.uRainActive.value = 0.0;
+            }
+            if (this.pulseTriggered) {
+                this.pulseTriggered = false;
+                if (this.uPulseActive) this.uPulseActive.value = 0.0;
             }
         }
 
         this.renderer.render(this.scene, this.camera);
     }
 
+    setRenderResolution(res) {
+        this.renderResolution = res;
+    }
+
     resize(w, h) {
         if (this.disposed || !this.camera) return;
         this.camera.aspect = w / h;
         this.camera.updateProjectionMatrix();
-        this.renderer.setSize(w, h);
+
+        let targetW = w;
+        let targetH = h;
+
+        if (this.renderResolution > 0) {
+            this.renderer.setPixelRatio(1);
+            targetH = this.renderResolution;
+            targetW = Math.floor(targetH * this.camera.aspect);
+        } else {
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        }
+
+        this.renderer.setSize(targetW, targetH, false);
     }
 
     cleanupScene() {
@@ -465,9 +636,12 @@ export default function FluidDynamicsPage() {
         brushStrength: 5.0,
         color: '#0088ff'
     });
-    const [resolution, setResolution] = useState(256);
+    const [gridSize, setGridSize] = useState(256);
+    const [renderResolution, setRenderResolution] = useState(0);
+    const [scenario, setScenario] = useState('open');
     const [isPlaying, setIsPlaying] = useState(true);
     const [isRaining, setIsRaining] = useState(false);
+    const [isStormy, setIsStormy] = useState(false);
     const [rainIntensity, setRainIntensity] = useState(5);
     const [error, setError] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -492,7 +666,9 @@ export default function FluidDynamicsPage() {
             simulationRef.current = new WebGPUWaterSimulation(
                 canvasRef.current,
                 params,
-                resolution,
+                gridSize,
+                renderResolution,
+                scenario,
                 (err) => {
                     setIsLoading(false);
                     if (err) setError(err.message || 'WebGPU Init Failed');
@@ -541,15 +717,32 @@ export default function FluidDynamicsPage() {
             simulationRef.current?.dispose();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [resolution]);
+    }, [gridSize]);
 
     useEffect(() => {
         simulationRef.current?.updateParams(params);
     }, [params]);
 
     useEffect(() => {
+        if (simulationRef.current && containerRef.current) {
+            simulationRef.current.setRenderResolution(renderResolution);
+            // Trigger resize to apply new resolution
+            const { clientWidth, clientHeight } = containerRef.current;
+            simulationRef.current.resize(clientWidth, clientHeight);
+        }
+    }, [renderResolution]);
+
+    useEffect(() => {
+        simulationRef.current?.generateObstacles(scenario);
+    }, [scenario]);
+
+    useEffect(() => {
         simulationRef.current?.setPlaying(isPlaying);
     }, [isPlaying]);
+
+    useEffect(() => {
+        simulationRef.current?.setStorm(isStormy);
+    }, [isStormy]);
 
     useEffect(() => {
         if (!isRaining || !isPlaying) return;
@@ -710,6 +903,25 @@ export default function FluidDynamicsPage() {
                                     {isRaining ? 'Rain Active' : 'Enable Rain'}
                                 </button>
 
+                                <button
+                                    onClick={() => setIsStormy(!isStormy)}
+                                    className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg font-medium transition-all ${isStormy
+                                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20'
+                                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                        }`}
+                                >
+                                    <CloudRain className={`w-4 h-4 ${isStormy ? 'animate-pulse' : ''}`} />
+                                    {isStormy ? 'Storm Active' : 'Enable Storm'}
+                                </button>
+
+                                <button
+                                    onClick={() => simulationRef.current?.triggerPulse()}
+                                    className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-medium bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all border border-slate-700"
+                                >
+                                    <RotateCcw className="w-4 h-4 rotate-45" />
+                                    Trigger Pulse
+                                </button>
+
                                 {isRaining && (
                                     <div className="space-y-1 pt-1 animate-in fade-in slide-in-from-top-2 duration-200">
                                         <label className="text-xs text-slate-400 flex justify-between">
@@ -727,13 +939,39 @@ export default function FluidDynamicsPage() {
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm text-slate-400">Resolution</label>
+                                <label className="text-sm text-slate-400">Simulation Grid Size</label>
                                 <select
-                                    value={resolution}
-                                    onChange={e => setResolution(parseInt(e.target.value, 10))}
+                                    value={gridSize}
+                                    onChange={e => setGridSize(parseInt(e.target.value, 10))}
                                     className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-200 focus:outline-none focus:border-purple-500"
                                 >
-                                    {RESOLUTION_OPTIONS.map(opt => (
+                                    {GRID_SIZE_OPTIONS.map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm text-slate-400">Scenario</label>
+                                <select
+                                    value={scenario}
+                                    onChange={e => setScenario(e.target.value)}
+                                    className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-200 focus:outline-none focus:border-purple-500"
+                                >
+                                    {SCENARIO_OPTIONS.map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm text-slate-400">Render Resolution</label>
+                                <select
+                                    value={renderResolution}
+                                    onChange={e => setRenderResolution(parseInt(e.target.value, 10))}
+                                    className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-200 focus:outline-none focus:border-purple-500"
+                                >
+                                    {RENDER_RESOLUTION_OPTIONS.map(opt => (
                                         <option key={opt.value} value={opt.value}>{opt.label}</option>
                                     ))}
                                 </select>
@@ -821,7 +1059,7 @@ export default function FluidDynamicsPage() {
 
                         <div className="p-3 bg-purple-900/30 rounded-lg text-xs text-purple-300 border border-purple-700/50">
                             <p className="font-semibold">100% GPU Accelerated</p>
-                            <p className="text-purple-400 mt-1">Wave simulation AND vertex displacement run entirely on GPU using WebGPU compute shaders with {resolution}x{resolution} = {(resolution * resolution).toLocaleString()} vertices.</p>
+                            <p className="text-purple-400 mt-1">Wave simulation AND vertex displacement run entirely on GPU using WebGPU compute shaders with {gridSize}x{gridSize} = {(gridSize * gridSize).toLocaleString()} vertices.</p>
                         </div>
 
                         {adapterInfo && (

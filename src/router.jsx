@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { createHashRouter } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import ThreeBodyPage from './pages/ThreeBody/ThreeBodyPage';
 import AtomSimulator from './pages/AtomSimulator/AtomSimulator';
@@ -10,7 +10,7 @@ import SoftBodyPage from './pages/SoftBody/SoftBodyPage';
 import ConceptPage from './pages/Concept/ConceptPage';
 import GeneralRelativityPage from './pages/GeneralRelativity/GeneralRelativityPage';
 
-const router = createBrowserRouter([
+const router = createHashRouter([
     {
         path: '/',
         element: <HomePage />,
@@ -51,8 +51,6 @@ const router = createBrowserRouter([
         path: '/concept/:id',
         element: <ConceptPage />,
     },
-], {
-    basename: '/three_body_problem',
-});
+]);
 
 export default router;
