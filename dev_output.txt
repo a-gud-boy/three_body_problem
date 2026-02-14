@@ -1,18 +1,18 @@
 
 > three_body_problem@0.0.0 dev
-> vite --host 0.0.0.0
+> vite --host 0.0.0.0 --port 5173
 
 
-  VITE v7.2.4  ready in 585 ms
+  VITE v7.2.4  ready in 485 ms
 
   ➜  Local:   http://localhost:5173/three_body_problem/
   ➜  Network: http://192.168.0.2:5173/three_body_problem/
-8:37:37 PM [vite] (client) hmr update /src/index.css
-8:37:37 PM [vite] (client) hmr update /src/index.css
-8:37:37 PM [vite] (client) hmr update /src/index.css
-8:40:11 PM [vite] (client) hmr update /src/pages/FluidDynamics/FluidDynamicsPage.jsx, /src/index.css
-8:40:11 PM [vite] (client) hmr update /src/index.css
-8:43:40 PM [vite] (client) hmr update /src/index.css
-8:43:40 PM [vite] (client) hmr update /src/index.css
-8:51:21 PM [vite] (client) hmr update /src/pages/FluidDynamics/FluidDynamicsPage.jsx, /src/index.css
-8:51:21 PM [vite] (client) hmr update /src/index.css
+8:31:20 PM [vite] (client) hmr update /src/index.css
+8:31:20 PM [vite] (client) hmr update /src/index.css
+8:31:20 PM [vite] (client) hmr update /src/index.css
+8:31:42 PM [vite] (client) hmr update /src/index.css
+8:31:42 PM [vite] (client) hmr update /src/index.css
+8:32:22 PM [vite] (client) hmr update /src/pages/QuantumSandbox/QuantumSandboxPage.jsx, /src/index.css
+8:32:22 PM [vite] (client) hmr update /src/index.css
+8:33:58 PM [vite] (client) hmr update /src/pages/QuantumSandbox/QuantumSandboxPage.jsx, /src/index.css
+8:33:58 PM [vite] (client) hmr update /src/index.css

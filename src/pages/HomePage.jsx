@@ -109,6 +109,15 @@ const simulations = [
         path: '/wave-interference',
     },
     {
+        id: 'quantum-sandbox',
+        title: 'Quantum Wave Sandbox',
+        description: 'Real-time Schrödinger equation solver. Visualize quantum tunneling and interference with interactive potential barriers.',
+        icon: '🌀',
+        iconBg: 'rgba(216, 180, 254, 0.15)',
+        status: 'available',
+        path: '/quantum-sandbox',
+    },
+    {
         id: 'soft-body',
         title: 'Soft Body Simulation',
         description: 'Deformable physics engine. Play with cloth, jellies, and elastic collisions.',
