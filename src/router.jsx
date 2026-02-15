@@ -10,6 +10,7 @@ import SoftBodyPage from './pages/SoftBody/SoftBodyPage';
 import ConceptPage from './pages/Concept/ConceptPage';
 import GeneralRelativityPage from './pages/GeneralRelativity/GeneralRelativityPage';
 import QuantumSandboxPage from './pages/QuantumSandbox/QuantumSandboxPage';
+import AerodynamicsPage from './pages/Aerodynamics/AerodynamicsPage';
 
 const router = createHashRouter([
     {
@@ -51,6 +52,10 @@ const router = createHashRouter([
     {
         path: '/quantum-sandbox',
         element: <QuantumSandboxPage />,
+    },
+    {
+        path: '/aerodynamics',
+        element: <AerodynamicsPage />,
     },
     {
         path: '/concept/:id',

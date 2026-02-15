@@ -135,6 +135,15 @@ const simulations = [
         status: 'available',
         path: '/quantum-sandbox',
     },
+    {
+        id: 'aerodynamics',
+        title: 'Virtual Wind Tunnel',
+        description: 'Lattice Boltzmann CFD sandbox. Draw obstacles and visualize turbulence, vorticity, drag and lift in real-time.',
+        icon: '💨',
+        iconBg: 'rgba(56, 189, 248, 0.15)',
+        status: 'available',
+        path: '/aerodynamics',
+    },
 ];
 
 function OrbitalAnimation() {

@@ -4,7 +4,10 @@ import { strict as assert } from 'node:assert';
 
 (async () => {
   console.log('Starting verification script...');
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({
+        headless: true,
+        args: ['--use-vulkan', '--enable-features=Vulkan', '--use-angle=vulkan', '--use-unsafe-webgpu'] // Try to force WebGPU friendly environment if possible, though host env matters more
+    });
   const page = await browser.newPage();
 
   const consoleErrors = [];
@@ -17,7 +20,7 @@ import { strict as assert } from 'node:assert';
 
   try {
     console.log('Navigating to page...');
-    await page.goto('http://localhost:5173/three_body_problem/general-relativity', {
+    await page.goto('http://localhost:5174/three_body_problem/general-relativity', {
       waitUntil: 'networkidle',
       timeout: 60000
     });
@@ -27,15 +30,15 @@ import { strict as assert } from 'node:assert';
 
     // Find and click WebGPU toggle if present
     try {
-        const webGpuButton = page.getByRole('button', { name: 'WebGPU' });
-        if (await webGpuButton.isVisible()) {
-            await webGpuButton.click();
-            console.log('Switched to WebGPU mode.');
-        } else {
-            console.warn('WebGPU toggle button not found/visible.');
-        }
+      const webGpuButton = page.getByRole('button', { name: 'WebGPU' });
+      if (await webGpuButton.isVisible()) {
+        await webGpuButton.click();
+        console.log('Switched to WebGPU mode.');
+      } else {
+        console.warn('WebGPU toggle button not found/visible.');
+      }
     } catch (e) {
-        console.warn('Error finding/clicking WebGPU button:', e.message);
+      console.warn('Error finding/clicking WebGPU button:', e.message);
     }
 
     console.log('Waiting 15 seconds for potential crash...');
@@ -53,8 +56,8 @@ import { strict as assert } from 'node:assert';
     }
 
     if (consoleErrors.length > 0) {
-        console.error('FAIL: Console errors occurred.');
-        // process.exit(1); // Relax strictness for now, context loss is the main issue
+      console.error('FAIL: Console errors occurred.');
+      // process.exit(1); // Relax strictness for now, context loss is the main issue
     }
 
     // Take a screenshot for verification
