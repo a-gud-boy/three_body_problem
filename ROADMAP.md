@@ -44,27 +44,38 @@ This document outlines the planned features, improvements, and research goals fo
 ## 💧 Fluid Dynamics & WebGPU
 **Goal:** Push the boundaries of browser-based fluid simulation.
 
-- [ ] **WebGPU Enhancements (Experimental Fluid)**
-    - **Caustics:** Realistic light refraction patterns on the pool floor.
-    - **Foam & Spray:** Particle emission at high-velocity crests.
-    - **Dynamic Obstacles:** allow users to place interactive shapes that affect the water surface.
+- [x] **WebGPU Enhancements (Virtual Wind Tunnel)**
+    - [x] Implementation of Lattice Boltzmann Method (D2Q9) on GPU.
+    - [x] **Buffer Packing:** Adhering to WebGPU limits by packing distribution functions.
+    - [ ] **Caustics:** Realistic light refraction patterns for fluid surfaces.
+    - [ ] **3D Navier-Stokes:** Transitioning from 2D LBM to volumetric 3D fluid simulation.
 - [ ] **SPH Improvements (Fluid Dynamics)**
-    - **Spatial Hashing Optimization:** Improve performance for higher particle counts (>5000).
-    - **Surface Tension:** Better modeling of droplet formation and cohesion.
-    - **Multiphase Flow:** Simulation of oil/water interaction.
+    - [ ] **Spatial Hashing Optimization:** Improve performance for higher particle counts (>5000).
+    - [ ] **Surface Tension:** Better modeling of droplet formation and cohesion.
 
 ---
 
 ## ⚛️ Quantum & Atomic Physics
 **Goal:** Visualize the invisible world of atoms and fields.
 
+- [x] **Quantum Sandbox**
+    - [x] **TDSE Solver:** Real-time integration of the Time-Dependent Schrödinger Equation.
+    - [x] **Interactive Potentials:** Draw barriers and wells to see tunneling effects.
 - [ ] **Atom Simulator**
-    - **3D Electron Orbitals:** Volumetric rendering of s, p, d, f orbitals instead of 2D sprites.
-    - **Reaction Simulator:** Drag-and-drop atoms to see real-time bonding (ionic/covalent) animations.
-- [ ] **Electromagnetic Fields**
-    - **Magnetic Field Simulation:** Add current-carrying wires and magnets (B-fields).
-    - **Time-Varying Fields:** Visualize induced currents (Faraday's Law).
-    - **Flux Visualization:** 3D isosurfaces for electric potential.
+    - [ ] **3D Electron Orbitals:** Volumetric rendering of s, p, d, f orbitals instead of 2D sprites.
+    - [ ] **Reaction Simulator:** Drag-and-drop atoms to see real-time bonding animations.
+
+---
+
+## 🌌 Relativity & Gravitation
+**Goal:** Explore the extremes of space-time.
+
+- [x] **General Relativity**
+    - [x] **Relativistic Ray Marching:** Visualizing light bending near a black hole.
+    - [x] **Accretion Disk:** High-performance particle system for disk visualization.
+    - [x] **Symplectic Integrator:** Energy-preserving orbits for relativistic particles.
+- [ ] **Kerr Metric:** Implementing frame dragging for spinning black holes.
+- [ ] **Gravitational Waves:** Visualizing the ripples in spacetime from binary mergers.
 
 ---
 

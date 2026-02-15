@@ -12,9 +12,10 @@ This project is a collection of educational and experimental physics engines des
 
 ### Key Features
 - **Real-Time Physics:** High-performance integration (Verlet, RK4, Euler) running at 60+ FPS.
-- **WebGPU Acceleration:** Next-generation compute shaders for massive particle systems and fluid simulation.
+- **WebGPU Acceleration:** Next-generation compute shaders for massive particle systems, fluid simulation, and quantum wavefunctions.
 - **Interactive Sandbox:** Drag bodies, draw barriers, pour fluids, and manipulate fields with intuitive mouse controls.
 - **Scientific Accuracy:** Visualization of phase space, energy conservation, field lines, and wave interference patterns.
+- **Buffer Packing Strategy:** Optimized WebGPU implementations that bypass hardware limits for complex simulations (LBM).
 
 ---
 
@@ -25,17 +26,19 @@ This project is a collection of educational and experimental physics engines des
 | :--- | :--- | :--- |
 | **[Three-Body Problem](./src/pages/ThreeBody)** | Visualize the chaotic dance of three celestial bodies. Features energy analysis, phase space plots, and preset scenarios (Figure-8, Lagrange Points). | `Runge-Kutta 4`, `Trails`, `Energy Plots` |
 | **[Double Pendulum](./src/pages/DoublePendulum)** | Explore the "Butterfly Effect" with a sensitive double pendulum. Includes shadow mode to visualize divergence of initial conditions. | `Chaos Theory`, `Phase Space (θ₁ vs ω₁)` |
+| **[General Relativity](./src/pages/GeneralRelativity)** | Experience gravitational lensing and accretion disks around a Schwarzschild/Kerr black hole using relativistic ray-marching. | `General Relativity`, `Ray Marching`, `Accretion Disk` |
 
 ### 💧 Fluid Dynamics
 | Simulation | Description | Key Tech |
 | :--- | :--- | :--- |
+| **[Virtual Wind Tunnel](./src/pages/Aerodynamics)** | High-performance aerodynamics simulation using the Lattice Boltzmann Method (D2Q9). Visualize vorticity, speed, and pressure around custom obstacles. | `WebGPU`, `LBM`, `Buffer Packing` |
 | **[Fluid Dynamics (SPH)](./src/pages/FluidDynamics)** | Smoothed Particle Hydrodynamics simulation. Pour water, add obstacles, and observe pressure/viscosity interactions. | `SPH`, `Spatial Hashing` |
-| **[Water Ripples (WebGPU)](./src/pages/ExperimentalFluid)** | Experimental fluid surface simulation running entirely on the GPU. Features interactive ripples, rain, and vertex displacement. | `WebGPU Compute Shaders`, `Vertex Displacement` |
 | **[Wave Interference](./src/pages/WaveInterference)** | 2D Ripple Tank simulation. Experiment with diffraction, refraction, reflection, and multi-source interference patterns. | `Wave Equation`, `Pixel Buffer` |
 
 ### ⚛️ Fields & Matter
 | Simulation | Description | Key Tech |
 | :--- | :--- | :--- |
+| **[Quantum Sandbox](./src/pages/QuantumSandbox)** | 2D Quantum mechanics simulation of the Time-Dependent Schrödinger Equation. Watch wave packets tunnel through barriers and interfere. | `WebGPU`, `Schrödinger Equation`, `Complex Math` |
 | **[Atom Simulator](./src/pages/AtomSimulator)** | Interactive Bohr model visualizer. Build compounds from the periodic table and explore electron shells. | `Bohr Model`, `Compound Builder` |
 | **[Electromagnetic Fields](./src/pages/Electromagnetic)** | Visualize electric fields and forces. Place charges, trace field lines, and observe dipole interactions. | `Field Line Tracing`, `Coulomb's Law` |
 | **[Soft Body Physics](./src/pages/SoftBody)** | Deformable object simulation using mass-spring systems. Play with cloth, jelly, and rope bridges. | `Verlet Integration`, `PBD (Position Based Dynamics)` |
