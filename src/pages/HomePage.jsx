@@ -144,6 +144,15 @@ const simulations = [
         status: 'available',
         path: '/aerodynamics',
     },
+    {
+        id: 'thermodynamics',
+        title: 'Entropy Lab',
+        description: '20,000 particle hard-sphere simulation using WebGPU. Experiment with Ideal Gas Law, Adiabatic processes, and Maxwell\'s Demon.',
+        icon: '🔥',
+        iconBg: 'rgba(249, 115, 22, 0.15)',
+        status: 'available',
+        path: '/thermodynamics',
+    },
 ];
 
 function OrbitalAnimation() {

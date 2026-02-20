@@ -11,6 +11,7 @@ import ConceptPage from './pages/Concept/ConceptPage';
 import GeneralRelativityPage from './pages/GeneralRelativity/GeneralRelativityPage';
 import QuantumSandboxPage from './pages/QuantumSandbox/QuantumSandboxPage';
 import AerodynamicsPage from './pages/Aerodynamics/AerodynamicsPage';
+import ThermodynamicsPage from './pages/Thermodynamics/ThermodynamicsPage';
 
 const router = createHashRouter([
     {
@@ -56,6 +57,10 @@ const router = createHashRouter([
     {
         path: '/aerodynamics',
         element: <AerodynamicsPage />,
+    },
+    {
+        path: '/thermodynamics',
+        element: <ThermodynamicsPage />,
     },
     {
         path: '/concept/:id',
