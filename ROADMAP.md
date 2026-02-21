@@ -7,6 +7,8 @@ This document outlines the planned features, improvements, and research goals fo
 ## 🌍 Platform & Core Architecture
 **Goal:** Establish a robust, high-performance foundation for all simulations.
 
+- [x] **Performance Optimization**
+    - [x] Route-level code splitting using `React.lazy()` and `Suspense`.
 - [ ] **Unified UI Framework**
     - Standardize control panels, overlay styles, and interaction patterns across all modules.
     - Implement a global "Settings" modal (graphics quality, audio, accessibility).
@@ -90,6 +92,16 @@ This document outlines the planned features, improvements, and research goals fo
     - **Huygens-Fresnel Viz:** Visualizing wavefront propagation points.
     - **Doppler Effect:** Moving sources to demonstrate frequency shift.
     - **3D Wave Tank:** Extruding the 2D heightmap into a 3D surface view.
+
+---
+
+## 🔥 Thermodynamics
+**Goal:** Simulate statistical mechanics and macroscopic properties from microscopic particle interactions.
+
+- [x] **Entropy Lab**
+    - [x] **GPU Particle Simulation:** 20,000 hard-sphere collisions using WebGPU.
+    - [x] **Maxwell's Demon:** Interactive sorting of particles by energy.
+    - [ ] **Phase Transitions:** Simulate freezing and boiling (gas to liquid/solid states).
 
 ---
 

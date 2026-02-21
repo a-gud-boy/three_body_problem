@@ -16,6 +16,7 @@ This project is a collection of educational and experimental physics engines des
 - **Interactive Sandbox:** Drag bodies, draw barriers, pour fluids, and manipulate fields with intuitive mouse controls.
 - **Scientific Accuracy:** Visualization of phase space, energy conservation, field lines, and wave interference patterns.
 - **Buffer Packing Strategy:** Optimized WebGPU implementations that bypass hardware limits for complex simulations (LBM).
+- **Performance Optimization:** Route-level code splitting using `React.lazy()` and `Suspense` for lightning-fast initial load times.
 
 ---
 
@@ -42,6 +43,11 @@ This project is a collection of educational and experimental physics engines des
 | **[Atom Simulator](./src/pages/AtomSimulator)** | Interactive Bohr model visualizer. Build compounds from the periodic table and explore electron shells. | `Bohr Model`, `Compound Builder` |
 | **[Electromagnetic Fields](./src/pages/Electromagnetic)** | Visualize electric fields and forces. Place charges, trace field lines, and observe dipole interactions. | `Field Line Tracing`, `Coulomb's Law` |
 | **[Soft Body Physics](./src/pages/SoftBody)** | Deformable object simulation using mass-spring systems. Play with cloth, jelly, and rope bridges. | `Verlet Integration`, `PBD (Position Based Dynamics)` |
+
+### 🔥 Thermodynamics
+| Simulation | Description | Key Tech |
+| :--- | :--- | :--- |
+| **[Entropy Lab](./src/pages/Thermodynamics)** | 20,000 particle hard-sphere simulation using WebGPU. Experiment with Ideal Gas Law, Adiabatic processes, and Maxwell's Demon. | `WebGPU`, `Collision Detection`, `Maxwell's Demon` |
 
 ---
 
