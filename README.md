@@ -32,7 +32,7 @@ This project is a collection of educational and experimental physics engines des
 | Simulation | Description | Key Tech |
 | :--- | :--- | :--- |
 | **[Virtual Wind Tunnel](./src/pages/Aerodynamics)** | High-performance aerodynamics simulation using the Lattice Boltzmann Method (D2Q9). Visualize vorticity, speed, and pressure around custom obstacles. | `WebGPU`, `LBM`, `Buffer Packing` |
-| **[Fluid Dynamics (SPH)](./src/pages/FluidDynamics)** | Smoothed Particle Hydrodynamics simulation. Pour water, add obstacles, and observe pressure/viscosity interactions. | `SPH`, `Spatial Hashing` |
+| **[Fluid Dynamics](./src/pages/FluidDynamics)** | Interactive water surface simulation using the Wave Equation. Visualize ripples, rain, and storms with WebGPU compute shaders. | `WebGPU`, `Wave Equation`, `Vertex Displacement` |
 | **[Wave Interference](./src/pages/WaveInterference)** | 2D Ripple Tank simulation. Experiment with diffraction, refraction, reflection, and multi-source interference patterns. | `Wave Equation`, `Pixel Buffer` |
 
 ### ⚛️ Fields & Matter
