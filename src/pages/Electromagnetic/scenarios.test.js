@@ -1,6 +1,4 @@
 
-import { describe, it } from 'node:test';
-import assert from 'node:assert';
 import { SCENARIOS, generateRandomCharges } from './scenarios.js';
 
 describe('Electromagnetic Scenarios', () => {
@@ -11,46 +9,46 @@ describe('Electromagnetic Scenarios', () => {
 
             // Check all expected keys are present
             expectedKeys.forEach(key => {
-                assert.ok(actualKeys.includes(key), `Missing scenario: ${key}`);
+                expect(actualKeys.includes(key)).toBeTruthy();
             });
 
             // Check no unexpected keys
-            assert.strictEqual(actualKeys.length, expectedKeys.length, 'Unexpected number of scenarios');
+            expect(actualKeys.length).toBe(expectedKeys.length, 'Unexpected number of scenarios');
         });
 
         it('should have valid structure for each scenario', () => {
             Object.values(SCENARIOS).forEach(scenario => {
-                assert.strictEqual(typeof scenario.name, 'string', 'Name should be a string');
-                assert.ok(scenario.name.length > 0, 'Name should not be empty');
+                expect(typeof scenario.name).toBe('string', 'Name should be a string');
+                expect(scenario.name.length > 0).toBeTruthy();
 
-                assert.strictEqual(typeof scenario.description, 'string', 'Description should be a string');
-                assert.ok(scenario.description.length > 0, 'Description should not be empty');
+                expect(typeof scenario.description).toBe('string', 'Description should be a string');
+                expect(scenario.description.length > 0).toBeTruthy();
 
-                assert.ok(Array.isArray(scenario.charges), 'Charges should be an array');
+                expect(Array.isArray(scenario.charges)).toBeTruthy();
             });
         });
 
         it('should have valid charges in predefined scenarios', () => {
             const scenariosWithCharges = Object.entries(SCENARIOS)
                 .filter(([key]) => key !== 'RANDOM')
-                .map(([_, scenario]) => scenario);
+                .map(([, scenario]) => scenario);
 
             scenariosWithCharges.forEach(scenario => {
-                assert.ok(scenario.charges.length > 0, `${scenario.name} should have charges`);
+                expect(scenario.charges.length > 0).toBeTruthy();
 
                 scenario.charges.forEach(charge => {
-                    assert.strictEqual(typeof charge.x, 'number', 'x should be a number');
-                    assert.strictEqual(typeof charge.y, 'number', 'y should be a number');
-                    assert.strictEqual(typeof charge.z, 'number', 'z should be a number');
-                    assert.ok(charge.q === 1 || charge.q === -1, 'charge q should be 1 or -1');
+                    expect(typeof charge.x).toBe('number', 'x should be a number');
+                    expect(typeof charge.y).toBe('number', 'y should be a number');
+                    expect(typeof charge.z).toBe('number', 'z should be a number');
+                    expect(charge.q === 1 || charge.q === -1).toBeTruthy();
                 });
             });
         });
 
         it('should have empty charges for RANDOM scenario', () => {
             const randomScenario = SCENARIOS.RANDOM;
-            assert.ok(randomScenario, 'RANDOM scenario should exist');
-            assert.strictEqual(randomScenario.charges.length, 0, 'RANDOM scenario should have no predefined charges');
+            expect(randomScenario).toBeTruthy();
+            expect(randomScenario.charges.length).toBe(0, 'RANDOM scenario should have no predefined charges');
         });
     });
 
@@ -58,21 +56,21 @@ describe('Electromagnetic Scenarios', () => {
         it('should generate the requested number of charges', () => {
             const count = 10;
             const charges = generateRandomCharges(count);
-            assert.strictEqual(charges.length, count);
+            expect(charges.length).toBe(count);
         });
 
         it('should default to 15 charges if no count provided', () => {
             const charges = generateRandomCharges();
-            assert.strictEqual(charges.length, 15);
+            expect(charges.length).toBe(15);
         });
 
         it('should generate valid charge objects', () => {
             const charges = generateRandomCharges(5);
             charges.forEach(charge => {
-                assert.strictEqual(typeof charge.x, 'number');
-                assert.strictEqual(typeof charge.y, 'number');
-                assert.strictEqual(typeof charge.z, 'number');
-                assert.ok(charge.q === 1 || charge.q === -1);
+                expect(typeof charge.x).toBe('number');
+                expect(typeof charge.y).toBe('number');
+                expect(typeof charge.z).toBe('number');
+                expect(charge.q === 1 || charge.q === -1).toBeTruthy();
             });
         });
 
@@ -80,9 +78,9 @@ describe('Electromagnetic Scenarios', () => {
             // Based on implementation: x/y within +/- 100, z within +/- 25
             const charges = generateRandomCharges(100);
             charges.forEach(charge => {
-                assert.ok(Math.abs(charge.x) <= 100, `x ${charge.x} out of bounds`);
-                assert.ok(Math.abs(charge.y) <= 100, `y ${charge.y} out of bounds`);
-                assert.ok(Math.abs(charge.z) <= 25, `z ${charge.z} out of bounds`);
+                expect(Math.abs(charge.x) <= 100).toBeTruthy();
+                expect(Math.abs(charge.y) <= 100).toBeTruthy();
+                expect(Math.abs(charge.z) <= 25).toBeTruthy();
             });
         });
     });

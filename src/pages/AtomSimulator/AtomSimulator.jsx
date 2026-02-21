@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Atom, FlaskConical, BookOpen, Eye, Layers, Zap } from 'lucide-react';
 import { ELEMENTS, ELEMENT_CATEGORIES, getElementById, getElectronShells, getOrbitalConfiguration } from '../../data/elementsData';
-import { DEMO_COMPOUNDS, getCompoundById, findMatchingCompound } from '../../data/compoundsData';
+import { DEMO_COMPOUNDS, findMatchingCompound } from '../../data/compoundsData';
 import PeriodicTable from './components/PeriodicTable';
 import AtomVisualizer from './components/AtomVisualizer';
 import ElementInfo from './components/ElementInfo';

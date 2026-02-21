@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Fn, uniform, float, vec3, vec4, positionWorld, cameraPosition, normalize, dot, mix, length, floor, fract, sqrt, max, min, step, select, sin, cos, abs, smoothstep, cross, If, Loop, Var, Break, int, atan, acos, clamp, exp, pow } from 'three/tsl';
+import { Fn, uniform, float, vec3, vec4, positionWorld, cameraPosition, normalize, dot, mix, length, floor, fract, max, min, step, sin, abs, smoothstep, cross, If, Loop, Var, Break, atan, acos, clamp, exp } from 'three/tsl';
 import { MeshBasicNodeMaterial } from 'three/webgpu';
 import * as THREE from 'three';
 
@@ -86,15 +86,14 @@ export default function TSLLensing({ params }) {
 
     // Uniforms
     const uMassPos = useMemo(() => uniform(new THREE.Vector3(0, 0, 0)), []);
-    const uMass = useMemo(() => uniform(params.blackHoleMass), []);
-    const uG = useMemo(() => uniform(1.0), []);
-    const uC = useMemo(() => uniform(params.speedOfLight), []);
-    const uSpin = useMemo(() => uniform(params.kerrSpinParameter || 0), []);
-    const uEnabled = useMemo(() => uniform(params.enableLensing ? 1 : 0), []);
+    const uMass = useMemo(() => uniform(params.blackHoleMass), [params.blackHoleMass]);
+    const uC = useMemo(() => uniform(params.speedOfLight), [params.speedOfLight]);
+    const uSpin = useMemo(() => uniform(params.kerrSpinParameter || 0), [params.kerrSpinParameter]);
+    const uEnabled = useMemo(() => uniform(params.enableLensing ? 1 : 0), [params.enableLensing]);
     const uTime = useMemo(() => uniform(0.0), []);
     const uShowDisk = useMemo(() => uniform(1), []);
     const uShowGrid = useMemo(() => uniform(1), []);
-    const uShowEinsteinRing = useMemo(() => uniform(params.showEinsteinRing ? 1 : 0), []);
+    const uShowEinsteinRing = useMemo(() => uniform(params.showEinsteinRing ? 1 : 0), [params.showEinsteinRing]);
 
     // Derived Uniforms
     const uRs = useMemo(() => uniform(0.0), []);
@@ -116,7 +115,7 @@ export default function TSLLensing({ params }) {
         uDiskInner.value = rsVal * 3.0;
         uDiskOuter.value = rsVal * 12.0;
         uDiskHeight.value = rsVal * 0.2;
-    }, [params]);
+    }, [params.blackHoleMass, params.speedOfLight, params.enableLensing, params.kerrSpinParameter, params.showDisk, params.showGrid, params.showEinsteinRing, uC, uDiskHeight, uDiskInner, uDiskOuter, uEnabled, uMass, uRs, uShowDisk, uShowEinsteinRing, uShowGrid, uSpin]);
 
     // Material Logic
     const material = useMemo(() => {
@@ -264,7 +263,7 @@ export default function TSLLensing({ params }) {
         mat.colorNode = colorNode();
 
         return mat;
-    }, [uMassPos, uMass, uG, uC, uSpin, uEnabled, uTime, uRs, uDiskInner, uDiskOuter, uDiskHeight, uShowDisk, uShowGrid, uShowEinsteinRing]);
+    }, [uEnabled, uTime, uRs, uDiskInner, uDiskOuter, uDiskHeight, uShowDisk, uShowGrid, uShowEinsteinRing, uMassPos, uSpin]);
 
     useFrame((state) => {
         uTime.value = state.clock.elapsedTime;

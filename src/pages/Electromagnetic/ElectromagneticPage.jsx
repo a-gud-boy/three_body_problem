@@ -13,7 +13,6 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import {
     calculateTotalEnergy,
     calculateField,
-    calculateElectrostaticForce,
     traceFieldLine
 } from '../../utils/physicsUtils';
 import { generateSpherePoints, generateRandomCharges } from './utils';
@@ -313,15 +312,15 @@ export default function ElectromagneticPage() {
         };
         animate();
 
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSceneReady(true);
+        const currentMount = mountRef.current;
         return () => {
             window.removeEventListener('resize', handleResize);
             cancelAnimationFrame(frameIdRef.current);
             controls.dispose();
             renderer.dispose();
-            if (mountRef.current && renderer.domElement.parentNode) {
-                mountRef.current.removeChild(renderer.domElement);
+            if (currentMount && renderer.domElement.parentNode) {
+                currentMount.removeChild(renderer.domElement);
             }
         };
     }, []);
@@ -449,8 +448,7 @@ export default function ElectromagneticPage() {
                     q: m.userData.charge
                 }));
 
-            // Update positions directly on the existing mesh positions
-            meshes.forEach((mesh, i) => {
+            meshes.forEach((mesh) => {
                 if (!mesh) return;
                 const chargeQ = mesh.userData.charge;
                 if (chargeQ === undefined) return;

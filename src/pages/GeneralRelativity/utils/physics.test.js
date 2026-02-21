@@ -1,6 +1,4 @@
 // src/pages/GeneralRelativity/utils/physics.test.js
-import { describe, it } from 'node:test';
-import assert from 'node:assert';
 import { calculateSchwarzschildRadius, calculatePotential, calculateAcceleration, G } from './physics.js';
 
 describe('General Relativity Physics Utils', () => {
@@ -10,7 +8,7 @@ describe('General Relativity Physics Utils', () => {
         const c = 100;
         // Rs = 2GM/c^2 = 2*1*1000 / 10000 = 0.2
         const rs = calculateSchwarzschildRadius(mass, c);
-        assert.strictEqual(rs, 0.2);
+        expect(rs).toBe(0.2);
     });
 
     it('calculates Newtonian Potential correctly', () => {
@@ -18,18 +16,17 @@ describe('General Relativity Physics Utils', () => {
         const r = 10;
         // V = -GM/r = -1*1000/10 = -100
         const v = calculatePotential(mass, r, 'newtonian');
-        assert.strictEqual(v, -100);
+        expect(v).toBe(-100);
     });
 
     it('calculates Paczynski-Wiita Potential correctly', () => {
         const mass = 1000;
         const c = 100;
         const r = 10;
-        const rs = 0.2;
         // V = -GM/(r-rs) = -1000 / (9.8) = -102.04...
         const v = calculatePotential(mass, r, 'relativistic', c);
         const expected = -1000 / (10 - 0.2);
-        assert.ok(Math.abs(v - expected) < 0.0001);
+        expect(Math.abs(v - expected) < 0.0001).toBeTruthy();
     });
 
     it('calculates Acceleration Vector correctly', () => {
@@ -44,8 +41,8 @@ describe('General Relativity Physics Utils', () => {
 
         calculateAcceleration(pos, massPos, mass, outVector, 'newtonian');
 
-        assert.ok(Math.abs(outVector.x - (-10)) < 0.0001);
-        assert.ok(Math.abs(outVector.y - 0) < 0.0001);
-        assert.ok(Math.abs(outVector.z - 0) < 0.0001);
+        expect(Math.abs(outVector.x - (-10)) < 0.0001).toBeTruthy();
+        expect(Math.abs(outVector.y - 0) < 0.0001).toBeTruthy();
+        expect(Math.abs(outVector.z - 0) < 0.0001).toBeTruthy();
     });
 });

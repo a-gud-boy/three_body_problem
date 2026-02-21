@@ -6,4 +6,10 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: '/three_body_problem/', // GitHub Pages base path (repo name)
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    include: ['src/**/*.test.{js,jsx}'],
+    exclude: ['verification/**'],
+  },
 })

@@ -1,4 +1,4 @@
-import React, { useState, Suspense, lazy } from 'react';
+import React, { useState, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Settings2, RefreshCcw, AlertCircle } from 'lucide-react';
 import { Canvas, useThree } from '@react-three/fiber';

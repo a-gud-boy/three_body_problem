@@ -37,7 +37,7 @@ export default function WaveInterferencePage() {
             canvasRef.current.width = SIM_WIDTH;
             canvasRef.current.height = SIM_HEIGHT;
         }
-    }, []);
+    }, [params.damping]);
 
     // Sync Params
     useEffect(() => {
@@ -81,24 +81,24 @@ export default function WaveInterferencePage() {
             sim.addDisturbance(x, y, 500);
         } else if (interactionMode === 'WALL') {
             // Draw a small 3x3 block of wall
-            for(let dy=-1; dy<=1; dy++) {
-                for(let dx=-1; dx<=1; dx++) {
-                    sim.setWall(x+dx, y+dy, true);
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    sim.setWall(x + dx, y + dy, true);
                 }
             }
         } else if (interactionMode === 'OSCILLATOR') {
             // Add oscillator only on initial click to avoid spamming
-             // Check if source already close exists? Nah, let's just add.
-             // Actually, for drag, we probably don't want to add 60 sources a second.
-             // So we only add if it's a new press (handled by click) or check duplicates.
+            // Check if source already close exists? Nah, let's just add.
+            // Actually, for drag, we probably don't want to add 60 sources a second.
+            // So we only add if it's a new press (handled by click) or check duplicates.
         }
     };
 
     // Special handler for single-click actions
     const handleClick = () => {
         if (interactionMode === 'OSCILLATOR' && simulatorRef.current) {
-             const { x, y } = mouseRef.current;
-             simulatorRef.current.addSource(x, y, params.frequency, 50);
+            const { x, y } = mouseRef.current;
+            simulatorRef.current.addSource(x, y, params.frequency, 50);
         }
     };
 
@@ -114,10 +114,10 @@ export default function WaveInterferencePage() {
             // Draw wall
             for (let y = 0; y < SIM_HEIGHT; y++) {
                 if (Math.abs(y - cy) > 20 && Math.abs(y - cy) < 40) {
-                     // blocked
+                    // blocked
                 } else if (Math.abs(y - cy) > 5) { // Central block
                     sim.setWall(cx, y, true);
-                    sim.setWall(cx+1, y, true);
+                    sim.setWall(cx + 1, y, true);
                 }
             }
             // Add source far left
@@ -222,7 +222,7 @@ export default function WaveInterferencePage() {
                             <input
                                 type="range" min="0.90" max="0.999" step="0.001"
                                 value={params.damping}
-                                onChange={e => setParams({...params, damping: Number(e.target.value)})}
+                                onChange={e => setParams({ ...params, damping: Number(e.target.value) })}
                             />
                         </div>
                         <div className="param-group">
@@ -230,7 +230,7 @@ export default function WaveInterferencePage() {
                             <input
                                 type="range" min="0.05" max="1.0" step="0.05"
                                 value={params.frequency}
-                                onChange={e => setParams({...params, frequency: Number(e.target.value)})}
+                                onChange={e => setParams({ ...params, frequency: Number(e.target.value) })}
                             />
                         </div>
                         <div className="param-group">
@@ -238,7 +238,7 @@ export default function WaveInterferencePage() {
                             <input
                                 type="range" min="1" max="5" step="1"
                                 value={params.speed}
-                                onChange={e => setParams({...params, speed: Number(e.target.value)})}
+                                onChange={e => setParams({ ...params, speed: Number(e.target.value) })}
                             />
                         </div>
                     </div>

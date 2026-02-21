@@ -34,7 +34,7 @@ export default class SoftBodyPhysics {
         return p;
     }
 
-    addSpring(p1, p2, stiffness = 1.0, damping = 0.0, length = null) {
+    addSpring(p1, p2, stiffness = 1.0, length = null) {
         if (!length) {
             const dx = p1.x - p2.x;
             const dy = p1.y - p2.y;
@@ -48,20 +48,20 @@ export default class SoftBodyPhysics {
         });
     }
 
-    createBox(x, y, cols, rows, spacing, stiffness, damping) {
+    createBox(x, y, cols, rows, spacing, stiffness) {
         const startIdx = this.particles.length;
 
         // Create Grid
-        for(let j=0; j<rows; j++) {
-            for(let i=0; i<cols; i++) {
-                this.addParticle(x + i*spacing, y + j*spacing);
+        for (let j = 0; j < rows; j++) {
+            for (let i = 0; i < cols; i++) {
+                this.addParticle(x + i * spacing, y + j * spacing);
             }
         }
 
         // Connect Grid
-        for(let j=0; j<rows; j++) {
-            for(let i=0; i<cols; i++) {
-                const idx = startIdx + j*cols + i;
+        for (let j = 0; j < rows; j++) {
+            for (let i = 0; i < cols; i++) {
+                const idx = startIdx + j * cols + i;
                 const p = this.particles[idx];
 
                 // Right
@@ -83,8 +83,8 @@ export default class SoftBodyPhysics {
 
     createRope(x, y, segments, length, stiffness) {
         let prev = this.addParticle(x, y, 1, true); // Locked start
-        for(let i=0; i<segments; i++) {
-            const next = this.addParticle(x + (i+1)*length/segments, y + i*2);
+        for (let i = 0; i < segments; i++) {
+            const next = this.addParticle(x + (i + 1) * length / segments, y + i * 2);
             this.addSpring(prev, next, stiffness);
             prev = next;
         }
@@ -94,7 +94,7 @@ export default class SoftBodyPhysics {
         const center = this.addParticle(centerX, centerY, 1);
         const rim = [];
 
-        for(let i=0; i<segments; i++) {
+        for (let i = 0; i < segments; i++) {
             const angle = (i / segments) * Math.PI * 2;
             const px = centerX + Math.cos(angle) * radius;
             const py = centerY + Math.sin(angle) * radius;
@@ -106,13 +106,13 @@ export default class SoftBodyPhysics {
         }
 
         // Connect Rim
-        for(let i=0; i<segments; i++) {
+        for (let i = 0; i < segments; i++) {
             const p1 = rim[i];
             const p2 = rim[(i + 1) % segments];
             this.addSpring(p1, p2, stiffness);
             // Cross springs for stability
             const p3 = rim[(i + 2) % segments];
-             this.addSpring(p1, p3, stiffness);
+            this.addSpring(p1, p3, stiffness);
         }
     }
 
@@ -168,7 +168,7 @@ export default class SoftBodyPhysics {
         for (const s of this.springs) {
             const dx = s.p1.x - s.p2.x;
             const dy = s.p1.y - s.p2.y;
-            const dist = Math.sqrt(dx*dx + dy*dy);
+            const dist = Math.sqrt(dx * dx + dy * dy);
 
             if (dist === 0) continue;
 
@@ -240,7 +240,7 @@ export default class SoftBodyPhysics {
         for (const p of this.particles) {
             const dx = x - p.x;
             const dy = y - p.y;
-            const d2 = dx*dx + dy*dy;
+            const d2 = dx * dx + dy * dy;
             if (d2 < minDist) {
                 minDist = d2;
                 nearest = p;

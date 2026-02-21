@@ -150,11 +150,8 @@ function drawNucleus(ctx, cx, cy, element, time) {
 
 // Draw Electron Cloud (quantum probability density)
 export function drawElectronCloud(ctx, cx, cy, maxRadius, element, orbitals, color, time) {
-    // Draw probability density using points
-    const totalElectrons = element.atomicNumber;
-
     // Draw each orbital
-    orbitals.forEach((orbital, index) => {
+    orbitals.forEach((orbital) => {
         const { n, l, electrons, type } = orbital;
 
         // Color based on orbital type
@@ -167,8 +164,7 @@ export function drawElectronCloud(ctx, cx, cy, maxRadius, element, orbitals, col
 
         const orbColor = orbitalColors[type] || color;
 
-        // Draw orbital shape
-        drawOrbitalShape(ctx, cx, cy, maxRadius, n, l, electrons, orbColor, time, index);
+        drawOrbitalShape(ctx, cx, cy, maxRadius, n, l, electrons, orbColor, time);
     });
 
     // Draw central region (nucleus representation)
@@ -186,8 +182,7 @@ export function drawElectronCloud(ctx, cx, cy, maxRadius, element, orbitals, col
     drawProbabilitySampling(ctx, cx, cy, maxRadius, orbitals, time);
 }
 
-// Draw orbital shape based on quantum numbers
-function drawOrbitalShape(ctx, cx, cy, maxRadius, n, l, electrons, color, time, index) {
+function drawOrbitalShape(ctx, cx, cy, maxRadius, n, l, electrons, color, time) {
     const baseRadius = 20 + n * (maxRadius - 20) / 8;
     const intensity = electrons / (2 * (2 * l + 1)); // Fill fraction
 

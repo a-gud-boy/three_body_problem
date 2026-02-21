@@ -40,13 +40,13 @@ export default function SoftBodyPage() {
             // Pinned top corners
             sim.createBox(cx - 150, 50, 15, 12, 20, 0.8, 0.5);
             // Lock top row
-            for(let i=0; i<15; i++) {
+            for (let i = 0; i < 15; i++) {
                 sim.particles[i].locked = true;
             }
         } else if (type === 'JELLY') {
             sim.createJelly(cx, cy, 80, 16, params.stiffness);
         } else if (type === 'BRIDGE') {
-             sim.createRope(50, sim.height/2, 20, sim.width - 100, 0.8);
+            sim.createRope(50, sim.height / 2, 20, sim.width - 100, 0.8);
         }
 
         setStats({ particles: sim.particles.length, springs: sim.springs.length });
@@ -70,7 +70,7 @@ export default function SoftBodyPage() {
         }
 
         const handleResize = () => {
-             if (containerRef.current && canvasRef.current && simulatorRef.current) {
+            if (containerRef.current && canvasRef.current && simulatorRef.current) {
                 const w = containerRef.current.clientWidth;
                 const h = containerRef.current.clientHeight;
                 canvasRef.current.width = w;
@@ -88,9 +88,7 @@ export default function SoftBodyPage() {
     useEffect(() => {
         if (simulatorRef.current) {
             simulatorRef.current.gravity = params.gravity;
-            // eslint-disable-next-line react-hooks/immutability
-            for(const s of simulatorRef.current.springs) {
-                // eslint-disable-next-line react-hooks/immutability
+            for (const s of simulatorRef.current.springs) {
                 s.stiffness = params.stiffness;
             }
         }
@@ -183,7 +181,7 @@ export default function SoftBodyPage() {
 
     return (
         <div className="soft-page">
-             <header className="soft-header">
+            <header className="soft-header">
                 <Link to="/" className="back-link">
                     <ArrowLeft size={20} />
                     <span>Back to Hub</span>
@@ -210,29 +208,29 @@ export default function SoftBodyPage() {
                         style={{ cursor: mouseRef.current.draggedParticle ? 'grabbing' : 'grab' }}
                     />
                     <div className="overlay-info">
-                         Particles: {stats.particles} | Springs: {stats.springs}
+                        Particles: {stats.particles} | Springs: {stats.springs}
                     </div>
                 </div>
 
                 <aside className="soft-sidebar">
                     <div className="sidebar-section">
-                         <h2><Box size={16} /> Presets</h2>
-                         <div className="scenario-grid">
+                        <h2><Box size={16} /> Presets</h2>
+                        <div className="scenario-grid">
                             <button onClick={() => handlePresetClick('JELLY')}>Jelly</button>
                             <button onClick={() => handlePresetClick('BOX')}>Soft Box</button>
                             <button onClick={() => handlePresetClick('CLOTH')}>Cloth</button>
                             <button onClick={() => handlePresetClick('BRIDGE')}>Rope Bridge</button>
-                         </div>
+                        </div>
                     </div>
 
                     <div className="sidebar-section">
                         <h2><Settings2 size={16} /> Parameters</h2>
-                         <div className="param-group">
+                        <div className="param-group">
                             <label>Gravity: {params.gravity}</label>
                             <input
                                 type="range" min="0" max="1" step="0.1"
                                 value={params.gravity}
-                                onChange={e => setParams({...params, gravity: Number(e.target.value)})}
+                                onChange={e => setParams({ ...params, gravity: Number(e.target.value) })}
                             />
                         </div>
                         <div className="param-group">
@@ -240,7 +238,7 @@ export default function SoftBodyPage() {
                             <input
                                 type="range" min="0.01" max="1.0" step="0.01"
                                 value={params.stiffness}
-                                onChange={e => setParams({...params, stiffness: Number(e.target.value)})}
+                                onChange={e => setParams({ ...params, stiffness: Number(e.target.value) })}
                             />
                         </div>
                         <div className="param-group">
@@ -248,7 +246,7 @@ export default function SoftBodyPage() {
                             <input
                                 type="range" min="0.1" max="1.0" step="0.1"
                                 value={params.damping}
-                                onChange={e => setParams({...params, damping: Number(e.target.value)})}
+                                onChange={e => setParams({ ...params, damping: Number(e.target.value) })}
                             />
                         </div>
                     </div>

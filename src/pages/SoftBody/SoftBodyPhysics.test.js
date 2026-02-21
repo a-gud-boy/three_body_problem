@@ -1,24 +1,22 @@
-import { test } from 'node:test';
-import assert from 'node:assert';
 import SoftBodyPhysics from './SoftBodyPhysics.js';
 
 test('SoftBodyPhysics: initializes with correct dimensions', () => {
     const physics = new SoftBodyPhysics(800, 600);
-    assert.strictEqual(physics.width, 800);
-    assert.strictEqual(physics.height, 600);
-    assert.strictEqual(physics.particles.length, 0);
-    assert.strictEqual(physics.springs.length, 0);
+    expect(physics.width).toBe(800);
+    expect(physics.height).toBe(600);
+    expect(physics.particles.length).toBe(0);
+    expect(physics.springs.length).toBe(0);
 });
 
 test('SoftBodyPhysics: addParticle adds particle to array', () => {
     const physics = new SoftBodyPhysics(800, 600);
     const p = physics.addParticle(100, 200, 1, false);
 
-    assert.strictEqual(physics.particles.length, 1);
-    assert.strictEqual(p.x, 100);
-    assert.strictEqual(p.y, 200);
-    assert.strictEqual(p.mass, 1);
-    assert.strictEqual(p.locked, false);
+    expect(physics.particles.length).toBe(1);
+    expect(p.x).toBe(100);
+    expect(p.y).toBe(200);
+    expect(p.mass).toBe(1);
+    expect(p.locked).toBe(false);
 });
 
 test('SoftBodyPhysics: addSpring adds spring to array', () => {
@@ -27,13 +25,13 @@ test('SoftBodyPhysics: addSpring adds spring to array', () => {
     const p2 = physics.addParticle(200, 100);
     physics.addSpring(p1, p2, 0.5);
 
-    assert.strictEqual(physics.springs.length, 1);
+    expect(physics.springs.length).toBe(1);
     const s = physics.springs[0];
-    assert.strictEqual(s.p1, p1);
-    assert.strictEqual(s.p2, p2);
+    expect(s.p1).toBe(p1);
+    expect(s.p2).toBe(p2);
     // Length should be 100
-    assert.strictEqual(s.restLength, 100);
-    assert.strictEqual(s.stiffness, 0.5);
+    expect(s.restLength).toBe(100);
+    expect(s.stiffness).toBe(0.5);
 });
 
 test('SoftBodyPhysics: createBox creates correct grid of particles', () => {
@@ -46,8 +44,8 @@ test('SoftBodyPhysics: createBox creates correct grid of particles', () => {
     // Total springs = 6 + 6 + 8 = 20
     physics.createBox(100, 100, 3, 3, 20, 0.5, 0.1);
 
-    assert.strictEqual(physics.particles.length, 9);
-    assert.strictEqual(physics.springs.length, 20);
+    expect(physics.particles.length).toBe(9);
+    expect(physics.springs.length).toBe(20);
 });
 
 test('SoftBodyPhysics: createRope creates chain of particles', () => {
@@ -56,9 +54,9 @@ test('SoftBodyPhysics: createRope creates chain of particles', () => {
     // 5 springs
     physics.createRope(100, 100, 5, 20, 0.5);
 
-    assert.strictEqual(physics.particles.length, 6);
-    assert.strictEqual(physics.springs.length, 5);
-    assert.strictEqual(physics.particles[0].locked, true);
+    expect(physics.particles.length).toBe(6);
+    expect(physics.springs.length).toBe(5);
+    expect(physics.particles[0].locked).toBe(true);
 });
 
 test('SoftBodyPhysics: createJelly creates connected structure', () => {
@@ -72,8 +70,8 @@ test('SoftBodyPhysics: createJelly creates connected structure', () => {
     // Total = 18 springs
     physics.createJelly(400, 300, 50, 6, 0.5);
 
-    assert.strictEqual(physics.particles.length, 7);
-    assert.strictEqual(physics.springs.length, 18);
+    expect(physics.particles.length).toBe(7);
+    expect(physics.springs.length).toBe(18);
 });
 
 test('SoftBodyPhysics: update applies gravity', () => {
@@ -87,7 +85,7 @@ test('SoftBodyPhysics: update applies gravity', () => {
     // y should increase (fall down)
     // Initially vy=0, fx=0, fy=0.5 (gravity * 0.5)
     // newY = y + vy + fy = 100 + 0 + 0.5 = 100.5
-    assert.ok(p.y > 100, `Particle should fall: ${p.y} > 100`);
+    expect(p.y > 100).toBeTruthy();
 });
 
 test('SoftBodyPhysics: boundaries constrain particles', () => {
@@ -102,19 +100,19 @@ test('SoftBodyPhysics: boundaries constrain particles', () => {
     physics.solveBoundaries();
 
     // Should be clamped to height - radius = 600 - 10 = 590
-    assert.strictEqual(p.y, 590);
+    expect(p.y).toBe(590);
 });
 
 test('SoftBodyPhysics: findNearestParticle finds closest within radius', () => {
     const physics = new SoftBodyPhysics(800, 600);
     const p1 = physics.addParticle(100, 100);
-    const p2 = physics.addParticle(200, 200);
+    physics.addParticle(200, 200);
 
     const nearest = physics.findNearestParticle(105, 105, 50);
-    assert.strictEqual(nearest, p1);
+    expect(nearest).toBe(p1);
 
     const none = physics.findNearestParticle(500, 500, 50);
-    assert.strictEqual(none, null);
+    expect(none).toBe(null);
 });
 
 test('SoftBodyPhysics: reset clears state', () => {
@@ -122,6 +120,6 @@ test('SoftBodyPhysics: reset clears state', () => {
     physics.addParticle(100, 100);
     physics.reset();
 
-    assert.strictEqual(physics.particles.length, 0);
-    assert.strictEqual(physics.springs.length, 0);
+    expect(physics.particles.length).toBe(0);
+    expect(physics.springs.length).toBe(0);
 });

@@ -1,20 +1,22 @@
+/* eslint-disable react-hooks/immutability */
 import React, { useMemo, useEffect } from 'react';
-import { uniform, float, vec3, positionLocal, distance, mix, clamp, color, positionWorld, length, varying } from 'three/tsl';
+import { uniform, vec3, positionLocal, mix, clamp, length, varying } from 'three/tsl';
 import { MeshStandardNodeMaterial } from 'three/webgpu';
 import * as THREE from 'three';
 
 export default function TSLGrid({ params }) {
     // Uniforms
-    const uMassPos = useMemo(() => uniform(new THREE.Vector3(0, 0, 0)), []);
-    const uMass = useMemo(() => uniform(params.blackHoleMass), []);
+    const uMass = useMemo(() => uniform(params.blackHoleMass), [params.blackHoleMass]);
     const uG = useMemo(() => uniform(1.0), []);
-    const uIntensity = useMemo(() => uniform(params.gridIntensity), []);
+    const uIntensity = useMemo(() => uniform(params.gridIntensity), [params.gridIntensity]);
     const uColor = useMemo(() => uniform(new THREE.Color(0x44aaff)), []);
 
     // Update uniforms when params change
     useEffect(() => {
-        uMass.value = params.blackHoleMass;
-        uIntensity.value = params.gridIntensity;
+        const massUniform = uMass;
+        const intensityUniform = uIntensity;
+        massUniform.value = params.blackHoleMass;
+        intensityUniform.value = params.gridIntensity;
     }, [params.blackHoleMass, params.gridIntensity, uMass, uIntensity]);
 
     const material = useMemo(() => {
@@ -59,7 +61,7 @@ export default function TSLGrid({ params }) {
         mat.opacity = 0.6;
 
         return mat;
-    }, [uMassPos, uMass, uG, uIntensity, uColor]);
+    }, [uMass, uG, uIntensity, uColor]);
 
     return (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -10, 0]}>

@@ -1,6 +1,4 @@
 
-import test from 'node:test';
-import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -8,10 +6,10 @@ import path from 'node:path';
 const workerPath = path.resolve('src/workers/physicsWorker.js');
 const workerCode = fs.readFileSync(workerPath, 'utf8');
 
-test('Physics Worker Protocol Compatibility', async (t) => {
+describe('Physics Worker Protocol Compatibility', () => {
     // Mock the Web Worker environment
     const self = {
-        postMessage: () => {},
+        postMessage: () => { },
         onmessage: null
     };
 
@@ -19,9 +17,9 @@ test('Physics Worker Protocol Compatibility', async (t) => {
     // We wrap the code to avoid polluting the global scope too much
     // and to handle 'self' and 'Float32Array'
     const runWorker = new Function('self', 'Float32Array', workerCode + '\nreturn self;');
-    const mockedWorker = runWorker(self, Float32Array);
+    runWorker(self, Float32Array);
 
-    await t.test('should calculate energy when shouldCalculateEnergy is true', () => {
+    it('should calculate energy when shouldCalculateEnergy is true', () => {
         let lastMessage = null;
         self.postMessage = (msg) => {
             if (msg.type === 'RESULT') lastMessage = msg;
@@ -43,13 +41,13 @@ test('Physics Worker Protocol Compatibility', async (t) => {
             }
         });
 
-        assert.ok(lastMessage, 'Worker should send a RESULT message');
-        assert.ok(lastMessage.stats, 'Result should contain stats');
-        assert.strictEqual(typeof lastMessage.stats.total, 'number', 'Total energy should be a number');
-        assert.ok(lastMessage.stats.total !== 0, 'Total energy should be non-zero');
+        expect(lastMessage).toBeTruthy();
+        expect(lastMessage.stats).toBeTruthy();
+        expect(typeof lastMessage.stats.total).toBe('number', 'Total energy should be a number');
+        expect(lastMessage.stats.total !== 0).toBeTruthy();
     });
 
-    await t.test('should skip energy calculation when shouldCalculateEnergy is false', () => {
+    it('should skip energy calculation when shouldCalculateEnergy is false', () => {
         let lastMessage = null;
         self.postMessage = (msg) => {
             if (msg.type === 'RESULT') lastMessage = msg;
@@ -71,11 +69,11 @@ test('Physics Worker Protocol Compatibility', async (t) => {
             }
         });
 
-        assert.ok(lastMessage, 'Worker should send a RESULT message');
-        assert.ok(lastMessage.stats, 'Result should contain stats');
-        assert.strictEqual(lastMessage.stats.total, undefined, 'Total energy should be undefined');
-        assert.strictEqual(lastMessage.stats.ke, undefined, 'KE should be undefined');
-        assert.strictEqual(lastMessage.stats.pe, undefined, 'PE should be undefined');
-        assert.strictEqual(typeof lastMessage.stats.time, 'number', 'Time should still be present');
+        expect(lastMessage).toBeTruthy();
+        expect(lastMessage.stats).toBeTruthy();
+        expect(lastMessage.stats.total).toBe(undefined, 'Total energy should be undefined');
+        expect(lastMessage.stats.ke).toBe(undefined, 'KE should be undefined');
+        expect(lastMessage.stats.pe).toBe(undefined, 'PE should be undefined');
+        expect(typeof lastMessage.stats.time).toBe('number', 'Time should still be present');
     });
 });

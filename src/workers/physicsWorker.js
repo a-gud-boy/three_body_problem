@@ -66,7 +66,7 @@ function calculateAccelerations(bodies, G, coulombK, skipIndex) {
 
             let coulombForce = 0;
             if (coulombK && b_i.charge && b_j.charge) {
-                 coulombForce = -1 * (coulombK * b_i.charge * b_j.charge) / distSq;
+                coulombForce = -1 * (coulombK * b_i.charge * b_j.charge) / distSq;
             }
 
             // Apply to i
@@ -132,7 +132,6 @@ function integrateRK4(bodies, dt, G, coulombK, skipIndex) {
     const n = bodies.length;
     ensureRK4Buffers(n);
     const { k1, k2, k3, k4, s1, s2, s3 } = rk4Buffers;
-    const stride = 6;
     const soft = SOFTENING;
 
     // Helper: compute derivatives
@@ -140,21 +139,21 @@ function integrateRK4(bodies, dt, G, coulombK, skipIndex) {
     const calcDerivatives = (input, inputType, outBuffer) => {
         // Initialize output buffer elements
         for (let i = 0; i < n; i++) {
-             const i6 = i * 6;
-             // Set dx/dt = vx
-             if (inputType === 0) {
-                 outBuffer[i6] = input[i].vx;
-                 outBuffer[i6+1] = input[i].vy;
-                 outBuffer[i6+2] = input[i].vz;
-             } else {
-                 outBuffer[i6] = input[i6+3]; // vx is at index 3 in state buffer (x,y,z,vx,vy,vz)
-                 outBuffer[i6+1] = input[i6+4];
-                 outBuffer[i6+2] = input[i6+5];
-             }
-             // Set dv/dt = 0 (accumulator)
-             outBuffer[i6+3] = 0;
-             outBuffer[i6+4] = 0;
-             outBuffer[i6+5] = 0;
+            const i6 = i * 6;
+            // Set dx/dt = vx
+            if (inputType === 0) {
+                outBuffer[i6] = input[i].vx;
+                outBuffer[i6 + 1] = input[i].vy;
+                outBuffer[i6 + 2] = input[i].vz;
+            } else {
+                outBuffer[i6] = input[i6 + 3]; // vx is at index 3 in state buffer (x,y,z,vx,vy,vz)
+                outBuffer[i6 + 1] = input[i6 + 4];
+                outBuffer[i6 + 2] = input[i6 + 5];
+            }
+            // Set dv/dt = 0 (accumulator)
+            outBuffer[i6 + 3] = 0;
+            outBuffer[i6 + 4] = 0;
+            outBuffer[i6 + 5] = 0;
         }
 
         for (let i = 0; i < n; i++) {
@@ -166,7 +165,7 @@ function integrateRK4(bodies, dt, G, coulombK, skipIndex) {
                 icharge = b.charge;
             } else {
                 const i6 = i * 6;
-                ix = input[i6]; iy = input[i6+1]; iz = input[i6+2];
+                ix = input[i6]; iy = input[i6 + 1]; iz = input[i6 + 2];
                 imass = bodies[i].mass;
                 icharge = bodies[i].charge;
             }
@@ -183,7 +182,7 @@ function integrateRK4(bodies, dt, G, coulombK, skipIndex) {
                     jcharge = b.charge;
                 } else {
                     const j6 = j * 6;
-                    jx = input[j6]; jy = input[j6+1]; jz = input[j6+2];
+                    jx = input[j6]; jy = input[j6 + 1]; jz = input[j6 + 2];
                     jmass = bodies[j].mass;
                     jcharge = bodies[j].charge;
                 }
@@ -203,17 +202,17 @@ function integrateRK4(bodies, dt, G, coulombK, skipIndex) {
                 // Force on i
                 let termI = jmass * commonFact;
                 if (coulombForce !== 0) termI += (coulombForce / imass) * invDist;
-                outBuffer[iOut+3] += termI * dx;
-                outBuffer[iOut+4] += termI * dy;
-                outBuffer[iOut+5] += termI * dz;
+                outBuffer[iOut + 3] += termI * dx;
+                outBuffer[iOut + 4] += termI * dy;
+                outBuffer[iOut + 5] += termI * dz;
 
                 // Force on j
                 let termJ = imass * commonFact;
                 if (coulombForce !== 0) termJ += (coulombForce / jmass) * invDist;
                 const jOut = j * 6;
-                outBuffer[jOut+3] -= termJ * dx;
-                outBuffer[jOut+4] -= termJ * dy;
-                outBuffer[jOut+5] -= termJ * dz;
+                outBuffer[jOut + 3] -= termJ * dx;
+                outBuffer[jOut + 4] -= termJ * dy;
+                outBuffer[jOut + 5] -= termJ * dz;
             }
         }
     };
@@ -225,12 +224,12 @@ function integrateRK4(bodies, dt, G, coulombK, skipIndex) {
     const dt2 = dt * 0.5;
     for (let i = 0; i < n; i++) {
         const i6 = i * 6;
-        s1[i6]   = bodies[i].x + k1[i6] * dt2;
-        s1[i6+1] = bodies[i].y + k1[i6+1] * dt2;
-        s1[i6+2] = bodies[i].z + k1[i6+2] * dt2;
-        s1[i6+3] = bodies[i].vx + k1[i6+3] * dt2;
-        s1[i6+4] = bodies[i].vy + k1[i6+4] * dt2;
-        s1[i6+5] = bodies[i].vz + k1[i6+5] * dt2;
+        s1[i6] = bodies[i].x + k1[i6] * dt2;
+        s1[i6 + 1] = bodies[i].y + k1[i6 + 1] * dt2;
+        s1[i6 + 2] = bodies[i].z + k1[i6 + 2] * dt2;
+        s1[i6 + 3] = bodies[i].vx + k1[i6 + 3] * dt2;
+        s1[i6 + 4] = bodies[i].vy + k1[i6 + 4] * dt2;
+        s1[i6 + 5] = bodies[i].vz + k1[i6 + 5] * dt2;
     }
 
     // K2 = f(S1)
@@ -239,12 +238,12 @@ function integrateRK4(bodies, dt, G, coulombK, skipIndex) {
     // S2 = y0 + K2 * dt/2
     for (let i = 0; i < n; i++) {
         const i6 = i * 6;
-        s2[i6]   = bodies[i].x + k2[i6] * dt2;
-        s2[i6+1] = bodies[i].y + k2[i6+1] * dt2;
-        s2[i6+2] = bodies[i].z + k2[i6+2] * dt2;
-        s2[i6+3] = bodies[i].vx + k2[i6+3] * dt2;
-        s2[i6+4] = bodies[i].vy + k2[i6+4] * dt2;
-        s2[i6+5] = bodies[i].vz + k2[i6+5] * dt2;
+        s2[i6] = bodies[i].x + k2[i6] * dt2;
+        s2[i6 + 1] = bodies[i].y + k2[i6 + 1] * dt2;
+        s2[i6 + 2] = bodies[i].z + k2[i6 + 2] * dt2;
+        s2[i6 + 3] = bodies[i].vx + k2[i6 + 3] * dt2;
+        s2[i6 + 4] = bodies[i].vy + k2[i6 + 4] * dt2;
+        s2[i6 + 5] = bodies[i].vz + k2[i6 + 5] * dt2;
     }
 
     // K3 = f(S2)
@@ -253,12 +252,12 @@ function integrateRK4(bodies, dt, G, coulombK, skipIndex) {
     // S3 = y0 + K3 * dt
     for (let i = 0; i < n; i++) {
         const i6 = i * 6;
-        s3[i6]   = bodies[i].x + k3[i6] * dt;
-        s3[i6+1] = bodies[i].y + k3[i6+1] * dt;
-        s3[i6+2] = bodies[i].z + k3[i6+2] * dt;
-        s3[i6+3] = bodies[i].vx + k3[i6+3] * dt;
-        s3[i6+4] = bodies[i].vy + k3[i6+4] * dt;
-        s3[i6+5] = bodies[i].vz + k3[i6+5] * dt;
+        s3[i6] = bodies[i].x + k3[i6] * dt;
+        s3[i6 + 1] = bodies[i].y + k3[i6 + 1] * dt;
+        s3[i6 + 2] = bodies[i].z + k3[i6 + 2] * dt;
+        s3[i6 + 3] = bodies[i].vx + k3[i6 + 3] * dt;
+        s3[i6 + 4] = bodies[i].vy + k3[i6 + 4] * dt;
+        s3[i6 + 5] = bodies[i].vz + k3[i6 + 5] * dt;
     }
 
     // K4 = f(S3)
@@ -269,12 +268,12 @@ function integrateRK4(bodies, dt, G, coulombK, skipIndex) {
     for (let i = 0; i < n; i++) {
         if (i === skipIndex) continue;
         const i6 = i * 6;
-        bodies[i].x += (k1[i6] + 2*k2[i6] + 2*k3[i6] + k4[i6]) * dt6;
-        bodies[i].y += (k1[i6+1] + 2*k2[i6+1] + 2*k3[i6+1] + k4[i6+1]) * dt6;
-        bodies[i].z += (k1[i6+2] + 2*k2[i6+2] + 2*k3[i6+2] + k4[i6+2]) * dt6;
-        bodies[i].vx += (k1[i6+3] + 2*k2[i6+3] + 2*k3[i6+3] + k4[i6+3]) * dt6;
-        bodies[i].vy += (k1[i6+4] + 2*k2[i6+4] + 2*k3[i6+4] + k4[i6+4]) * dt6;
-        bodies[i].vz += (k1[i6+5] + 2*k2[i6+5] + 2*k3[i6+5] + k4[i6+5]) * dt6;
+        bodies[i].x += (k1[i6] + 2 * k2[i6] + 2 * k3[i6] + k4[i6]) * dt6;
+        bodies[i].y += (k1[i6 + 1] + 2 * k2[i6 + 1] + 2 * k3[i6 + 1] + k4[i6 + 1]) * dt6;
+        bodies[i].z += (k1[i6 + 2] + 2 * k2[i6 + 2] + 2 * k3[i6 + 2] + k4[i6 + 2]) * dt6;
+        bodies[i].vx += (k1[i6 + 3] + 2 * k2[i6 + 3] + 2 * k3[i6 + 3] + k4[i6 + 3]) * dt6;
+        bodies[i].vy += (k1[i6 + 4] + 2 * k2[i6 + 4] + 2 * k3[i6 + 4] + k4[i6 + 4]) * dt6;
+        bodies[i].vz += (k1[i6 + 5] + 2 * k2[i6 + 5] + 2 * k3[i6 + 5] + k4[i6 + 5]) * dt6;
     }
 
     return bodies;

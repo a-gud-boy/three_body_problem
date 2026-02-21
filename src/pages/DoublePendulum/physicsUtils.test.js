@@ -1,5 +1,3 @@
-import { test } from 'node:test';
-import assert from 'node:assert';
 import { getDerivatives } from './physicsUtils.js';
 
 test('getDerivatives: returns correct structure', () => {
@@ -8,10 +6,10 @@ test('getDerivatives: returns correct structure', () => {
 
     const result = getDerivatives(state, params);
 
-    assert.ok(typeof result.dTheta1 === 'number');
-    assert.ok(typeof result.dTheta2 === 'number');
-    assert.ok(typeof result.dOmega1 === 'number');
-    assert.ok(typeof result.dOmega2 === 'number');
+    expect(typeof result.dTheta1 === 'number').toBeTruthy();
+    expect(typeof result.dTheta2 === 'number').toBeTruthy();
+    expect(typeof result.dOmega1 === 'number').toBeTruthy();
+    expect(typeof result.dOmega2 === 'number').toBeTruthy();
 });
 
 test('getDerivatives: static equilibrium (hanging down)', () => {
@@ -20,10 +18,10 @@ test('getDerivatives: static equilibrium (hanging down)', () => {
 
     const result = getDerivatives(state, params);
 
-    assert.strictEqual(result.dTheta1, 0);
-    assert.strictEqual(result.dTheta2, 0);
-    assert.ok(Math.abs(result.dOmega1) < 1e-10, `Expected dOmega1 ~0, got ${result.dOmega1}`);
-    assert.ok(Math.abs(result.dOmega2) < 1e-10, `Expected dOmega2 ~0, got ${result.dOmega2}`);
+    expect(result.dTheta1).toBe(0);
+    expect(result.dTheta2).toBe(0);
+    expect(Math.abs(result.dOmega1) < 1e-10, `Expected dOmega1 ~0, got ${result.dOmega1}`).toBeTruthy();
+    expect(Math.abs(result.dOmega2) < 1e-10, `Expected dOmega2 ~0, got ${result.dOmega2}`).toBeTruthy();
 });
 
 test('getDerivatives: gravity pulls down (both horizontal)', () => {
@@ -34,8 +32,8 @@ test('getDerivatives: gravity pulls down (both horizontal)', () => {
     const result = getDerivatives(state, params);
 
     // m1 falls at g initially, creating a "weightless" frame for m2, so dOmega2 is 0 initially.
-    assert.ok(result.dOmega1 < 0, `Expected negative dOmega1 (restoring force), got ${result.dOmega1}`);
-    assert.ok(Math.abs(result.dOmega2) < 1e-10, `Expected dOmega2 ~0 due to freefall frame, got ${result.dOmega2}`);
+    expect(result.dOmega1 < 0, `Expected negative dOmega1 (restoring force), got ${result.dOmega1}`).toBeTruthy();
+    expect(Math.abs(result.dOmega2) < 1e-10, `Expected dOmega2 ~0 due to freefall frame, got ${result.dOmega2}`).toBeTruthy();
 });
 
 test('getDerivatives: gravity pulls outer pendulum (L-shape)', () => {
@@ -46,13 +44,13 @@ test('getDerivatives: gravity pulls outer pendulum (L-shape)', () => {
     const result = getDerivatives(state, params);
 
     // Outer pendulum should definitely fall
-    assert.ok(result.dOmega2 < 0, `Expected negative dOmega2, got ${result.dOmega2}`);
+    expect(result.dOmega2 < 0, `Expected negative dOmega2, got ${result.dOmega2}`).toBeTruthy();
     // Reaction force might push inner pendulum?
     // If m2 falls, it pulls m1 to the right (positive theta).
     // So dOmega1 might be positive?
     // Let's check physics: Torque on m1 from tension in l2.
     // Tension pulls right. m1 rotates positive.
-    assert.ok(result.dOmega1 > 0, `Expected positive dOmega1 (reaction), got ${result.dOmega1}`);
+    expect(result.dOmega1 > 0, `Expected positive dOmega1 (reaction), got ${result.dOmega1}`).toBeTruthy();
 });
 
 test('getDerivatives: chaotic sensitivity (small change in input -> change in output)', () => {
@@ -63,8 +61,8 @@ test('getDerivatives: chaotic sensitivity (small change in input -> change in ou
     const res1 = getDerivatives(state1, params);
     const res2 = getDerivatives(state2, params);
 
-    assert.notStrictEqual(res1.dOmega1, res2.dOmega1);
-    assert.notStrictEqual(res1.dOmega2, res2.dOmega2);
+    expect(res1.dOmega1).not.toBe(res2.dOmega1);
+    expect(res1.dOmega2).not.toBe(res2.dOmega2);
 });
 
 test('getDerivatives: handles edge cases (zero mass)', () => {
@@ -73,7 +71,7 @@ test('getDerivatives: handles edge cases (zero mass)', () => {
 
     const result = getDerivatives(state, params);
 
-    assert.ok(Number.isNaN(result.dOmega1) || !Number.isFinite(result.dOmega1));
+    expect(Number.isNaN(result.dOmega1) || !Number.isFinite(result.dOmega1)).toBeTruthy();
 });
 
 test('getDerivatives: centripetal force affects outer pendulum', () => {
@@ -84,7 +82,7 @@ test('getDerivatives: centripetal force affects outer pendulum', () => {
     // Case A: omega1 = 0. Gravity dominates. dOmega2 should be negative (down).
     const stateA = { theta1: 0, theta2: Math.PI / 2, omega1: 0, omega2: 0 };
     const resA = getDerivatives(stateA, params);
-    assert.ok(resA.dOmega2 < 0, 'Static: outer pendulum should fall');
+    expect(resA.dOmega2 < 0).toBeTruthy();
 
     // Case B: omega1 is large. Centripetal acceleration (l1 * omega1^2) > g.
     // l1=1, g=10. Need omega1 > sqrt(10) ~ 3.16. Let's use 10.
@@ -145,5 +143,5 @@ test('getDerivatives: centripetal force affects outer pendulum', () => {
     const stateB = { theta1: 0, theta2: Math.PI / 2, omega1: 10, omega2: 0 };
     const resB = getDerivatives(stateB, params);
 
-    assert.ok(resB.dOmega2 > 0, 'High velocity: outer pendulum should rise due to centripetal force');
+    expect(resB.dOmega2 > 0).toBeTruthy();
 });

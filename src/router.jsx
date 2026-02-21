@@ -1,17 +1,27 @@
+import React, { Suspense } from 'react';
 import { createHashRouter } from 'react-router-dom';
 import HomePage from './pages/HomePage';
-import ThreeBodyPage from './pages/ThreeBody/ThreeBodyPage';
-import AtomSimulator from './pages/AtomSimulator/AtomSimulator';
-import ElectromagneticPage from './pages/Electromagnetic/ElectromagneticPage';
-import DoublePendulumPage from './pages/DoublePendulum/DoublePendulumPage';
-import FluidDynamicsPage from './pages/FluidDynamics/FluidDynamicsPage';
-import WaveInterferencePage from './pages/WaveInterference/WaveInterferencePage';
-import SoftBodyPage from './pages/SoftBody/SoftBodyPage';
-import ConceptPage from './pages/Concept/ConceptPage';
-import GeneralRelativityPage from './pages/GeneralRelativity/GeneralRelativityPage';
-import QuantumSandboxPage from './pages/QuantumSandbox/QuantumSandboxPage';
-import AerodynamicsPage from './pages/Aerodynamics/AerodynamicsPage';
-import ThermodynamicsPage from './pages/Thermodynamics/ThermodynamicsPage';
+
+// Lazy load all simulation pages to reduce initial bundle size
+const ThreeBodyPage = React.lazy(() => import('./pages/ThreeBody/ThreeBodyPage'));
+const AtomSimulator = React.lazy(() => import('./pages/AtomSimulator/AtomSimulator'));
+const ElectromagneticPage = React.lazy(() => import('./pages/Electromagnetic/ElectromagneticPage'));
+const DoublePendulumPage = React.lazy(() => import('./pages/DoublePendulum/DoublePendulumPage'));
+const FluidDynamicsPage = React.lazy(() => import('./pages/FluidDynamics/FluidDynamicsPage'));
+const WaveInterferencePage = React.lazy(() => import('./pages/WaveInterference/WaveInterferencePage'));
+const SoftBodyPage = React.lazy(() => import('./pages/SoftBody/SoftBodyPage'));
+const ConceptPage = React.lazy(() => import('./pages/Concept/ConceptPage'));
+const GeneralRelativityPage = React.lazy(() => import('./pages/GeneralRelativity/GeneralRelativityPage'));
+const QuantumSandboxPage = React.lazy(() => import('./pages/QuantumSandbox/QuantumSandboxPage'));
+const AerodynamicsPage = React.lazy(() => import('./pages/Aerodynamics/AerodynamicsPage'));
+const ThermodynamicsPage = React.lazy(() => import('./pages/Thermodynamics/ThermodynamicsPage'));
+
+// A simple fallback spinner/loading indicator
+const SuspenseFallback = () => (
+    <div style={{ display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f172a', color: '#fff' }}>
+        <p>Loading Simulation...</p>
+    </div>
+);
 
 const router = createHashRouter([
     {
@@ -20,51 +30,51 @@ const router = createHashRouter([
     },
     {
         path: '/three-body',
-        element: <ThreeBodyPage />,
+        element: <Suspense fallback={<SuspenseFallback />}><ThreeBodyPage /></Suspense>,
     },
     {
         path: '/atom-simulator',
-        element: <AtomSimulator />,
+        element: <Suspense fallback={<SuspenseFallback />}><AtomSimulator /></Suspense>,
     },
     {
         path: '/electromagnetic',
-        element: <ElectromagneticPage />,
+        element: <Suspense fallback={<SuspenseFallback />}><ElectromagneticPage /></Suspense>,
     },
     {
         path: '/double-pendulum',
-        element: <DoublePendulumPage />,
+        element: <Suspense fallback={<SuspenseFallback />}><DoublePendulumPage /></Suspense>,
     },
     {
         path: '/fluid-dynamics',
-        element: <FluidDynamicsPage />,
+        element: <Suspense fallback={<SuspenseFallback />}><FluidDynamicsPage /></Suspense>,
     },
     {
         path: '/wave-interference',
-        element: <WaveInterferencePage />,
+        element: <Suspense fallback={<SuspenseFallback />}><WaveInterferencePage /></Suspense>,
     },
     {
         path: '/soft-body',
-        element: <SoftBodyPage />,
+        element: <Suspense fallback={<SuspenseFallback />}><SoftBodyPage /></Suspense>,
     },
     {
         path: '/general-relativity',
-        element: <GeneralRelativityPage />,
+        element: <Suspense fallback={<SuspenseFallback />}><GeneralRelativityPage /></Suspense>,
     },
     {
         path: '/quantum-sandbox',
-        element: <QuantumSandboxPage />,
+        element: <Suspense fallback={<SuspenseFallback />}><QuantumSandboxPage /></Suspense>,
     },
     {
         path: '/aerodynamics',
-        element: <AerodynamicsPage />,
+        element: <Suspense fallback={<SuspenseFallback />}><AerodynamicsPage /></Suspense>,
     },
     {
         path: '/thermodynamics',
-        element: <ThermodynamicsPage />,
+        element: <Suspense fallback={<SuspenseFallback />}><ThermodynamicsPage /></Suspense>,
     },
     {
         path: '/concept/:id',
-        element: <ConceptPage />,
+        element: <Suspense fallback={<SuspenseFallback />}><ConceptPage /></Suspense>,
     },
 ]);
 

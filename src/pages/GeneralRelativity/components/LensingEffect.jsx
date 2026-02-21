@@ -259,7 +259,7 @@ export default function LensingEffect({ params }) {
         uDiskInner: { value: 2.0 },
         uDiskOuter: { value: 8.0 },
         uDiskHeight: { value: 0.2 }
-    }), []);
+    }), [params.blackHoleMass, params.speedOfLight, params.kerrSpinParameter, params.enableLensing, params.showEinsteinRing]);
 
     useFrame((state) => {
         if (meshRef.current) {

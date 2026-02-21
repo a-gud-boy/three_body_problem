@@ -78,7 +78,7 @@ export default function GravityGrid({ params }) {
         uG: { value: 1.0 },
         uIntensity: { value: params.gridIntensity },
         uColor: { value: new THREE.Color(0x44aaff) }
-    }), []);
+    }), [params.blackHoleMass, params.gridIntensity]);
 
     useFrame((state) => {
         if (materialRef.current) {

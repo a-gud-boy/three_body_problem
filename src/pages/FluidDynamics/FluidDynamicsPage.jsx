@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import {
     Fn, uniform, storage, float, vec3, int,
     instanceIndex, vertexIndex, positionLocal,
-    viewportUV, mix, color, varying, sin, cos
+    viewportUV, mix, color, varying
 } from 'three/tsl';
 import { WebGPURenderer, StorageBufferAttribute, MeshStandardNodeMaterial } from 'three/webgpu';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -433,32 +433,32 @@ class WebGPUWaterSimulation {
                     for (const c of centers) {
                         const dx = x - c.x;
                         const dy = y - c.y;
-                        if (dx*dx + dy*dy < c.r*c.r) {
+                        if (dx * dx + dy * dy < c.r * c.r) {
                             obs[i] = 1.0;
                         }
                     }
                 }
             }
         } else if (scenario === 'rocks') {
-             for (let i = 0; i < this.count; i++) {
-                 if (Math.random() > 0.995) {
-                     const cx = i % gs;
-                     const cy = Math.floor(i / gs);
-                     const r = Math.random() * (gs * 0.03) + 2;
+            for (let i = 0; i < this.count; i++) {
+                if (Math.random() > 0.995) {
+                    const cx = i % gs;
+                    const cy = Math.floor(i / gs);
+                    const r = Math.random() * (gs * 0.03) + 2;
 
-                     for(let ry = -r; ry <= r; ry++) {
-                         for(let rx = -r; rx <= r; rx++) {
-                             const tx = cx + rx;
-                             const ty = cy + ry;
-                             if(tx >=0 && tx < gs && ty >=0 && ty < gs) {
-                                 if (rx*rx + ry*ry < r*r) {
-                                     obs[ty * gs + tx] = 1.0;
-                                 }
-                             }
-                         }
-                     }
-                 }
-             }
+                    for (let ry = -r; ry <= r; ry++) {
+                        for (let rx = -r; rx <= r; rx++) {
+                            const tx = cx + rx;
+                            const ty = cy + ry;
+                            if (tx >= 0 && tx < gs && ty >= 0 && ty < gs) {
+                                if (rx * rx + ry * ry < r * r) {
+                                    obs[ty * gs + tx] = 1.0;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         this.obstacleBuffer.needsUpdate = true;

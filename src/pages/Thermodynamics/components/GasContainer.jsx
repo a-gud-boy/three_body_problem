@@ -1,8 +1,8 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import {
-    Fn, uniform, storage, float, uint, int, vec2, vec3, vec4, instanceIndex,
-    positionLocal, sqrt, dot, mix
+    Fn, storage, float, vec3, instanceIndex,
+    positionLocal
 } from 'three/tsl';
 import { WebGPURenderer, StorageBufferAttribute, MeshStandardNodeMaterial } from 'three/webgpu';
 

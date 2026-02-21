@@ -1,6 +1,5 @@
 // verification/general_relativity_crash_standalone.js
 import { chromium } from 'playwright';
-import { strict as assert } from 'node:assert';
 
 (async () => {
   console.log('Starting verification script...');

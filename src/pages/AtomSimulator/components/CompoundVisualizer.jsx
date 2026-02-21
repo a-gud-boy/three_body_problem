@@ -1,10 +1,9 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { drawCompound } from '../utils/compoundDrawUtils';
 import './CompoundVisualizer.css';
 
-export default function CompoundVisualizer({ compound, atoms, visualizationMode }) {
+export default function CompoundVisualizer({ compound, atoms }) {
     const canvasRef = useRef(null);
-    const animationRef = useRef(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
     const [scale, setScale] = useState(1);
     const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -52,8 +51,7 @@ export default function CompoundVisualizer({ compound, atoms, visualizationMode 
         setScale(prev => Math.min(Math.max(0.2, prev + delta), 3));
     };
 
-    // Prepare data directly from inputs
-    const renderData = compound ? compound : (atoms && atoms.length > 0 ? {
+    const renderData = useMemo(() => compound ? compound : (atoms && atoms.length > 0 ? {
         atoms: atoms.map((a, i) => {
             const angle = (i / atoms.length) * Math.PI * 2;
             const radius = atoms.length > 1 ? 1.0 + (atoms.length * 0.1) : 0;
@@ -65,7 +63,7 @@ export default function CompoundVisualizer({ compound, atoms, visualizationMode 
             };
         }),
         bonds: []
-    } : null);
+    } : null), [compound, atoms]);
 
     // Main Rendering Effect
     useEffect(() => {

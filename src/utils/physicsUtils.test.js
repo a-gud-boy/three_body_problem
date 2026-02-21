@@ -1,5 +1,3 @@
-import { test } from 'node:test';
-import assert from 'node:assert';
 import {
     COULOMB_K,
     calculateTotalEnergy,
@@ -16,13 +14,13 @@ test('calculateTotalEnergy: calculates correct energy for a dipole', () => {
     // Distance = 10
     // Energy = k * q1 * q2 / r = 8.99e3 * 1 * -1 / 10 = -899
     const energy = calculateTotalEnergy(charges);
-    assert.ok(Math.abs(energy - (-899)) < 0.01, `Expected -899, got ${energy}`);
+    expect(Math.abs(energy - (-899)) < 0.01, `Expected -899, got ${energy}`).toBeTruthy();
 });
 
 test('calculateTotalEnergy: returns 0 for single charge', () => {
     const charges = [{ x: 0, y: 0, z: 0, q: 1 }];
     const energy = calculateTotalEnergy(charges);
-    assert.strictEqual(energy, 0);
+    expect(energy).toBe(0);
 });
 
 test('calculateTotalEnergy: handles singularity (dist <= 1)', () => {
@@ -31,7 +29,7 @@ test('calculateTotalEnergy: handles singularity (dist <= 1)', () => {
         { x: 0.5, y: 0, z: 0, q: -1 } // dist = 0.5 <= 1
     ];
     const energy = calculateTotalEnergy(charges);
-    assert.strictEqual(energy, 0);
+    expect(energy).toBe(0);
 });
 
 test('calculateField: calculates field from single positive charge', () => {
@@ -45,9 +43,9 @@ test('calculateField: calculates field from single positive charge', () => {
     // Expected: (89.9, 0, 0)
 
     const field = calculateField(point, charges);
-    assert.ok(Math.abs(field.x - 89.9) < 0.01, `Expected x ~89.9, got ${field.x}`);
-    assert.ok(Math.abs(field.y) < 0.001, `Expected y ~0, got ${field.y}`);
-    assert.ok(Math.abs(field.z) < 0.001, `Expected z ~0, got ${field.z}`);
+    expect(Math.abs(field.x - 89.9) < 0.01, `Expected x ~89.9, got ${field.x}`).toBeTruthy();
+    expect(Math.abs(field.y) < 0.001, `Expected y ~0, got ${field.y}`).toBeTruthy();
+    expect(Math.abs(field.z) < 0.001, `Expected z ~0, got ${field.z}`).toBeTruthy();
 });
 
 test('calculateField: calculates field from single negative charge', () => {
@@ -59,22 +57,22 @@ test('calculateField: calculates field from single negative charge', () => {
     // Field = -1 * 89.9 * (1, 0, 0) = (-89.9, 0, 0)
 
     const field = calculateField(point, charges);
-    assert.ok(Math.abs(field.x - (-89.9)) < 0.01, `Expected x ~-89.9, got ${field.x}`);
+    expect(Math.abs(field.x - (-89.9)) < 0.01, `Expected x ~-89.9, got ${field.x}`).toBeTruthy();
 });
 
 test('calculateField: ignores points too close to charge', () => {
     const charges = [{ x: 0, y: 0, z: 0, q: 1 }];
     const point = { x: 4, y: 0, z: 0 }; // dist = 4 < 5
     const field = calculateField(point, charges);
-    assert.strictEqual(field.x, 0);
-    assert.strictEqual(field.y, 0);
-    assert.strictEqual(field.z, 0);
+    expect(field.x).toBe(0);
+    expect(field.y).toBe(0);
+    expect(field.z).toBe(0);
 });
 
 test('calculateElectrostaticForce: calculates force correctly', () => {
     const f = calculateElectrostaticForce(1, -1, 100);
     // k * 1 * -1 / 100 = -89.9
-    assert.ok(Math.abs(f - (-89.9)) < 0.01, `Expected -89.9, got ${f}`);
+    expect(Math.abs(f - (-89.9)) < 0.01, `Expected -89.9, got ${f}`).toBeTruthy();
 });
 
 test('calculateField: respects custom minDistance', () => {
@@ -83,13 +81,13 @@ test('calculateField: respects custom minDistance', () => {
 
     // Default minDistance is 5, so it should be skipped (0 field)
     let field = calculateField(point, charges);
-    assert.strictEqual(field.x, 0);
+    expect(field.x).toBe(0);
 
     // With minDistance = 3, it should be calculated
     field = calculateField(point, charges, 3);
-    assert.notStrictEqual(field.x, 0);
+    expect(field.x).not.toBe(0);
     // Mag = 8.99e3 / 16 = 561.875
-    assert.ok(Math.abs(field.x - 561.875) < 0.1, `Expected ~561.875, got ${field.x}`);
+    expect(Math.abs(field.x - 561.875) < 0.1, `Expected ~561.875, got ${field.x}`).toBeTruthy();
 });
 
 test('traceFieldLine: traces away from positive charge', () => {
@@ -98,12 +96,12 @@ test('traceFieldLine: traces away from positive charge', () => {
     const points = traceFieldLine(startPoint, 1, charges, { maxSteps: 5, stepSize: 1 });
 
     // Should move further away in +x direction
-    assert.strictEqual(points.length, 5);
+    expect(points.length).toBe(5);
     // Initial point
-    assert.strictEqual(points[0].x, 10);
+    expect(points[0].x).toBe(10);
     // Next points should increase x
-    assert.ok(points[1].x > 10);
-    assert.ok(points[4].x > points[1].x);
+    expect(points[1].x > 10).toBeTruthy();
+    expect(points[4].x > points[1].x).toBeTruthy();
 });
 
 test('traceFieldLine: terminates when close to charge', () => {
@@ -119,18 +117,18 @@ test('traceFieldLine: terminates when close to charge', () => {
     });
 
     // It should stop before 100 steps if it hits the charge
-    assert.ok(points.length < 100, `Expected trace to stop before 100 steps, took ${points.length}`);
+    expect(points.length < 100, `Expected trace to stop before 100 steps, took ${points.length}`).toBeTruthy();
     const last = points[points.length - 1];
     // Should be close to 0 (within radius * 1.5 = 15)
     // We started at -40.
-    assert.ok(Math.abs(last.x) <= 15, `Ended at ${last.x}, expected <= 15`);
+    expect(Math.abs(last.x) <= 15, `Ended at ${last.x}, expected <= 15`).toBeTruthy();
 });
 
 test('traceFieldLine: stops at max steps', () => {
     const charges = [{ x: 0, y: 0, z: 0, q: 1 }];
     const startPoint = { x: 10, y: 0, z: 0 };
     const points = traceFieldLine(startPoint, 1, charges, { maxSteps: 10 });
-    assert.strictEqual(points.length, 10);
+    expect(points.length).toBe(10);
 });
 
 test('traceFieldLine: terminates when exceeding bounds', () => {
@@ -145,8 +143,8 @@ test('traceFieldLine: terminates when exceeding bounds', () => {
         stepSize: 6,
         bounds: 15
     });
-    assert.strictEqual(pointsPos.length, 1, 'Should stop after first point when exceeding positive bounds');
-    assert.strictEqual(pointsPos[0].x, 10);
+    expect(pointsPos.length).toBe(1, 'Should stop after first point when exceeding positive bounds');
+    expect(pointsPos[0].x).toBe(10);
 
     // Test negative bounds
     // Trace away from positive charge in -x direction
@@ -157,8 +155,8 @@ test('traceFieldLine: terminates when exceeding bounds', () => {
         stepSize: 6,
         bounds: 15
     });
-    assert.strictEqual(pointsNeg.length, 1, 'Should stop after first point when exceeding negative bounds');
-    assert.strictEqual(pointsNeg[0].x, -10);
+    expect(pointsNeg.length).toBe(1, 'Should stop after first point when exceeding negative bounds');
+    expect(pointsNeg[0].x).toBe(-10);
 });
 
 test('traceFieldLine: terminates when field magnitude drops below minFieldMag', () => {
@@ -177,8 +175,8 @@ test('traceFieldLine: terminates when field magnitude drops below minFieldMag', 
         minFieldMag: 1.0
     });
 
-    assert.ok(points.length < 100, `Expected trace to stop before maxSteps (100), took ${points.length}`);
-    assert.ok(points.length > 1, `Expected at least one step, got ${points.length}`);
+    expect(points.length < 100, `Expected trace to stop before maxSteps (100), took ${points.length}`).toBeTruthy();
+    expect(points.length > 1, `Expected at least one step, got ${points.length}`).toBeTruthy();
 
     const lastPoint = points[points.length - 1];
     const fieldAtLast = calculateField(lastPoint, charges);
@@ -187,13 +185,13 @@ test('traceFieldLine: terminates when field magnitude drops below minFieldMag', 
     // The loop breaks IF mag < minFieldMag.
     // The point is added BEFORE the check.
     // So the last point added MUST satisfy mag < minFieldMag.
-    assert.ok(magAtLast < 1.0, `Last point magnitude ${magAtLast} should be < 1.0`);
+    expect(magAtLast < 1.0).toBeTruthy();
 
     // The point before the last one must have been >= minFieldMag
     if (points.length > 1) {
         const prevPoint = points[points.length - 2];
         const fieldAtPrev = calculateField(prevPoint, charges);
         const magAtPrev = Math.sqrt(fieldAtPrev.x ** 2 + fieldAtPrev.y ** 2 + fieldAtPrev.z ** 2);
-        assert.ok(magAtPrev >= 1.0, `Previous point magnitude ${magAtPrev} should be >= 1.0`);
+        expect(magAtPrev >= 1.0).toBeTruthy();
     }
 });

@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Fn, uniform, storage, float, vec3, color, instanceIndex, positionLocal, varying, positionWorld, cameraPosition, normalize, dot, mix, clamp, max, min, sqrt, sin, cos, select, If } from 'three/tsl';
+import { Fn, uniform, storage, float, vec3, instanceIndex, positionLocal, varying, positionWorld, cameraPosition, normalize, dot, mix, max, sqrt, sin, cos, select } from 'three/tsl';
 import { MeshStandardNodeMaterial, StorageInstancedBufferAttribute } from 'three/webgpu';
 import * as THREE from 'three';
 import { createAccretionDisk } from '../utils/initializers';
@@ -17,15 +17,15 @@ export default function TSLParticles({ params, isPlaying }) {
             positionBuffer: new StorageInstancedBufferAttribute(positions, 3),
             velocityBuffer: new StorageInstancedBufferAttribute(velocities, 3)
         };
-    }, []);
+    }, [params.blackHoleMass, params.speedOfLight]);
 
     // Create Storage Buffers (Read/Write on GPU)
     const posStorage = useMemo(() => storage(positionBuffer, 'vec3', COUNT), [positionBuffer]);
     const velStorage = useMemo(() => storage(velocityBuffer, 'vec3', COUNT), [velocityBuffer]);
 
     // Uniforms
-    const uMass = useMemo(() => uniform(params.blackHoleMass), []);
-    const uSpeedOfLight = useMemo(() => uniform(params.speedOfLight), []);
+    const uMass = useMemo(() => uniform(params.blackHoleMass), [params.blackHoleMass]);
+    const uSpeedOfLight = useMemo(() => uniform(params.speedOfLight), [params.speedOfLight]);
     const uG = useMemo(() => uniform(1.0), []);
     const uDeltaTime = useMemo(() => uniform(0.016), []);
     const uRs = useMemo(() => uniform(0.0), []);
@@ -41,7 +41,7 @@ export default function TSLParticles({ params, isPlaying }) {
         const rsVal = (2.0 * 1.0 * params.blackHoleMass) / (safeC * safeC);
         uRs.value = rsVal;
         uSpin.value = params.kerrSpinParameter || 0;
-    }, [params]);
+    }, [params.blackHoleMass, params.speedOfLight, params.kerrSpinParameter, uMass, uRs, uSpeedOfLight, uSpin]);
 
     // Compute Shader Node
     const computeNode = useMemo(() => {
@@ -123,7 +123,7 @@ export default function TSLParticles({ params, isPlaying }) {
             posStorage.element(index).assign(finalPos);
         })().compute(COUNT);
 
-    }, [posStorage, velStorage, uMass, uSpeedOfLight, uG, uDeltaTime, uRs, uSpin, uFrameCount]);
+    }, [posStorage, velStorage, uMass, uG, uDeltaTime, uRs, uSpin, uFrameCount]);
 
     // Material
     const material = useMemo(() => {
@@ -176,7 +176,7 @@ export default function TSLParticles({ params, isPlaying }) {
             } else if (gl.compute) {
                 gl.compute(computeNode);
             }
-        } catch (e) {
+        } catch {
             // Suppress frame-level errors if backend is not ready
         }
     });

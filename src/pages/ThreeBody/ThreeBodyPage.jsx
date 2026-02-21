@@ -835,7 +835,7 @@ const ThreeBodyPage = () => {
                     const dist = Math.sqrt(distSq);
                     const f = (gravityG * b_j.mass) / distSq;
                     const f_dist = f / dist;
-                    accelerations[i3]     += f_dist * dx;
+                    accelerations[i3] += f_dist * dx;
                     accelerations[i3 + 1] += f_dist * dy;
                     accelerations[i3 + 2] += f_dist * dz;
                 }
@@ -933,7 +933,7 @@ const ThreeBodyPage = () => {
             // S1 = y0 + K1 * dt/2
             for (let i = 0; i < n; i++) {
                 const b = i * stride;
-                s1[b]     = bodies[i].x + k1[b] * dt * 0.5;
+                s1[b] = bodies[i].x + k1[b] * dt * 0.5;
                 s1[b + 1] = bodies[i].y + k1[b + 1] * dt * 0.5;
                 s1[b + 2] = bodies[i].z + k1[b + 2] * dt * 0.5;
                 s1[b + 3] = bodies[i].vx + k1[b + 3] * dt * 0.5;
@@ -946,7 +946,7 @@ const ThreeBodyPage = () => {
             // S2 = y0 + K2 * dt/2
             for (let i = 0; i < n; i++) {
                 const b = i * stride;
-                s2[b]     = bodies[i].x + k2[b] * dt * 0.5;
+                s2[b] = bodies[i].x + k2[b] * dt * 0.5;
                 s2[b + 1] = bodies[i].y + k2[b + 1] * dt * 0.5;
                 s2[b + 2] = bodies[i].z + k2[b + 2] * dt * 0.5;
                 s2[b + 3] = bodies[i].vx + k2[b + 3] * dt * 0.5;
@@ -959,7 +959,7 @@ const ThreeBodyPage = () => {
             // S3 = y0 + K3 * dt
             for (let i = 0; i < n; i++) {
                 const b = i * stride;
-                s3[b]     = bodies[i].x + k3[b] * dt;
+                s3[b] = bodies[i].x + k3[b] * dt;
                 s3[b + 1] = bodies[i].y + k3[b + 1] * dt;
                 s3[b + 2] = bodies[i].z + k3[b + 2] * dt;
                 s3[b + 3] = bodies[i].vx + k3[b + 3] * dt;
@@ -1198,7 +1198,7 @@ const ThreeBodyPage = () => {
                 }
             }
         }
-    }, [simSpeed, timeDirection, gravityG, physicsMode, collisionMode, selectedBodyIndex, showProperties, initialEnergy, referenceFrame, trailLength]);
+    }, [simSpeed, timeDirection, gravityG, physicsMode, collisionMode, selectedBodyIndex, showProperties, initialEnergy, referenceFrame, trailLength, calculateCOM]);
 
     // --- Three.js Lifecycle ---
     useEffect(() => {
@@ -1894,7 +1894,7 @@ const ThreeBodyPage = () => {
 
         frameCountRef.current++;
         requestRef.current = requestAnimationFrame(animate);
-    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, collisionMode, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showProperties, isStepMode, referenceFrame, showCOM, workerReady, workerSupported, workerUpdatePhysics, timeDirection, initialEnergy, performanceMode, updatePhysics]);
+    }, [isPlaying, simSpeed, gravityG, trailLength, showTrails, scenarioKey, threeLoaded, collisionMode, physicsMode, selectedBodyIndex, cameraMode, cameraTargetIdx, showProperties, isStepMode, referenceFrame, showCOM, workerReady, workerSupported, workerUpdatePhysics, timeDirection, initialEnergy, performanceMode, updatePhysics, calculateCOM]);
 
     useEffect(() => {
         if (threeLoaded) {
