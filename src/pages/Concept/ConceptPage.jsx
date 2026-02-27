@@ -4,34 +4,35 @@ import './ConceptPage.css';
 
 const CONCEPTS = {
     'fluid-dynamics': {
-        title: 'Fluid Dynamics (SPH)',
-        subtitle: 'Smoothed Particle Hydrodynamics',
-        description: 'A Lagrangian method for simulating fluid flows, where the fluid is represented by a set of particles that carry material properties.',
+        title: 'Fluid Dynamics (Wave Equation)',
+        subtitle: 'WebGPU Water Surface Simulation',
+        description: 'A height-field simulation solving the 2D Wave Equation on the GPU to visualize realistic water ripples and interference.',
         icon: '💧',
         color: '#0ea5e9', // Sky blue
         overview: `
-            Smoothed Particle Hydrodynamics (SPH) is a computational method used for simulating the mechanics of continuum media, such as solid mechanics and fluid flows.
-            Unlike grid-based methods (Eulerian), SPH is a mesh-free Lagrangian method where the fluid is discretized into particles.
+            This simulation uses the 2D Wave Equation to model the propagation of surface waves on a grid.
+            Unlike particle-based methods (SPH), this Eulerian approach is highly efficient for simulating large bodies of water
+            where surface height and vertical velocity are the primary variables of interest.
         `,
         keyConcepts: [
             {
-                title: 'Kernel Smoothing',
-                text: 'Properties at any point are calculated by summing the contributions of nearby particles, weighted by a smoothing kernel function.'
+                title: 'Wave Equation',
+                text: 'A second-order partial differential equation describing how wave height evolves over time based on local curvature (Laplacian).'
             },
             {
-                title: 'Navier-Stokes Equations',
-                text: 'Particles interact according to forces derived from pressure, viscosity, and gravity, approximating the Navier-Stokes equations.'
+                title: 'Vertex Displacement',
+                text: 'The simulation runs in a compute shader, and the resulting height map directly displaces mesh vertices in the vertex shader for zero-latency rendering.'
             },
             {
-                title: 'Viscosity & Surface Tension',
-                text: 'Simulating the internal friction of the fluid and the cohesive forces at the interface.'
+                title: 'Damping',
+                text: 'Energy loss is simulated by multiplying velocity by a damping factor (< 1.0) each frame, mimicking fluid viscosity.'
             }
         ],
         plannedFeatures: [
-            'Interactive fluid pouring and stirring',
-            'Variable viscosity and density controls',
-            'Obstacle interaction and boundary handling',
-            'Color-coding by velocity or pressure'
+            'Advanced rendering with refraction and caustics',
+            'Dynamic obstacle interaction (boats, rocks)',
+            'Foam generation at high-velocity crests',
+            'Coupling with particle systems for spray'
         ]
     },
     'wave-interference': {

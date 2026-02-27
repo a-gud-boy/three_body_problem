@@ -25,6 +25,10 @@ An audit of the codebase has been completed. Below are the key findings and reco
 **Issue:** ESLint was attempting to lint the entire backend Python virtual environment (`venv/`), which caused the linter to hang and throw memory errors on massive minified Python packages.
 **Action Taken:** I have already added `venv` to `globalIgnores` in `eslint.config.js` to fix this!
 
+## 5. Dependency Audit (Resolved)
+**Status:** Fixed! Removed `antigravity-usage` dependency which was identified as unused and potentially suspicious.
+**Action Taken:** Ran `npm uninstall antigravity-usage` to clean up `package.json` and `package-lock.json`.
+
 ---
 
 **Next Steps**: Please let me know which of these issues you would like me to fix first. I highly recommend starting with fixing the Test Runner and Linter configurations.

@@ -56,7 +56,7 @@ This project is a collection of educational and experimental physics engines des
 - **Frontend:** [React 19](https://react.dev/), [Vite](https://vitejs.dev/)
 - **3D & Graphics:** [Three.js](https://threejs.org/), [@react-three/fiber](https://docs.pmnd.rs/react-three-fiber), [WebGPU](https://www.w3.org/TR/webgpu/)
 - **Styling:** [TailwindCSS v4](https://tailwindcss.com/), [Lucide React](https://lucide.dev/) (Icons)
-- **Testing:** Node.js Native Test Runner, Playwright
+- **Testing:** Vitest, Playwright
 
 ---
 
@@ -95,7 +95,7 @@ npm run preview
 
 ## 🧪 Testing
 
-The project uses the Node.js native test runner for unit tests and Playwright for end-to-end verification.
+The project uses Vitest for unit tests and Playwright for end-to-end verification.
 
 ```bash
 # Run unit tests
