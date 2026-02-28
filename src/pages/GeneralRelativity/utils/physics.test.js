@@ -32,6 +32,15 @@ describe('General Relativity Physics Utils', () => {
         assert.ok(Math.abs(v - expected) < 0.0001);
     });
 
+    it('calculates Potential correctly using pre-calculated rs', () => {
+        const mass = 1000;
+        const r = 10;
+        const rs = 0.2;
+        const v = calculatePotential(mass, r, 'relativistic', 100, rs);
+        const expected = -1000 / (10 - 0.2);
+        assert.strictEqual(v, expected);
+    });
+
     it('calculates Acceleration Vector correctly', () => {
         const pos = { x: 10, y: 0, z: 0 };
         const massPos = { x: 0, y: 0, z: 0 };

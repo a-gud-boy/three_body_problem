@@ -52,7 +52,7 @@ function runMainThreadPhysics(p, v, count, params) {
         // Step 1: Acceleration at current position
         const pos = { x: p[i3], y: p[i3 + 1], z: p[i3 + 2] };
         accelOld.x = 0; accelOld.y = 0; accelOld.z = 0;
-        calculateAcceleration(pos, massPos, mass, accelOld, type, c);
+        calculateAcceleration(pos, massPos, mass, accelOld, type, c, rs);
 
         if (spin > 0) {
             const rx = pos.x, rz = pos.z;
@@ -73,7 +73,7 @@ function runMainThreadPhysics(p, v, count, params) {
         // Step 3: Acceleration at new position
         const newPos = { x: p[i3], y: p[i3 + 1], z: p[i3 + 2] };
         accelNew.x = 0; accelNew.y = 0; accelNew.z = 0;
-        calculateAcceleration(newPos, massPos, mass, accelNew, type, c);
+        calculateAcceleration(newPos, massPos, mass, accelNew, type, c, rs);
 
         if (spin > 0) {
             const rx = newPos.x, rz = newPos.z;
@@ -99,7 +99,7 @@ function runMainThreadPhysics(p, v, count, params) {
             p[i3] = Math.cos(angle) * r;
             p[i3 + 1] = (Math.random() - 0.5) * 2;
             p[i3 + 2] = Math.sin(angle) * r;
-            const vMag = calculateOrbitalVelocity(mass, r, type, c);
+            const vMag = calculateOrbitalVelocity(mass, r, type, c, rs);
             v[i3] = -Math.sin(angle) * vMag;
             v[i3 + 1] = 0;
             v[i3 + 2] = Math.cos(angle) * vMag;

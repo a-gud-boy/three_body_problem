@@ -17,11 +17,10 @@ function calculateSchwarzschildRadius(mass, speedOfLight) {
     return (2 * G * mass) / (speedOfLight * speedOfLight);
 }
 
-function calculateOrbitalVelocity(mass, r, type, speedOfLight) {
+function calculateOrbitalVelocity(mass, r, type, rs) {
     if (type === 'newtonian') {
         return Math.sqrt((G * mass) / r);
     } else {
-        const rs = calculateSchwarzschildRadius(mass, speedOfLight);
         const denom = r - rs;
         if (denom <= 0) return 0;
         return Math.sqrt((r * G * mass) / (denom * denom));
@@ -29,7 +28,7 @@ function calculateOrbitalVelocity(mass, r, type, speedOfLight) {
 }
 
 // Acceleration: Newtonian or Paczyński-Wiita
-function calculateAcceleration(px, py, pz, mass, type, speedOfLight) {
+function calculateAcceleration(px, py, pz, mass, type, rs) {
     const rSq = px * px + py * py + pz * pz;
     const r = Math.sqrt(rSq);
     if (r < 0.1) return { ax: 0, ay: 0, az: 0 };
@@ -38,7 +37,6 @@ function calculateAcceleration(px, py, pz, mass, type, speedOfLight) {
     if (type === 'newtonian') {
         forceMag = -(G * mass) / rSq;
     } else {
-        const rs = calculateSchwarzschildRadius(mass, speedOfLight);
         const denom = r - rs;
         if (denom <= 0.01) {
             forceMag = -10000;
@@ -85,7 +83,7 @@ self.onmessage = function (e) {
             const i3 = i * 3;
 
             // --- Step 1: Acceleration at current position ---
-            let acc = calculateAcceleration(p[i3], p[i3 + 1], p[i3 + 2], mass, physicsModel, speedOfLight);
+            let acc = calculateAcceleration(p[i3], p[i3 + 1], p[i3 + 2], mass, physicsModel, rs);
             let aox = acc.ax, aoy = acc.ay, aoz = acc.az;
 
             // Frame dragging
@@ -107,7 +105,7 @@ self.onmessage = function (e) {
             p[i3 + 2] += v[i3 + 2] * dt + aoz * halfDtSq;
 
             // --- Step 3: Acceleration at new position ---
-            acc = calculateAcceleration(p[i3], p[i3 + 1], p[i3 + 2], mass, physicsModel, speedOfLight);
+            acc = calculateAcceleration(p[i3], p[i3 + 1], p[i3 + 2], mass, physicsModel, rs);
             let anx = acc.ax, any = acc.ay, anz = acc.az;
 
             // Frame dragging at new position
@@ -137,7 +135,7 @@ self.onmessage = function (e) {
                 p[i3 + 1] = (Math.random() - 0.5) * 2;
                 p[i3 + 2] = Math.sin(angle) * r;
 
-                const vMag = calculateOrbitalVelocity(mass, r, physicsModel, speedOfLight);
+                const vMag = calculateOrbitalVelocity(mass, r, physicsModel, rs);
                 v[i3] = -Math.sin(angle) * vMag;
                 v[i3 + 1] = 0;
                 v[i3 + 2] = Math.cos(angle) * vMag;
