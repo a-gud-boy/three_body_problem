@@ -23,6 +23,12 @@ test('calculateTotalEnergy: returns 0 for single charge', () => {
     expect(energy).toBe(0);
 });
 
+test('calculateTotalEnergy: returns 0 for empty charges', () => {
+    const charges = [];
+    const energy = calculateTotalEnergy(charges);
+    assert.strictEqual(energy, 0);
+});
+
 test('calculateTotalEnergy: handles singularity (dist <= 1)', () => {
     const charges = [
         { x: 0, y: 0, z: 0, q: 1 },
