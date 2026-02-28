@@ -349,7 +349,23 @@ const createCOMMarker = (THREE) => {
     const level = new THREE.Mesh(levelGeo, redMat);
     group.add(level);
 
-    // 6. "CM" Text Label? (Optional, skipping for simplicity/perf)
+    // 6. "CM" Text Label
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.font = 'bold 48px Arial';
+    ctx.fillStyle = 'white';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('CM', 64, 32);
+
+    const textTex = new THREE.CanvasTexture(canvas);
+    const spriteMat = new THREE.SpriteMaterial({ map: textTex, transparent: true });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.position.set(0, 3.8, 0); // Position it above the dome
+    sprite.scale.set(1.5, 0.75, 1);
+    group.add(sprite);
 
     // Scale entire group to be visible but not huge relative to typical body size (radius 5-20)
     // Current height ~3.5 units.
@@ -1464,9 +1480,12 @@ const ThreeBodyPage = () => {
             // Dispose COM marker
             if (comMarkerRef.current) {
                 scene.remove(comMarkerRef.current);
-                comMarkerRef.current.children.forEach(child => {
-                    child.geometry.dispose();
-                    child.material.dispose();
+                comMarkerRef.current.traverse((child) => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (child.material.map) child.material.map.dispose();
+                        child.material.dispose();
+                    }
                 });
             }
 
