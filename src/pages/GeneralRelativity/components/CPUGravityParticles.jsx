@@ -26,13 +26,13 @@ function runMainThreadPhysics(p, v, count, params) {
         const i3 = i * 3;
 
         // Step 1: Acceleration at current position
-        const pos = { x: p[i3], y: p[i3 + 1], z: p[i3 + 2] };
+        const px = p[i3], py = p[i3 + 1], pz = p[i3 + 2];
         accelOld.x = 0; accelOld.y = 0; accelOld.z = 0;
-        calculateAcceleration(pos, massPos, mass, accelOld, type, c, rs);
+        calculateAcceleration(px, py, pz, massPos, mass, accelOld, type, c, rs);
 
         if (spin > 0) {
-            const rx = pos.x, rz = pos.z;
-            const r = Math.sqrt(rx * rx + pos.y * pos.y + rz * rz);
+            const rx = px, rz = pz;
+            const r = Math.sqrt(rx * rx + py * py + rz * rz);
             if (r > 0.1) {
                 const invR = 1.0 / r;
                 const dragMag = spin * rs * rs / (r * r * r) * mass;
@@ -47,13 +47,13 @@ function runMainThreadPhysics(p, v, count, params) {
         p[i3 + 2] += v[i3 + 2] * dt + accelOld.z * halfDtSq;
 
         // Step 3: Acceleration at new position
-        const newPos = { x: p[i3], y: p[i3 + 1], z: p[i3 + 2] };
+        const npx = p[i3], npy = p[i3 + 1], npz = p[i3 + 2];
         accelNew.x = 0; accelNew.y = 0; accelNew.z = 0;
-        calculateAcceleration(newPos, massPos, mass, accelNew, type, c, rs);
+        calculateAcceleration(npx, npy, npz, massPos, mass, accelNew, type, c, rs);
 
         if (spin > 0) {
-            const rx = newPos.x, rz = newPos.z;
-            const r = Math.sqrt(rx * rx + newPos.y * newPos.y + rz * rz);
+            const rx = npx, rz = npz;
+            const r = Math.sqrt(rx * rx + npy * npy + rz * rz);
             if (r > 0.1) {
                 const invR = 1.0 / r;
                 const dragMag = spin * rs * rs / (r * r * r) * mass;

@@ -87,6 +87,7 @@ self.onmessage = function (e) {
         const spinFactor = spin * rsSq * mass;
         const p = positions;
         const v = velocities;
+        const acc = { ax: 0, ay: 0, az: 0 };
 
         for (let i = 0; i < count; i++) {
             const i3 = i * 3;

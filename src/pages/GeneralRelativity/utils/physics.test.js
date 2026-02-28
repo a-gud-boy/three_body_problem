@@ -39,7 +39,7 @@ describe('General Relativity Physics Utils', () => {
     });
 
     it('calculates Acceleration Vector correctly', () => {
-        const pos = { x: 10, y: 0, z: 0 };
+        const px = 10, py = 0, pz = 0;
         const massPos = { x: 0, y: 0, z: 0 };
         const mass = 1000;
         const outVector = { x: 0, y: 0, z: 0 };
@@ -48,7 +48,7 @@ describe('General Relativity Physics Utils', () => {
         // Direction is (-1, 0, 0)
         // Accel = (-10, 0, 0)
 
-        calculateAcceleration(pos, massPos, mass, outVector, 'newtonian');
+        calculateAcceleration(px, py, pz, massPos, mass, outVector, 'newtonian');
 
         expect(Math.abs(outVector.x - (-10)) < 0.0001).toBeTruthy();
         expect(Math.abs(outVector.y - 0) < 0.0001).toBeTruthy();
