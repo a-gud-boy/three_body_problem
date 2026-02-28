@@ -4,7 +4,7 @@ import { uniform, vec3, positionLocal, mix, clamp, length, varying } from 'three
 import { MeshStandardNodeMaterial } from 'three/webgpu';
 import * as THREE from 'three';
 
-export default function TSLGrid({ params }) {
+export default React.memo(function TSLGrid({ params }) {
     // Uniforms
     const uMass = useMemo(() => uniform(params.blackHoleMass), [params.blackHoleMass]);
     const uG = useMemo(() => uniform(1.0), []);
@@ -69,4 +69,4 @@ export default function TSLGrid({ params }) {
             <primitive object={material} attach="material" />
         </mesh>
     );
-}
+});

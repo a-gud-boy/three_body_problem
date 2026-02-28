@@ -1,8 +1,8 @@
-import { useRef, useEffect, useState, useMemo } from 'react';
+import { useRef, useEffect, useState, useMemo, memo } from 'react';
 import { drawCompound } from '../utils/compoundDrawUtils';
 import './CompoundVisualizer.css';
 
-export default function CompoundVisualizer({ compound, atoms }) {
+export default memo(function CompoundVisualizer({ compound, atoms }) {
     const canvasRef = useRef(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
     const [scale, setScale] = useState(1);
@@ -126,4 +126,4 @@ export default function CompoundVisualizer({ compound, atoms }) {
             <div className="drag-hint">Drag to Pan • Scroll to Zoom</div>
         </div>
     );
-}
+});

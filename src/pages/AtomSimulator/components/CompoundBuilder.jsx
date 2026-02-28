@@ -1,9 +1,10 @@
+import { memo } from 'react';
 import { Trash2, X } from 'lucide-react';
 import { getElementById } from '../../../data/elementsData';
 import { generateFormula } from '../../../data/compoundsData';
 import './CompoundBuilder.css';
 
-export default function CompoundBuilder({ atoms, onRemoveAtom, onClear }) {
+export default memo(function CompoundBuilder({ atoms, onRemoveAtom, onClear }) {
     // Calculate compound info
     const atomCounts = atoms.reduce((acc, atom) => {
         const symbol = atom.element.symbol;
@@ -107,4 +108,4 @@ export default function CompoundBuilder({ atoms, onRemoveAtom, onClear }) {
             )}
         </div>
     );
-}
+});

@@ -242,7 +242,7 @@ void main() {
 }
 `;
 
-export default function LensingEffect({ params }) {
+export default React.memo(function LensingEffect({ params }) {
     const meshRef = useRef();
 
     const uniforms = useMemo(() => ({
@@ -297,4 +297,4 @@ export default function LensingEffect({ params }) {
             />
         </mesh>
     );
-}
+});

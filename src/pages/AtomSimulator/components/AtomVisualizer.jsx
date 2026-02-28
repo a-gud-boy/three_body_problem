@@ -1,9 +1,9 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, memo } from 'react';
 import { ELEMENT_CATEGORIES } from '../../../data/elementsData';
 import { SHELL_NAMES, drawBohrModel, drawElectronCloud } from '../utils/drawUtils';
 import './AtomVisualizer.css';
 
-export default function AtomVisualizer({
+export default memo(function AtomVisualizer({
     element,
     visualizationMode,
     shells,
@@ -104,4 +104,4 @@ export default function AtomVisualizer({
             </div>
         </div>
     );
-}
+});

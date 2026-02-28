@@ -1,7 +1,7 @@
 import React from 'react';
 import { Settings2, Play, Pause, RefreshCw, Layers, Zap, Info } from 'lucide-react';
 
-export default function Controls({ params, setParams, isPlaying, setIsPlaying, onReset }) {
+export default React.memo(function Controls({ params, setParams, isPlaying, setIsPlaying, onReset }) {
 
     const handleChange = (key, value) => {
         setParams(prev => ({ ...prev, [key]: value }));
@@ -262,4 +262,4 @@ export default function Controls({ params, setParams, isPlaying, setIsPlaying, o
             </div>
         </div>
     );
-}
+});

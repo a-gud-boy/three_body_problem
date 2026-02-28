@@ -46,7 +46,7 @@ void main() {
 }
 `;
 
-export default function EventHorizon({ params }) {
+export default React.memo(function EventHorizon({ params }) {
     const groupRef = useRef();
     const glowMatRef = useRef();
 
@@ -115,4 +115,4 @@ export default function EventHorizon({ params }) {
             </mesh>
         </group>
     );
-}
+});

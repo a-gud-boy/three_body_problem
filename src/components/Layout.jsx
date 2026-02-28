@@ -1,5 +1,6 @@
 import { Outlet, useLocation, Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import ErrorBoundary from './ErrorBoundary';
 
 const backButtonStyle = {
     position: 'fixed',
@@ -33,7 +34,9 @@ export default function Layout() {
                     Home
                 </Link>
             )}
-            <Outlet />
+            <ErrorBoundary>
+                <Outlet />
+            </ErrorBoundary>
         </>
     );
 }

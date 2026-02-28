@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import Controls from './components/Controls';
 import WebGLSystem from './systems/WebGLSystem';
 import WebGPUSystem from './systems/WebGPUSystem';
+import CapabilityBanner from '../../components/CapabilityBanner';
 
 // Safe OrbitControls to prevent crashes in headless environments or when canvas is not ready
 const SafeOrbitControls = (props) => {
@@ -91,6 +92,7 @@ export default function GeneralRelativityPage() {
 
     return (
         <div className="w-full h-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden relative">
+            <CapabilityBanner />
             {/* Header */}
             <div className="absolute top-0 left-0 right-0 p-4 z-10 flex flex-col gap-4 pointer-events-none max-w-[calc(100%-20rem)]">
                 <div className="flex flex-col gap-2 pointer-events-auto items-start">

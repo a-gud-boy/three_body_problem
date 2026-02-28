@@ -80,7 +80,7 @@ const getDiskColor = Fn(([t]) => {
     return color;
 });
 
-export default function TSLLensing({ params }) {
+export default React.memo(function TSLLensing({ params }) {
 
     const meshRef = useRef();
 
@@ -278,4 +278,4 @@ export default function TSLLensing({ params }) {
             <primitive object={material} attach="material" />
         </mesh>
     );
-}
+});

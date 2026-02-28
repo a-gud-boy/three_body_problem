@@ -8,7 +8,7 @@ import { createAccretionDisk } from '../utils/initializers';
 // Simulation Constants
 const COUNT = 50000;
 
-export default function TSLParticles({ params, isPlaying }) {
+export default React.memo(function TSLParticles({ params, isPlaying }) {
 
     // Create initial data
     const { positionBuffer, velocityBuffer } = useMemo(() => {
@@ -186,5 +186,4 @@ export default function TSLParticles({ params, isPlaying }) {
             <sphereGeometry args={[0.2, 8, 8]} />
         </instancedMesh>
     );
-}
-
+});
