@@ -1,7 +1,6 @@
 // src/pages/GeneralRelativity/utils/initializers.js
 
-import * as THREE from 'three';
-import { calculateOrbitalVelocity, calculateSchwarzschildRadius, G } from './physics';
+import { calculateOrbitalVelocity, calculateSchwarzschildRadius } from './physics';
 
 /**
  * Creates an array of particles for an accretion disk around a central mass.
