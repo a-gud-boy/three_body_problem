@@ -182,6 +182,86 @@ const getCachedGlowCanvas = () => {
     return cachedGlowCanvas;
 };
 
+let cachedGlowTexture = null;
+const getCachedGlowTexture = (THREE) => {
+    if (!cachedGlowTexture) {
+        cachedGlowTexture = new THREE.CanvasTexture(getCachedGlowCanvas());
+    }
+    return cachedGlowTexture;
+};
+
+let cachedSphereGeometry = null;
+const getCachedSphereGeometry = (THREE) => {
+    if (!cachedSphereGeometry) {
+        cachedSphereGeometry = new THREE.SphereGeometry(1, 32, 32);
+    }
+    return cachedSphereGeometry;
+};
+
+const proceduralTextureCache = {};
+
+const getCachedProceduralTexture = (THREE, mass, colorHex) => {
+    const massCategory = mass > 2 ? 'gas' : 'rocky';
+    const cacheKey = `${massCategory}-${colorHex}`;
+
+    if (!proceduralTextureCache[cacheKey]) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        const color = new THREE.Color(colorHex);
+
+        // Fill background
+        ctx.fillStyle = '#' + color.getHexString();
+        ctx.fillRect(0, 0, 512, 512);
+
+        if (mass > 2) {
+            // Gas Giant (Banded)
+            for (let i = 0; i < 20; i++) {
+                const y = Math.random() * 512;
+                const h = Math.random() * 50 + 10;
+                ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.2})`;
+                ctx.fillRect(0, y, 512, h);
+
+                // Dark bands
+                if (Math.random() > 0.5) {
+                    const y2 = Math.random() * 512;
+                    const h2 = Math.random() * 30 + 5;
+                    ctx.fillStyle = `rgba(0, 0, 0, ${Math.random() * 0.3})`;
+                    ctx.fillRect(0, y2, 512, h2);
+                }
+            }
+            // Blur bands slightly
+            ctx.filter = 'blur(4px)';
+            ctx.drawImage(canvas, 0, 0);
+            ctx.filter = 'none';
+        } else {
+            // Rocky Planet (Noise/Craters)
+            for (let i = 0; i < 400; i++) {
+                const x = Math.random() * 512;
+                const y = Math.random() * 512;
+                const r = Math.random() * 10 + 2;
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(0, 0, 0, ${Math.random() * 0.2})`;
+                ctx.fill();
+            }
+            for (let i = 0; i < 200; i++) {
+                const x = Math.random() * 512;
+                const y = Math.random() * 512;
+                const r = Math.random() * 5 + 1;
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.15})`;
+                ctx.fill();
+            }
+        }
+
+        proceduralTextureCache[cacheKey] = new THREE.CanvasTexture(canvas);
+    }
+    return proceduralTextureCache[cacheKey];
+};
+
 // Circular texture for stars
 const createStarTexture = () => {
     const canvas = document.createElement('canvas');
@@ -474,72 +554,14 @@ const ThreeBodyPage = () => {
 
     // --- Visual Management Helpers ---
 
-    // Procedural Texture Generator
-    const createProceduralTexture = (mass, colorHex) => {
-        const canvas = document.createElement('canvas');
-        canvas.width = 512;
-        canvas.height = 512;
-        const ctx = canvas.getContext('2d');
-        const color = new window.THREE.Color(colorHex);
-
-        // Fill background
-        ctx.fillStyle = '#' + color.getHexString();
-        ctx.fillRect(0, 0, 512, 512);
-
-        if (mass > 2) {
-            // Gas Giant (Banded)
-            for (let i = 0; i < 20; i++) {
-                const y = Math.random() * 512;
-                const h = Math.random() * 50 + 10;
-                ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.2})`;
-                ctx.fillRect(0, y, 512, h);
-
-                // Dark bands
-                if (Math.random() > 0.5) {
-                    const y2 = Math.random() * 512;
-                    const h2 = Math.random() * 30 + 5;
-                    ctx.fillStyle = `rgba(0, 0, 0, ${Math.random() * 0.3})`;
-                    ctx.fillRect(0, y2, 512, h2);
-                }
-            }
-            // Blur bands slightly
-            ctx.filter = 'blur(4px)';
-            ctx.drawImage(canvas, 0, 0);
-            ctx.filter = 'none';
-        } else {
-            // Rocky Planet (Noise/Craters)
-            for (let i = 0; i < 400; i++) {
-                const x = Math.random() * 512;
-                const y = Math.random() * 512;
-                const r = Math.random() * 10 + 2;
-                ctx.beginPath();
-                ctx.arc(x, y, r, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(0, 0, 0, ${Math.random() * 0.2})`;
-                ctx.fill();
-            }
-            for (let i = 0; i < 200; i++) {
-                const x = Math.random() * 512;
-                const y = Math.random() * 512;
-                const r = Math.random() * 5 + 1;
-                ctx.beginPath();
-                ctx.arc(x, y, r, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.15})`;
-                ctx.fill();
-            }
-        }
-
-        const texture = new window.THREE.CanvasTexture(canvas);
-        return texture;
-    };
-
     const addBodyVisuals = useCallback((body) => {
         if (!window.THREE || !sceneRef.current) return;
         const THREE = window.THREE;
         const scene = sceneRef.current;
 
         // 1. Mesh
-        const geometry = new THREE.SphereGeometry(1, 32, 32);
-        const texture = createProceduralTexture(body.mass, body.color);
+        const geometry = getCachedSphereGeometry(THREE);
+        const texture = getCachedProceduralTexture(THREE, body.mass, body.color);
         const material = new THREE.MeshStandardMaterial({
             map: texture,
             color: 0xffffff, // Use white so texture color shows through
@@ -553,7 +575,7 @@ const ThreeBodyPage = () => {
         meshRefs.current.push(mesh);
 
         // 2. Glow (reuse cached canvas texture)
-        const glowTex = new THREE.CanvasTexture(getCachedGlowCanvas());
+        const glowTex = getCachedGlowTexture(THREE);
         const spriteMat = new THREE.SpriteMaterial({
             map: glowTex, color: body.color, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending
         });
@@ -587,17 +609,10 @@ const ThreeBodyPage = () => {
         scene.remove(glowRefs.current[index]);
         scene.remove(trailLineRefs.current[index]);
 
-        // Dispose mesh resources (geometry, material, texture)
-        meshRefs.current[index].geometry.dispose();
-        if (meshRefs.current[index].material.map) {
-            meshRefs.current[index].material.map.dispose();
-        }
+        // Dispose mesh resources (material only, geometry/texture are shared)
         meshRefs.current[index].material.dispose();
 
-        // Dispose glow sprite resources
-        if (glowRefs.current[index].material.map) {
-            glowRefs.current[index].material.map.dispose();
-        }
+        // Dispose glow sprite resources (material only, texture is shared)
         glowRefs.current[index].material.dispose();
 
         // Dispose trail line resources

@@ -11,6 +11,7 @@ export default function AtomVisualizer({
 }) {
     const canvasRef = useRef(null);
     const animationRef = useRef(null);
+    const timeRef = useRef(0);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
     // Handle resize
@@ -42,19 +43,18 @@ export default function AtomVisualizer({
         const centerY = height / 2;
         const maxRadius = Math.min(width, height) / 2 - 40;
 
-        let time = 0;
         const categoryColor = ELEMENT_CATEGORIES[element.category]?.color || '#4dabf7';
 
         const animate = () => {
             ctx.clearRect(0, 0, width, height);
 
             if (visualizationMode === 'bohr') {
-                drawBohrModel(ctx, centerX, centerY, maxRadius, element, shells, categoryColor, time);
+                drawBohrModel(ctx, centerX, centerY, maxRadius, element, shells, categoryColor, timeRef.current);
             } else {
-                drawElectronCloud(ctx, centerX, centerY, maxRadius, element, orbitals, categoryColor, time);
+                drawElectronCloud(ctx, centerX, centerY, maxRadius, element, orbitals, categoryColor, timeRef.current);
             }
 
-            time += 0.016;
+            timeRef.current += 0.016;
             animationRef.current = requestAnimationFrame(animate);
         };
 

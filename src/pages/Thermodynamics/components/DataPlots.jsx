@@ -4,7 +4,7 @@ import {
     BarChart, Bar, Cell
 } from 'recharts';
 
-export default function DataPlots({ speedDistribution, history }) {
+export default React.memo(function DataPlots({ speedDistribution, history }) {
     return (
         <>
             {/* PV Diagram */}
@@ -78,4 +78,4 @@ export default function DataPlots({ speedDistribution, history }) {
             </div>
         </>
     );
-}
+});
