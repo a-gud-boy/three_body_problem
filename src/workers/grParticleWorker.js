@@ -28,17 +28,21 @@ function calculateOrbitalVelocity(mass, r, type, speedOfLight) {
     }
 }
 
+// Reusable acceleration result object to avoid GC pressure
+const sharedAcc = { ax: 0, ay: 0, az: 0 };
+
 // Acceleration: Newtonian or Paczyński-Wiita
-function calculateAcceleration(px, py, pz, mass, type, speedOfLight) {
-    const rSq = px * px + py * py + pz * pz;
-    const r = Math.sqrt(rSq);
-    if (r < 0.1) return { ax: 0, ay: 0, az: 0 };
+// Optimized to accept precalculated r and rSq and use an output object
+function updateAcceleration(px, py, pz, r, rSq, mass, type, speedOfLight, rs, out) {
+    if (r < 0.1) {
+        out.ax = 0; out.ay = 0; out.az = 0;
+        return;
+    }
 
     let forceMag;
     if (type === 'newtonian') {
         forceMag = -(G * mass) / rSq;
     } else {
-        const rs = calculateSchwarzschildRadius(mass, speedOfLight);
         const denom = r - rs;
         if (denom <= 0.01) {
             forceMag = -10000;
@@ -48,7 +52,9 @@ function calculateAcceleration(px, py, pz, mass, type, speedOfLight) {
     }
 
     const factor = forceMag / r;
-    return { ax: px * factor, ay: py * factor, az: pz * factor };
+    out.ax = px * factor;
+    out.ay = py * factor;
+    out.az = pz * factor;
 }
 
 // Buffers
@@ -78,6 +84,8 @@ self.onmessage = function (e) {
         const halfDt = dt * 0.5;
         const halfDtSq = 0.5 * dt * dt;
         const rs = calculateSchwarzschildRadius(mass, speedOfLight);
+        const rsSq = rs * rs;
+        const spinFactor = spin * rsSq * mass;
         const p = positions;
         const v = velocities;
 
@@ -85,20 +93,18 @@ self.onmessage = function (e) {
             const i3 = i * 3;
 
             // --- Step 1: Acceleration at current position ---
-            let acc = calculateAcceleration(p[i3], p[i3 + 1], p[i3 + 2], mass, physicsModel, speedOfLight);
-            let aox = acc.ax, aoy = acc.ay, aoz = acc.az;
+            const rx = p[i3], ry = p[i3 + 1], rz = p[i3 + 2];
+            const rSq = rx * rx + ry * ry + rz * rz;
+            const r = Math.sqrt(rSq);
+
+            updateAcceleration(rx, ry, rz, r, rSq, mass, physicsModel, speedOfLight, rs, sharedAcc);
+            let aox = sharedAcc.ax, aoy = sharedAcc.ay, aoz = sharedAcc.az;
 
             // Frame dragging
-            if (spin > 0) {
-                const rx = p[i3], ry = p[i3 + 1], rz = p[i3 + 2];
-                const r = Math.sqrt(rx * rx + ry * ry + rz * rz);
-                if (r > 0.1) {
-                    const invR = 1.0 / r;
-                    const dragMag = spin * rs * rs / (r * r * r) * mass;
-                    aox += rz * invR * dragMag;
-                    // aoy += 0
-                    aoz += -rx * invR * dragMag;
-                }
+            if (spin > 0 && r > 0.1) {
+                const dragMag = spinFactor / (rSq * r);
+                aox += rz * (1.0 / r) * dragMag;
+                aoz += -rx * (1.0 / r) * dragMag;
             }
 
             // --- Step 2: Velocity Verlet drift ---
@@ -107,19 +113,18 @@ self.onmessage = function (e) {
             p[i3 + 2] += v[i3 + 2] * dt + aoz * halfDtSq;
 
             // --- Step 3: Acceleration at new position ---
-            acc = calculateAcceleration(p[i3], p[i3 + 1], p[i3 + 2], mass, physicsModel, speedOfLight);
-            let anx = acc.ax, any = acc.ay, anz = acc.az;
+            const nrx = p[i3], nry = p[i3 + 1], nrz = p[i3 + 2];
+            const nrSq = nrx * nrx + nry * nry + nrz * nrz;
+            const nr = Math.sqrt(nrSq);
+
+            updateAcceleration(nrx, nry, nrz, nr, nrSq, mass, physicsModel, speedOfLight, rs, sharedAcc);
+            let anx = sharedAcc.ax, any = sharedAcc.ay, anz = sharedAcc.az;
 
             // Frame dragging at new position
-            if (spin > 0) {
-                const rx = p[i3], ry = p[i3 + 1], rz = p[i3 + 2];
-                const r = Math.sqrt(rx * rx + ry * ry + rz * rz);
-                if (r > 0.1) {
-                    const invR = 1.0 / r;
-                    const dragMag = spin * rs * rs / (r * r * r) * mass;
-                    anx += rz * invR * dragMag;
-                    anz += -rx * invR * dragMag;
-                }
+            if (spin > 0 && nr > 0.1) {
+                const dragMag = spinFactor / (nrSq * nr);
+                anx += nrz * (1.0 / nr) * dragMag;
+                anz += -nrx * (1.0 / nr) * dragMag;
             }
 
             // --- Step 4: Velocity Verlet kick ---
@@ -128,9 +133,7 @@ self.onmessage = function (e) {
             v[i3 + 2] += (aoz + anz) * halfDt;
 
             // --- Respawn check ---
-            const rSq = p[i3] * p[i3] + p[i3 + 1] * p[i3 + 1] + p[i3 + 2] * p[i3 + 2];
-
-            if (rSq < rs * rs * 1.1 || rSq > bounds * bounds) {
+            if (nrSq < rsSq * 1.1 || nrSq > bounds * bounds) {
                 const angle = Math.random() * Math.PI * 2;
                 const r = iscoR + Math.random() * (maxSpawnR - iscoR);
                 p[i3] = Math.cos(angle) * r;
