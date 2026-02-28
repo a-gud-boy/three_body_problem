@@ -7,7 +7,7 @@ import './DashboardHome.css';
 export default function DashboardHome() {
     const [search, setSearch] = useState('');
     const [activeCategory, setActiveCategory] = useState('All');
-    const allSims = [threeBodySim, ...simulations];
+    const allSims = useMemo(() => [threeBodySim, ...simulations], []);
 
     const filtered = useMemo(() => {
         return allSims.filter((sim) => {
@@ -16,7 +16,7 @@ export default function DashboardHome() {
             const matchesCategory = activeCategory === 'All' || sim.category === activeCategory;
             return matchesSearch && matchesCategory;
         });
-    }, [search, activeCategory]);
+    }, [search, activeCategory, allSims]);
 
     const stats = [
         { label: 'Total Simulations', value: allSims.length, icon: <BarChart3 size={18} />, change: '+3 this month' },

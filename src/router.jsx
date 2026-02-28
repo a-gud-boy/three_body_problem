@@ -1,6 +1,8 @@
 import React, { Suspense } from 'react';
 import { createHashRouter } from 'react-router-dom';
 import HomePage from './pages/HomePage';
+import Layout from './components/Layout';
+import SuspenseFallback from './components/SuspenseFallback';
 
 // Lazy load all simulation pages to reduce initial bundle size
 const ThreeBodyPage = React.lazy(() => import('./pages/ThreeBody/ThreeBodyPage'));
@@ -16,65 +18,63 @@ const QuantumSandboxPage = React.lazy(() => import('./pages/QuantumSandbox/Quant
 const AerodynamicsPage = React.lazy(() => import('./pages/Aerodynamics/AerodynamicsPage'));
 const ThermodynamicsPage = React.lazy(() => import('./pages/Thermodynamics/ThermodynamicsPage'));
 
-// A simple fallback spinner/loading indicator
-const SuspenseFallback = () => (
-    <div style={{ display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f172a', color: '#fff' }}>
-        <p>Loading Simulation...</p>
-    </div>
-);
-
 const router = createHashRouter([
     {
-        path: '/',
-        element: <HomePage />,
-    },
-    {
-        path: '/three-body',
-        element: <Suspense fallback={<SuspenseFallback />}><ThreeBodyPage /></Suspense>,
-    },
-    {
-        path: '/atom-simulator',
-        element: <Suspense fallback={<SuspenseFallback />}><AtomSimulator /></Suspense>,
-    },
-    {
-        path: '/electromagnetic',
-        element: <Suspense fallback={<SuspenseFallback />}><ElectromagneticPage /></Suspense>,
-    },
-    {
-        path: '/double-pendulum',
-        element: <Suspense fallback={<SuspenseFallback />}><DoublePendulumPage /></Suspense>,
-    },
-    {
-        path: '/fluid-dynamics',
-        element: <Suspense fallback={<SuspenseFallback />}><FluidDynamicsPage /></Suspense>,
-    },
-    {
-        path: '/wave-interference',
-        element: <Suspense fallback={<SuspenseFallback />}><WaveInterferencePage /></Suspense>,
-    },
-    {
-        path: '/soft-body',
-        element: <Suspense fallback={<SuspenseFallback />}><SoftBodyPage /></Suspense>,
-    },
-    {
-        path: '/general-relativity',
-        element: <Suspense fallback={<SuspenseFallback />}><GeneralRelativityPage /></Suspense>,
-    },
-    {
-        path: '/quantum-sandbox',
-        element: <Suspense fallback={<SuspenseFallback />}><QuantumSandboxPage /></Suspense>,
-    },
-    {
-        path: '/aerodynamics',
-        element: <Suspense fallback={<SuspenseFallback />}><AerodynamicsPage /></Suspense>,
-    },
-    {
-        path: '/thermodynamics',
-        element: <Suspense fallback={<SuspenseFallback />}><ThermodynamicsPage /></Suspense>,
-    },
-    {
-        path: '/concept/:id',
-        element: <Suspense fallback={<SuspenseFallback />}><ConceptPage /></Suspense>,
+        element: <Layout />,
+        children: [
+            {
+                path: '/',
+                element: <HomePage />,
+            },
+            {
+                path: '/three-body',
+                element: <Suspense fallback={<SuspenseFallback />}><ThreeBodyPage /></Suspense>,
+            },
+            {
+                path: '/atom-simulator',
+                element: <Suspense fallback={<SuspenseFallback />}><AtomSimulator /></Suspense>,
+            },
+            {
+                path: '/electromagnetic',
+                element: <Suspense fallback={<SuspenseFallback />}><ElectromagneticPage /></Suspense>,
+            },
+            {
+                path: '/double-pendulum',
+                element: <Suspense fallback={<SuspenseFallback />}><DoublePendulumPage /></Suspense>,
+            },
+            {
+                path: '/fluid-dynamics',
+                element: <Suspense fallback={<SuspenseFallback />}><FluidDynamicsPage /></Suspense>,
+            },
+            {
+                path: '/wave-interference',
+                element: <Suspense fallback={<SuspenseFallback />}><WaveInterferencePage /></Suspense>,
+            },
+            {
+                path: '/soft-body',
+                element: <Suspense fallback={<SuspenseFallback />}><SoftBodyPage /></Suspense>,
+            },
+            {
+                path: '/general-relativity',
+                element: <Suspense fallback={<SuspenseFallback />}><GeneralRelativityPage /></Suspense>,
+            },
+            {
+                path: '/quantum-sandbox',
+                element: <Suspense fallback={<SuspenseFallback />}><QuantumSandboxPage /></Suspense>,
+            },
+            {
+                path: '/aerodynamics',
+                element: <Suspense fallback={<SuspenseFallback />}><AerodynamicsPage /></Suspense>,
+            },
+            {
+                path: '/thermodynamics',
+                element: <Suspense fallback={<SuspenseFallback />}><ThermodynamicsPage /></Suspense>,
+            },
+            {
+                path: '/concept/:id',
+                element: <Suspense fallback={<SuspenseFallback />}><ConceptPage /></Suspense>,
+            },
+        ],
     },
 ]);
 

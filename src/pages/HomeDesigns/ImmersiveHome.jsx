@@ -1,12 +1,21 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Play, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { simulations, threeBodySim } from '../homeData';
 import './ImmersiveHome.css';
 
+// Pre-computed at module level to satisfy react-hooks/purity rule
+const PARTICLE_STYLES = Array.from({ length: 30 }, () => ({
+    left: `${Math.random() * 100}%`,
+    top: `${Math.random() * 100}%`,
+    animationDuration: `${3 + Math.random() * 4}s`,
+    animationDelay: `${Math.random() * 3}s`,
+    width: `${2 + Math.random() * 3}px`,
+    height: `${2 + Math.random() * 3}px`,
+}));
+
 export default function ImmersiveHome() {
     const scrollRef = useRef(null);
-    const [scrollPos, setScrollPos] = useState(0);
     const allSims = [threeBodySim, ...simulations];
 
     const scroll = (dir) => {
@@ -15,27 +24,16 @@ export default function ImmersiveHome() {
         scrollRef.current.scrollBy({ left: amount, behavior: 'smooth' });
     };
 
-    const handleScroll = () => {
-        if (scrollRef.current) setScrollPos(scrollRef.current.scrollLeft);
-    };
-
     return (
         <div className="immersive-home">
             {/* Full viewport hero */}
             <section className="immersive-hero">
                 <div className="immersive-hero-particles">
-                    {Array.from({ length: 30 }).map((_, i) => (
+                    {PARTICLE_STYLES.map((style, i) => (
                         <div
                             key={i}
                             className="imm-particle"
-                            style={{
-                                left: `${Math.random() * 100}%`,
-                                top: `${Math.random() * 100}%`,
-                                animationDuration: `${3 + Math.random() * 4}s`,
-                                animationDelay: `${Math.random() * 3}s`,
-                                width: `${2 + Math.random() * 3}px`,
-                                height: `${2 + Math.random() * 3}px`,
-                            }}
+                            style={style}
                         />
                     ))}
                 </div>
@@ -75,7 +73,7 @@ export default function ImmersiveHome() {
                     </div>
                 </div>
 
-                <div className="immersive-carousel" ref={scrollRef} onScroll={handleScroll}>
+                <div className="immersive-carousel" ref={scrollRef}>
                     {allSims.map((sim, i) => (
                         <Link to={sim.path} key={sim.id} className="immersive-card">
                             <div className="imm-card-number">{String(i + 1).padStart(2, '0')}</div>
