@@ -29,10 +29,13 @@ function calculateOrbitalVelocity(mass, r, type, speedOfLight) {
 }
 
 // Acceleration: Newtonian or Paczyński-Wiita
-function calculateAcceleration(px, py, pz, mass, type, speedOfLight) {
+function calculateAcceleration(px, py, pz, mass, type, speedOfLight, out) {
     const rSq = px * px + py * py + pz * pz;
     const r = Math.sqrt(rSq);
-    if (r < 0.1) return { ax: 0, ay: 0, az: 0 };
+    if (r < 0.1) {
+        out.ax = 0; out.ay = 0; out.az = 0;
+        return;
+    }
 
     let forceMag;
     if (type === 'newtonian') {
@@ -48,7 +51,9 @@ function calculateAcceleration(px, py, pz, mass, type, speedOfLight) {
     }
 
     const factor = forceMag / r;
-    return { ax: px * factor, ay: py * factor, az: pz * factor };
+    out.ax = px * factor;
+    out.ay = py * factor;
+    out.az = pz * factor;
 }
 
 // Buffers
@@ -80,12 +85,13 @@ self.onmessage = function (e) {
         const rs = calculateSchwarzschildRadius(mass, speedOfLight);
         const p = positions;
         const v = velocities;
+        const acc = { ax: 0, ay: 0, az: 0 };
 
         for (let i = 0; i < count; i++) {
             const i3 = i * 3;
 
             // --- Step 1: Acceleration at current position ---
-            let acc = calculateAcceleration(p[i3], p[i3 + 1], p[i3 + 2], mass, physicsModel, speedOfLight);
+            calculateAcceleration(p[i3], p[i3 + 1], p[i3 + 2], mass, physicsModel, speedOfLight, acc);
             let aox = acc.ax, aoy = acc.ay, aoz = acc.az;
 
             // Frame dragging
@@ -107,7 +113,7 @@ self.onmessage = function (e) {
             p[i3 + 2] += v[i3 + 2] * dt + aoz * halfDtSq;
 
             // --- Step 3: Acceleration at new position ---
-            acc = calculateAcceleration(p[i3], p[i3 + 1], p[i3 + 2], mass, physicsModel, speedOfLight);
+            calculateAcceleration(p[i3], p[i3 + 1], p[i3 + 2], mass, physicsModel, speedOfLight, acc);
             let anx = acc.ax, any = acc.ay, anz = acc.az;
 
             // Frame dragging at new position

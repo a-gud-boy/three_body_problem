@@ -42,10 +42,10 @@ export const calculatePotential = (mass, r, type = 'newtonian', speedOfLight = C
  *
  * Returns result in `outVector` (THREE.Vector3-like object {x,y,z})
  */
-export const calculateAcceleration = (pos, massPos, mass, outVector, type = 'newtonian', speedOfLight = C) => {
-    const dx = pos.x - massPos.x;
-    const dy = pos.y - massPos.y;
-    const dz = pos.z - massPos.z;
+export const calculateAcceleration = (px, py, pz, massPos, mass, outVector, type = 'newtonian', speedOfLight = C) => {
+    const dx = px - massPos.x;
+    const dy = py - massPos.y;
+    const dz = pz - massPos.z;
     const rSq = dx*dx + dy*dy + dz*dz;
     const r = Math.sqrt(rSq);
 
