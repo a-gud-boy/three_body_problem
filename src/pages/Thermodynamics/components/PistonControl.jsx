@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function PistonControl({ value, onChange }) {
+export default React.memo(function PistonControl({ value, onChange }) {
     return (
         <div className="control-group">
             <div className="control-item">
@@ -24,4 +24,4 @@ export default function PistonControl({ value, onChange }) {
             </div>
         </div>
     );
-}
+});

@@ -18,7 +18,7 @@ const MAX_PER_CELL = 8;
 const DT = 0.002;
 const SUBSTEPS = 6;
 
-export default function GasContainer({ paused, demonMode, pistonPosition, onStatsUpdate }) {
+export default React.memo(function GasContainer({ paused, demonMode, pistonPosition, onStatsUpdate }) {
     const canvasRef = useRef(null);
     const rendererRef = useRef(null);
     const propsRef = useRef({ paused, demonMode, pistonPosition, onStatsUpdate });
@@ -341,4 +341,4 @@ export default function GasContainer({ paused, demonMode, pistonPosition, onStat
     }, []);
 
     return <canvas ref={canvasRef} className="w-full h-full block" />;
-}
+});
