@@ -1,0 +1,251 @@
+.term-home {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    position: relative;
+    z-index: 1;
+}
+
+.matrix-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.4;
+}
+
+/* ---- Terminal Window ---- */
+.term-window {
+    width: 100%;
+    max-width: 900px;
+    background: rgba(10, 10, 10, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(20px);
+    position: relative;
+    z-index: 1;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+}
+
+.term-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: rgba(30, 30, 30, 0.6);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.term-dots {
+    display: flex;
+    gap: 6px;
+}
+
+.term-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.term-dot.red {
+    background: #ff5f57;
+}
+
+.term-dot.yellow {
+    background: #febc2e;
+}
+
+.term-dot.green {
+    background: #28c840;
+}
+
+.term-titlebar-text {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.35);
+    margin-left: auto;
+}
+
+/* ---- Terminal Body ---- */
+.term-body {
+    padding: 1.5rem;
+    min-height: 400px;
+    max-height: 70vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+.term-line {
+    margin-bottom: 0.5rem;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    animation: term-fade-in 0.3s ease forwards;
+    opacity: 0;
+    animation-fill-mode: forwards;
+}
+
+.term-line:first-child {
+    animation-delay: 0s;
+    opacity: 1;
+}
+
+@keyframes term-fade-in {
+    to {
+        opacity: 1;
+    }
+}
+
+.term-prompt {
+    color: #22c55e;
+    font-weight: 700;
+}
+
+.term-colon {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.term-path {
+    color: #3b82f6;
+    font-weight: 600;
+}
+
+.term-dollar {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.term-cursor {
+    color: #22c55e;
+    font-weight: 400;
+}
+
+.term-cursor.blink {
+    animation: term-blink 1s step-end infinite;
+}
+
+@keyframes term-blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0;
+    }
+}
+
+/* Terminal output */
+.term-output {
+    margin: 1rem 0;
+    animation: term-fade-in 0.5s ease forwards;
+    opacity: 0;
+}
+
+.term-ascii {
+    color: #a855f7;
+    font-size: 0.55rem;
+    line-height: 1.2;
+    margin: 0;
+    overflow-x: auto;
+}
+
+.term-welcome-msg {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    font-weight: 600;
+    margin: 0.75rem 0 0.2rem;
+}
+
+.term-welcome-sub {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+/* Simulation list (ls output) */
+.term-sim-list {
+    margin: 0.75rem 0;
+}
+
+.term-ls-header {
+    display: grid;
+    grid-template-columns: 120px 80px 1fr;
+    gap: 1rem;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.25rem 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    margin-bottom: 0.25rem;
+}
+
+.term-sim-entry {
+    display: grid;
+    grid-template-columns: 120px 80px 1fr;
+    gap: 1rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.78rem;
+    text-decoration: none;
+    color: inherit;
+    border-radius: 4px;
+    transition: background 0.15s;
+    animation: term-fade-in 0.2s ease forwards;
+    opacity: 0;
+}
+
+.term-sim-entry:hover {
+    background: rgba(34, 197, 94, 0.06);
+}
+
+.term-perms {
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.72rem;
+}
+
+.term-status-badge {
+    font-size: 0.7rem;
+    color: #22c55e;
+    font-weight: 600;
+}
+
+.term-sim-name {
+    color: #60a5fa;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.term-sim-entry:hover .term-sim-name {
+    color: #93c5fd;
+    text-decoration: underline;
+}
+
+.term-prompt-final {
+    margin-top: 1rem;
+    opacity: 0;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .term-home {
+        padding: 1rem;
+    }
+
+    .term-ascii {
+        font-size: 0.35rem;
+    }
+
+    .term-ls-header,
+    .term-sim-entry {
+        grid-template-columns: 1fr;
+        gap: 0.15rem;
+    }
+
+    .term-perms {
+        display: none;
+    }
+}

@@ -1,0 +1,279 @@
+.immersive-home {
+    position: relative;
+    z-index: 1;
+}
+
+/* ---- Full-viewport Hero ---- */
+.immersive-hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    padding: 2rem;
+}
+
+.immersive-hero-particles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.imm-particle {
+    position: absolute;
+    background: var(--accent-purple);
+    border-radius: 50%;
+    opacity: 0;
+    animation: imm-float ease-in-out infinite;
+}
+
+@keyframes imm-float {
+
+    0%,
+    100% {
+        opacity: 0;
+        transform: translateY(0) scale(0.5);
+    }
+
+    50% {
+        opacity: 0.6;
+        transform: translateY(-40px) scale(1);
+    }
+}
+
+.immersive-hero-content {
+    position: relative;
+    z-index: 1;
+}
+
+.immersive-title {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    margin-bottom: 1.5rem;
+}
+
+.imm-title-line {
+    font-size: clamp(1.8rem, 5vw, 3.5rem);
+    font-weight: 300;
+    color: var(--text-secondary);
+    line-height: 1.15;
+}
+
+.imm-title-accent {
+    font-size: clamp(3rem, 10vw, 7rem);
+    font-weight: 900;
+    line-height: 1;
+    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple), var(--accent-pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.02em;
+}
+
+.immersive-subtitle {
+    font-size: 1.15rem;
+    color: var(--text-muted);
+    margin-bottom: 2.5rem;
+    font-weight: 400;
+}
+
+.immersive-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 1rem 2rem;
+    background: linear-gradient(135deg, var(--accent-purple), #9333ea);
+    border-radius: 100px;
+    color: #fff;
+    font-weight: 600;
+    font-size: 1rem;
+    text-decoration: none;
+    box-shadow: 0 6px 30px rgba(168, 85, 247, 0.35);
+    transition: all 0.3s;
+}
+
+.immersive-cta:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 40px rgba(168, 85, 247, 0.45);
+}
+
+.immersive-scroll-hint {
+    position: absolute;
+    bottom: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    animation: imm-bounce 2s ease-in-out infinite;
+}
+
+.scroll-line {
+    width: 1px;
+    height: 40px;
+    background: linear-gradient(180deg, var(--accent-purple), transparent);
+}
+
+@keyframes imm-bounce {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(8px);
+    }
+}
+
+/* ---- Carousel Section ---- */
+.immersive-carousel-section {
+    padding: 4rem 2rem 6rem;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.immersive-carousel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1400px;
+    margin: 0 auto 2rem;
+}
+
+.immersive-section-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.carousel-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.carousel-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.carousel-btn:hover {
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
+    background: rgba(168, 85, 247, 0.05);
+}
+
+.immersive-carousel {
+    display: flex;
+    gap: 1.25rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding: 0.5rem 0 1rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    scrollbar-width: none;
+}
+
+.immersive-carousel::-webkit-scrollbar {
+    display: none;
+}
+
+.immersive-card {
+    flex-shrink: 0;
+    width: 320px;
+    padding: 1.75rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 20px;
+    text-decoration: none;
+    color: inherit;
+    scroll-snap-align: start;
+    transition: all 0.35s ease;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.immersive-card:hover {
+    border-color: rgba(168, 85, 247, 0.2);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+}
+
+.imm-card-number {
+    position: absolute;
+    top: 1.25rem;
+    right: 1.25rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    opacity: 0.5;
+    font-variant-numeric: tabular-nums;
+}
+
+.imm-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.imm-card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.imm-card-desc {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    flex: 1;
+    margin-bottom: 1rem;
+}
+
+.imm-card-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent-purple);
+    transition: gap 0.3s;
+}
+
+.immersive-card:hover .imm-card-cta {
+    gap: 0.65rem;
+}
+
+@media (max-width: 640px) {
+    .immersive-card {
+        width: 280px;
+    }
+
+    .immersive-carousel-section {
+        padding: 3rem 1rem 4rem;
+    }
+}

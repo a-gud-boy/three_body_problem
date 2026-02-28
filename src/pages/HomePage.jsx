@@ -1,9 +1,20 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Sparkles, Lock, Lightbulb } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import './HomePage.css';
+import './HomeStyles.css';
+import StyleSwitcher from './StyleSwitcher';
+import DesignSwitcher from './DesignSwitcher';
+import { simulations } from './homeData';
 
-// Subtle Mouse-Reactive Background
+// Lazy-load the 5 new designs
+import BentoHome from './HomeDesigns/BentoHome';
+import ImmersiveHome from './HomeDesigns/ImmersiveHome';
+import DashboardHome from './HomeDesigns/DashboardHome';
+import MagazineHome from './HomeDesigns/MagazineHome';
+import TerminalHome from './HomeDesigns/TerminalHome';
+
+// ── Theme-specific backgrounds ──────────────────────────────
 function AnimatedBackground() {
     const [mousePos, setMousePos] = useState({ x: 0.5, y: 0.3 });
     const targetPos = useRef({ x: 0.5, y: 0.3 });
@@ -19,7 +30,6 @@ function AnimatedBackground() {
 
         window.addEventListener('mousemove', handleMouseMove);
 
-        // Smooth easing animation
         const animate = () => {
             setMousePos((prev) => ({
                 x: prev.x + (targetPos.current.x - prev.x) * 0.03,
@@ -37,10 +47,7 @@ function AnimatedBackground() {
 
     return (
         <div className="reactive-bg">
-            {/* Base dark layer */}
             <div className="bg-base" />
-
-            {/* Mouse-following gradient spotlight */}
             <div
                 className="bg-spotlight"
                 style={{
@@ -52,109 +59,65 @@ function AnimatedBackground() {
                     )`,
                 }}
             />
-
-            {/* Secondary ambient glow - fixed position */}
             <div className="bg-ambient" />
-
-            {/* Subtle grid */}
             <div className="bg-grid" />
         </div>
     );
 }
 
-const simulations = [
-    {
-        id: 'atomic-structure',
-        title: 'Atom Simulator',
-        description: 'Visualize atomic structure with Bohr model and electron probability clouds. Build and explore compounds.',
-        icon: '⚛️',
-        iconBg: 'rgba(59, 130, 246, 0.15)',
-        status: 'available',
-        path: '/atom-simulator',
-    },
-    {
-        id: 'electromagnetic-fields',
-        title: 'Electromagnetic Fields',
-        description: 'Visualize electric and magnetic field lines in complex setups.',
-        icon: '⚡',
-        iconBg: 'rgba(6, 182, 212, 0.15)',
-        status: 'available',
-        path: '/electromagnetic',
-    },
-    {
-        id: 'double-pendulum',
-        title: 'Double Pendulum',
-        description: 'Explore the classic chaotic system. Trace paths, analyze phase space, and observe the butterfly effect.',
-        icon: '⚖️',
-        iconBg: 'rgba(234, 179, 8, 0.15)',
-        status: 'available',
-        path: '/double-pendulum',
-    },
-    {
-        id: 'fluid-dynamics',
-        title: 'Fluid Dynamics',
-        description: 'Next-gen fluid simulation using WebGPU Compute Shaders. Interactive water surface with real-time wave propagation.',
-        icon: '🌊',
-        iconBg: 'rgba(124, 58, 237, 0.15)',
-        status: 'available',
-        path: '/fluid-dynamics',
-    },
-    {
-        id: 'wave-interference',
-        title: 'Wave Interference',
-        description: 'Interactive ripple tank. Experiment with diffraction, refraction, and interference patterns.',
-        icon: '🌊',
-        iconBg: 'rgba(139, 92, 246, 0.15)',
-        status: 'available',
-        path: '/wave-interference',
-    },
-    {
-        id: 'soft-body',
-        title: 'Soft Body Simulation',
-        description: 'Deformable physics engine. Play with cloth, jellies, and elastic collisions.',
-        icon: '🧶',
-        iconBg: 'rgba(236, 72, 153, 0.15)',
-        status: 'available',
-        path: '/soft-body',
-    },
-    {
-        id: 'general-relativity',
-        title: 'General Relativity',
-        description: 'Spacetime curvature simulator. Black holes, gravitational lensing, and geodesics in dual WebGL/WebGPU modes.',
-        icon: '🌌',
-        iconBg: 'rgba(168, 85, 247, 0.15)',
-        status: 'available',
-        path: '/general-relativity',
-    },
-    {
-        id: 'quantum-sandbox',
-        title: 'Quantum Wave Sandbox',
-        description: 'Visualize quantum tunneling and interference with the Schrödinger equation using WebGPU compute shaders.',
-        icon: '🔬',
-        iconBg: 'rgba(147, 51, 234, 0.15)',
-        status: 'available',
-        path: '/quantum-sandbox',
-    },
-    {
-        id: 'aerodynamics',
-        title: 'Virtual Wind Tunnel',
-        description: 'Lattice Boltzmann CFD sandbox. Draw obstacles and visualize turbulence, vorticity, drag and lift in real-time.',
-        icon: '💨',
-        iconBg: 'rgba(56, 189, 248, 0.15)',
-        status: 'available',
-        path: '/aerodynamics',
-    },
-    {
-        id: 'thermodynamics',
-        title: 'Entropy Lab',
-        description: '20,000 particle hard-sphere simulation using WebGPU. Experiment with Ideal Gas Law, Adiabatic processes, and Maxwell\'s Demon.',
-        icon: '🔥',
-        iconBg: 'rgba(249, 115, 22, 0.15)',
-        status: 'available',
-        path: '/thermodynamics',
-    },
-];
+function NeonBackground() {
+    return (
+        <div className="neon-bg">
+            <div className="neon-grid-lines" />
+            <div className="neon-glow-1" />
+            <div className="neon-glow-2" />
+            <div className="neon-scanline" />
+        </div>
+    );
+}
 
+function GlassBackground() {
+    return (
+        <div className="glass-bg">
+            <div className="glass-orb-1" />
+            <div className="glass-orb-2" />
+            <div className="glass-orb-3" />
+        </div>
+    );
+}
+
+function AuroraBackground() {
+    return (
+        <div className="aurora-bg">
+            <div className="aurora-stars" />
+            <div className="aurora-ribbon-1" />
+            <div className="aurora-ribbon-2" />
+            <div className="aurora-ribbon-3" />
+        </div>
+    );
+}
+
+function MonoBackground() {
+    return (
+        <div className="mono-bg">
+            <div className="mono-accent-line" />
+            <div className="mono-geo-1" />
+            <div className="mono-geo-2" />
+        </div>
+    );
+}
+
+function ThemeBackground({ theme }) {
+    switch (theme) {
+        case 'neon-grid': return <NeonBackground />;
+        case 'glass-light': return <GlassBackground />;
+        case 'aurora': return <AuroraBackground />;
+        case 'mono': return <MonoBackground />;
+        default: return <AnimatedBackground />;
+    }
+}
+
+// ── Classic design components ───────────────────────────────
 function OrbitalAnimation() {
     const canvasRef = useRef(null);
 
@@ -168,7 +131,6 @@ function OrbitalAnimation() {
         canvas.width = width;
         canvas.height = height;
 
-        // Three bodies with initial conditions for a figure-8 like pattern
         const bodies = [
             { x: 150, y: 100, vx: 0.8, vy: 0.3, mass: 1, color: '#3b82f6', trail: [] },
             { x: 100, y: 180, vx: -0.4, vy: -0.6, mass: 1, color: '#ef4444', trail: [] },
@@ -181,11 +143,9 @@ function OrbitalAnimation() {
         let animationId;
 
         const animate = () => {
-            // Semi-transparent clear for trail effect
             ctx.fillStyle = 'rgba(20, 20, 30, 0.15)';
             ctx.fillRect(0, 0, width, height);
 
-            // Calculate gravitational forces
             for (let i = 0; i < bodies.length; i++) {
                 let ax = 0, ay = 0;
                 for (let j = 0; j < bodies.length; j++) {
@@ -202,23 +162,17 @@ function OrbitalAnimation() {
                 bodies[i].vy += ay * dt;
             }
 
-            // Update positions and trails
             for (const body of bodies) {
                 body.x += body.vx * dt;
                 body.y += body.vy * dt;
-
-                // Keep in bounds with bounce
                 if (body.x < 20 || body.x > width - 20) body.vx *= -0.8;
                 if (body.y < 20 || body.y > height - 20) body.vy *= -0.8;
                 body.x = Math.max(20, Math.min(width - 20, body.x));
                 body.y = Math.max(20, Math.min(height - 20, body.y));
-
-                // Add to trail
                 body.trail.push({ x: body.x, y: body.y });
                 if (body.trail.length > trailLength) body.trail.shift();
             }
 
-            // Draw trails
             for (const body of bodies) {
                 if (body.trail.length < 2) continue;
                 ctx.beginPath();
@@ -233,9 +187,7 @@ function OrbitalAnimation() {
                 ctx.globalAlpha = 1;
             }
 
-            // Draw bodies
             for (const body of bodies) {
-                // Glow
                 const gradient = ctx.createRadialGradient(body.x, body.y, 0, body.x, body.y, 15);
                 gradient.addColorStop(0, body.color);
                 gradient.addColorStop(1, 'transparent');
@@ -243,8 +195,6 @@ function OrbitalAnimation() {
                 ctx.arc(body.x, body.y, 15, 0, Math.PI * 2);
                 ctx.fillStyle = gradient;
                 ctx.fill();
-
-                // Core
                 ctx.beginPath();
                 ctx.arc(body.x, body.y, 6, 0, Math.PI * 2);
                 ctx.fillStyle = body.color;
@@ -255,7 +205,6 @@ function OrbitalAnimation() {
         };
 
         animate();
-
         return () => cancelAnimationFrame(animationId);
     }, []);
 
@@ -326,12 +275,10 @@ function SimCard({ simulation }) {
     );
 }
 
-export default function HomePage() {
+// ── Classic Design (Design 0) ──────────────────────────────
+function ClassicDesign() {
     return (
-        <div className="homepage">
-            {/* Animated Canvas Background */}
-            <AnimatedBackground />
-
+        <>
             {/* Navigation */}
             <nav className="nav">
                 <div className="nav-logo">
@@ -376,7 +323,6 @@ export default function HomePage() {
                         </a>
                     </div>
 
-                    {/* Featured Card - Three Body Problem */}
                     <Link to="/three-body" className="featured-card">
                         <div className="featured-visual">
                             <OrbitalAnimation />
@@ -402,7 +348,6 @@ export default function HomePage() {
                         </div>
                     </Link>
 
-                    {/* Coming Soon Cards Grid */}
                     <div className="sim-grid">
                         {simulations.map((sim) => (
                             <SimCard key={sim.id} simulation={sim} />
@@ -415,6 +360,61 @@ export default function HomePage() {
             <footer className="footer">
                 © 2026 Physics Simulation Hub. All rights reserved.
             </footer>
+        </>
+    );
+}
+
+// ── Design Router ──────────────────────────────────────────
+function ActiveDesign({ design }) {
+    switch (design) {
+        case 'bento': return <BentoHome />;
+        case 'immersive': return <ImmersiveHome />;
+        case 'dashboard': return <DashboardHome />;
+        case 'magazine': return <MagazineHome />;
+        case 'terminal': return <TerminalHome />;
+        default: return <ClassicDesign />;
+    }
+}
+
+// ── Main Export ────────────────────────────────────────────
+export default function HomePage() {
+    const [theme, setTheme] = useState(() => {
+        try { return localStorage.getItem('homepage-theme') || 'cosmic-dark'; }
+        catch { return 'cosmic-dark'; }
+    });
+
+    const [design, setDesign] = useState(() => {
+        try { return localStorage.getItem('homepage-design') || 'classic'; }
+        catch { return 'classic'; }
+    });
+
+    const handleThemeChange = useCallback((newTheme) => {
+        setTheme(newTheme);
+        try { localStorage.setItem('homepage-theme', newTheme); }
+        catch { /* ignore */ }
+    }, []);
+
+    const handleDesignChange = useCallback((newDesign) => {
+        setDesign(newDesign);
+        try { localStorage.setItem('homepage-design', newDesign); }
+        catch { /* ignore */ }
+    }, []);
+
+    const themeClass = theme === 'cosmic-dark' ? '' : `theme-${theme}`;
+
+    return (
+        <div className={`homepage ${themeClass}`}>
+            {/* Theme-specific Background */}
+            <ThemeBackground theme={theme} />
+
+            {/* Active Design */}
+            <ActiveDesign design={design} />
+
+            {/* Design Switcher (top center) */}
+            <DesignSwitcher currentDesign={design} onDesignChange={handleDesignChange} />
+
+            {/* Style Switcher (bottom right) */}
+            <StyleSwitcher currentTheme={theme} onThemeChange={handleThemeChange} />
         </div>
     );
 }
