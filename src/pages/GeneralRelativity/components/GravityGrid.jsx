@@ -68,7 +68,7 @@ void main() {
 }
 `;
 
-export default function GravityGrid({ params }) {
+export default React.memo(function GravityGrid({ params }) {
     const materialRef = useRef();
 
     const uniforms = useMemo(() => ({
@@ -102,4 +102,4 @@ export default function GravityGrid({ params }) {
             />
         </mesh>
     );
-}
+});

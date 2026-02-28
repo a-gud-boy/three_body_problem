@@ -2,9 +2,9 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Sparkles, Lock, Lightbulb } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import './HomePage.css';
-import './HomeStyles.css';
-import StyleSwitcher from './StyleSwitcher';
-import DesignSwitcher from './DesignSwitcher';
+import './HomeThemes.css';
+import StyleSwitcher from '../components/StyleSwitcher';
+import DesignSwitcher from '../components/DesignSwitcher';
 import { simulations } from './homeData';
 
 // Lazy-load the 5 new designs

@@ -1,8 +1,9 @@
+import { memo } from 'react';
 import './ElementInfo.css';
 
 const SHELL_NAMES = ['K', 'L', 'M', 'N', 'O', 'P', 'Q'];
 
-export default function ElementInfo({ element, shells, orbitals, category }) {
+export default memo(function ElementInfo({ element, shells, orbitals, category }) {
     const valenceElectrons = shells.filter(s => s > 0).pop() || 0;
     const protons = element.atomicNumber;
     const neutrons = Math.round(element.atomicMass) - protons;
@@ -108,4 +109,4 @@ export default function ElementInfo({ element, shells, orbitals, category }) {
             </div>
         </div>
     );
-}
+});

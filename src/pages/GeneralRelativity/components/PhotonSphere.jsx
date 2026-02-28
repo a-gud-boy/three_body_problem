@@ -7,7 +7,7 @@ import * as THREE from 'three';
  * Renders a translucent, animated glowing shell at r = 1.5 × Rs (the photon sphere),
  * where light orbits the black hole. Educational and visually striking.
  */
-export default function PhotonSphere({ params }) {
+export default React.memo(function PhotonSphere({ params }) {
     const meshRef = useRef();
 
     const material = useMemo(() => {
@@ -74,4 +74,4 @@ export default function PhotonSphere({ params }) {
             </mesh>
         </group>
     );
-}
+});

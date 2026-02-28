@@ -34,7 +34,7 @@ const ElementCell = memo(function ElementCell({
     );
 });
 
-export default function PeriodicTable({
+export default memo(function PeriodicTable({
     elements,
     categories,
     selectedElement,
@@ -91,4 +91,4 @@ export default function PeriodicTable({
             </div>
         </div>
     );
-}
+});

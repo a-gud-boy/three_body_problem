@@ -82,8 +82,7 @@ function runMainThreadPhysics(p, v, count, params) {
         }
     }
 }
-
-export default function CPUGravityParticles({ params, isPlaying }) {
+export default React.memo(function CPUGravityParticles({ params, isPlaying }) {
     const meshRef = useRef();
     const count = 5000;
 
@@ -265,4 +264,4 @@ export default function CPUGravityParticles({ params, isPlaying }) {
             <instancedBufferAttribute attach="instanceColor" args={[instanceColors, 3]} />
         </instancedMesh>
     );
-}
+});

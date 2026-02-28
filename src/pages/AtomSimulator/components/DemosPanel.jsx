@@ -1,7 +1,8 @@
+import { memo } from 'react';
 import { COMPOUND_CATEGORIES } from '../../../data/compoundsData';
 import './DemosPanel.css';
 
-export default function DemosPanel({ compounds, selectedCompound, onSelectCompound }) {
+export default memo(function DemosPanel({ compounds, selectedCompound, onSelectCompound }) {
     return (
         <div className="demos-panel">
             <div className="demos-header">
@@ -44,7 +45,7 @@ export default function DemosPanel({ compounds, selectedCompound, onSelectCompou
             ))}
         </div>
     );
-}
+});
 
 function getCompoundIcon(type) {
     switch (type) {

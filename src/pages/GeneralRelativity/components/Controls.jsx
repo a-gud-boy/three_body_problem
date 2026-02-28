@@ -1,7 +1,7 @@
 import React from 'react';
 import { Settings2, Play, Pause, RefreshCw, Layers, Zap, Info } from 'lucide-react';
 
-export default function Controls({ params, setParams, isPlaying, setIsPlaying, onReset }) {
+export default React.memo(function Controls({ params, setParams, isPlaying, setIsPlaying, onReset }) {
 
     const handleChange = (key, value) => {
         setParams(prev => ({ ...prev, [key]: value }));
@@ -24,8 +24,9 @@ export default function Controls({ params, setParams, isPlaying, setIsPlaying, o
                     onClick={onReset}
                     className="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors"
                     title="Reset Simulation"
+                    aria-label="Reset simulation"
                 >
-                    <RefreshCw className="w-4 h-4" />
+                    <RefreshCw className="w-4 h-4" aria-hidden="true" />
                 </button>
             </div>
 
@@ -262,4 +263,4 @@ export default function Controls({ params, setParams, isPlaying, setIsPlaying, o
             </div>
         </div>
     );
-}
+});

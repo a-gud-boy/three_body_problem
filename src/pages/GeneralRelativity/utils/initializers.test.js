@@ -53,7 +53,7 @@ describe('General Relativity Initializers', () => {
             const minR = 1; // very small, should be overridden by ISCO
             const maxR = 20;
 
-            const rs = calculateSchwarzschildRadius(centerMass, speedOfLight);
+            const _rs = calculateSchwarzschildRadius(centerMass, speedOfLight);
             // rs = 2 * 1 * 10000 / 100^2 = 2
             // ISCO = 3 * rs = 6
             // safeMinR = Math.max(1, 2 * 1.5) = 3
