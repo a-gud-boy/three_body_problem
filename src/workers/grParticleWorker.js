@@ -17,11 +17,10 @@ function calculateSchwarzschildRadius(mass, speedOfLight) {
     return (2 * G * mass) / (speedOfLight * speedOfLight);
 }
 
-function calculateOrbitalVelocity(mass, r, type, speedOfLight) {
+function calculateOrbitalVelocity(mass, r, type, rs) {
     if (type === 'newtonian') {
         return Math.sqrt((G * mass) / r);
     } else {
-        const rs = calculateSchwarzschildRadius(mass, speedOfLight);
         const denom = r - rs;
         if (denom <= 0) return 0;
         return Math.sqrt((r * G * mass) / (denom * denom));
@@ -140,7 +139,7 @@ self.onmessage = function (e) {
                 p[i3 + 1] = (Math.random() - 0.5) * 2;
                 p[i3 + 2] = Math.sin(angle) * r;
 
-                const vMag = calculateOrbitalVelocity(mass, r, physicsModel, speedOfLight);
+                const vMag = calculateOrbitalVelocity(mass, r, physicsModel, rs);
                 v[i3] = -Math.sin(angle) * vMag;
                 v[i3 + 1] = 0;
                 v[i3 + 2] = Math.cos(angle) * vMag;

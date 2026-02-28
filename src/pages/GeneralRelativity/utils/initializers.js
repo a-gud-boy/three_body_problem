@@ -34,7 +34,7 @@ export const createAccretionDisk = (count, centerMass, minR, maxR, type = 'newto
         const z = Math.sin(theta) * r; // Using Y-up convention in Three.js usually means X-Z plane is ground.
 
         // Velocity for circular orbit
-        const vMag = calculateOrbitalVelocity(centerMass, r, type, speedOfLight);
+        const vMag = calculateOrbitalVelocity(centerMass, r, type, speedOfLight, rs);
 
         // Tangent vector (-z, x)
         const vx = -Math.sin(theta) * vMag;
