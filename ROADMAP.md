@@ -51,9 +51,11 @@ This document outlines the planned features, improvements, and research goals fo
     - [x] **Buffer Packing:** Adhering to WebGPU limits by packing distribution functions.
     - [ ] **Caustics:** Realistic light refraction patterns for fluid surfaces.
     - [ ] **3D Navier-Stokes:** Transitioning from 2D LBM to volumetric 3D fluid simulation.
-- [ ] **SPH Improvements (Fluid Dynamics)**
-    - [ ] **Spatial Hashing Optimization:** Improve performance for higher particle counts (>5000).
-    - [ ] **Surface Tension:** Better modeling of droplet formation and cohesion.
+- [x] **Wave Equation (Fluid Dynamics)**
+    - [x] **Compute Shaders:** Massively parallel wave propagation using the Wave Equation.
+    - [x] **Vertex Displacement:** Real-time mesh deformation based on simulation height maps.
+    - [ ] **Advanced Rendering:** Subsurface scattering and screen-space reflections (SSR).
+    - [ ] **Foam Simulation:** Particle-based foam generation at high-velocity crests.
 
 ---
 
