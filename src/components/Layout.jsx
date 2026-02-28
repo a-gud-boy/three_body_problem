@@ -28,15 +28,28 @@ export default function Layout() {
 
     return (
         <>
+            {/* Skip navigation – first focusable element */}
+            <a href="#main-content" className="skip-link">
+                Skip to main content
+            </a>
+
             {!isHome && (
-                <Link to="/" style={backButtonStyle} className="layout-back-btn">
-                    <ArrowLeft size={16} />
+                <Link
+                    to="/"
+                    style={backButtonStyle}
+                    className="layout-back-btn"
+                    aria-label="Back to home page"
+                >
+                    <ArrowLeft size={16} aria-hidden="true" />
                     Home
                 </Link>
             )}
-            <ErrorBoundary>
-                <Outlet />
-            </ErrorBoundary>
+
+            <main id="main-content">
+                <ErrorBoundary>
+                    <Outlet />
+                </ErrorBoundary>
+            </main>
         </>
     );
 }

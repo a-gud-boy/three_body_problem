@@ -37,8 +37,8 @@ export default function ThermodynamicsPage() {
         <div className="thermodynamics-page">
             <header className="thermo-header">
                 <div className="thermo-title">
-                    <Link to="/" className="text-slate-400 hover:text-white transition-colors">
-                        <ArrowLeft size={20} />
+                    <Link to="/" className="text-slate-400 hover:text-white transition-colors" aria-label="Back to home">
+                        <ArrowLeft size={20} aria-hidden="true" />
                     </Link>
                     Entropy Lab: Maxwell's Demon
                 </div>
@@ -46,8 +46,9 @@ export default function ThermodynamicsPage() {
                     <button
                         className={`btn-toggle ${paused ? 'bg-yellow-500 text-black' : ''}`}
                         onClick={() => setPaused(!paused)}
+                        aria-label={paused ? 'Resume simulation' : 'Pause simulation'}
                     >
-                        {paused ? <Play size={16} /> : <Pause size={16} />}
+                        {paused ? <Play size={16} aria-hidden="true" /> : <Pause size={16} aria-hidden="true" />}
                     </button>
                 </div>
             </header>
@@ -79,9 +80,13 @@ export default function ThermodynamicsPage() {
                                 <button
                                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${demonMode ? 'bg-purple-500' : 'bg-slate-600'}`}
                                     onClick={() => setDemonMode(!demonMode)}
+                                    role="switch"
+                                    aria-checked={demonMode}
+                                    aria-label="Maxwell's Demon particle sorting"
                                 >
                                     <span
                                         className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${demonMode ? 'translate-x-6' : 'translate-x-1'}`}
+                                        aria-hidden="true"
                                     />
                                 </button>
                             </div>

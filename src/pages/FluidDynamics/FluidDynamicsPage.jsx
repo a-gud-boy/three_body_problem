@@ -814,8 +814,8 @@ export default function FluidDynamicsPage() {
         <div className="w-full h-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden relative">
             <div className="absolute top-0 left-0 right-0 p-4 z-10 flex justify-between items-start pointer-events-none">
                 <div className="flex flex-col gap-2 pointer-events-auto">
-                    <Link to="/" className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-600/50 rounded-lg text-slate-300 hover:text-white text-sm font-medium transition-all backdrop-blur-sm">
-                        <ArrowLeft className="w-4 h-4" />
+                    <Link to="/" className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-600/50 rounded-lg text-slate-300 hover:text-white text-sm font-medium transition-all backdrop-blur-sm" aria-label="Back to home">
+                        <ArrowLeft className="w-4 h-4" aria-hidden="true" />
                         Back to Hub
                     </Link>
                     <h1 className="text-2xl font-bold text-slate-200 drop-shadow-lg flex items-center gap-2">
@@ -856,6 +856,8 @@ export default function FluidDynamicsPage() {
                 <canvas
                     ref={canvasRef}
                     className="w-full h-full block"
+                    role="img"
+                    aria-label="Fluid dynamics simulation"
                     onPointerMove={onPointerMove}
                     onPointerDown={onPointerDown}
                     onPointerUp={onPointerUp}
@@ -886,8 +888,9 @@ export default function FluidDynamicsPage() {
                                     onClick={() => simulationRef.current?.reset()}
                                     className="px-4 py-3 rounded-lg font-semibold bg-slate-700 text-slate-300 hover:bg-slate-600 transition-all"
                                     title="Reset simulation"
+                                    aria-label="Reset simulation"
                                 >
-                                    <RotateCcw className="w-4 h-4" />
+                                    <RotateCcw className="w-4 h-4" aria-hidden="true" />
                                 </button>
                             </div>
 
@@ -1038,6 +1041,8 @@ export default function FluidDynamicsPage() {
                                             onClick={() => setParams({ ...params, color: c })}
                                             className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${params.color === c ? 'border-white scale-110' : 'border-transparent'}`}
                                             style={{ backgroundColor: c }}
+                                            aria-label={`Set water color to ${c}`}
+                                            aria-pressed={params.color === c}
                                         />
                                     ))}
                                 </div>

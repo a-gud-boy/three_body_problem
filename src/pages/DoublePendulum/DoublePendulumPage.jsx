@@ -368,24 +368,24 @@ export default function DoublePendulumPage() {
     return (
         <div className="double-pendulum-page">
             <header className="dp-header">
-                <Link to="/" className="back-link">
-                    <ArrowLeft size={20} />
+                <Link to="/" className="back-link" aria-label="Back to home">
+                    <ArrowLeft size={20} aria-hidden="true" />
                     <span>Back to Hub</span>
                 </Link>
                 <h1>Double Pendulum</h1>
                 <div className="header-controls">
-                    <button onClick={() => setIsPlaying(!isPlaying)} className="btn-icon" title={isPlaying ? "Pause" : "Play"}>
-                        {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+                    <button onClick={() => setIsPlaying(!isPlaying)} className="btn-icon" aria-label={isPlaying ? 'Pause simulation' : 'Resume simulation'}>
+                        {isPlaying ? <Pause size={20} aria-hidden="true" /> : <Play size={20} aria-hidden="true" />}
                     </button>
-                    <button onClick={reset} className="btn-icon" title="Reset">
-                        <RotateCcw size={20} />
+                    <button onClick={reset} className="btn-icon" aria-label="Reset simulation">
+                        <RotateCcw size={20} aria-hidden="true" />
                     </button>
                 </div>
             </header>
 
             <main className="dp-main">
                 <div className="canvas-container" ref={containerRef}>
-                    <canvas ref={canvasRef} />
+                    <canvas ref={canvasRef} role="img" aria-label="Double pendulum simulation" />
                     <div className="overlay-info">
                         Double Click reset to clear trails.
                     </div>
@@ -435,12 +435,12 @@ export default function DoublePendulumPage() {
 
                     <div className="sidebar-section">
                         <h2><TrendingUp size={16} /> Phase Space (θ₁ vs ω₁)</h2>
-                        <canvas ref={phaseCanvasRef} width={280} height={150} className="analysis-canvas" />
+                        <canvas ref={phaseCanvasRef} width={280} height={150} className="analysis-canvas" role="img" aria-label="Phase space plot of angle versus angular velocity" />
                     </div>
 
                     <div className="sidebar-section">
                         <h2><BarChart3 size={16} /> Energy</h2>
-                        <canvas ref={energyCanvasRef} width={280} height={100} className="analysis-canvas" />
+                        <canvas ref={energyCanvasRef} width={280} height={100} className="analysis-canvas" role="img" aria-label="Energy conservation chart" />
                         <div className="legend">
                             <span style={{ color: '#34d399' }}>Kinetic</span>
                             <span style={{ color: '#60a5fa' }}>Potential</span>

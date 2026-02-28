@@ -24,8 +24,9 @@ export default React.memo(function Controls({ params, setParams, isPlaying, setI
                     onClick={onReset}
                     className="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors"
                     title="Reset Simulation"
+                    aria-label="Reset simulation"
                 >
-                    <RefreshCw className="w-4 h-4" />
+                    <RefreshCw className="w-4 h-4" aria-hidden="true" />
                 </button>
             </div>
 

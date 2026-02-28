@@ -548,12 +548,12 @@ export default function ElectromagneticPage() {
 
     return (
         <div className="em-page">
-            <div className="em-canvas" ref={mountRef} onClick={handleCanvasClick} />
+            <div className="em-canvas" ref={mountRef} onClick={handleCanvasClick} role="img" aria-label="Electromagnetic field simulation" />
 
             {/* Header */}
             <div className="em-header">
-                <Link to="/" className="em-back-link">
-                    <ArrowLeft size={20} />
+                <Link to="/" className="em-back-link" aria-label="Back to home">
+                    <ArrowLeft size={20} aria-hidden="true" />
                     <span>Back to Hub</span>
                 </Link>
                 <h1 className="em-title">
@@ -580,8 +580,8 @@ export default function ElectromagneticPage() {
             </div>
 
             {/* Panel Toggle */}
-            <button className="em-panel-toggle" onClick={() => setIsPanelOpen(!isPanelOpen)}>
-                {isPanelOpen ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+            <button className="em-panel-toggle" onClick={() => setIsPanelOpen(!isPanelOpen)} aria-label={isPanelOpen ? 'Close control panel' : 'Open control panel'} aria-expanded={isPanelOpen}>
+                {isPanelOpen ? <ChevronRight size={20} aria-hidden="true" /> : <ChevronLeft size={20} aria-hidden="true" />}
             </button>
 
             {/* Side Panel */}
@@ -652,11 +652,11 @@ export default function ElectromagneticPage() {
 
             {/* Controls */}
             <div className="em-controls">
-                <button className="em-control-btn primary" onClick={() => setIsRunning(!isRunning)}>
-                    {isRunning ? <Pause size={20} /> : <Play size={20} />}
+                <button className="em-control-btn primary" onClick={() => setIsRunning(!isRunning)} aria-label={isRunning ? 'Pause simulation' : 'Resume simulation'}>
+                    {isRunning ? <Pause size={20} aria-hidden="true" /> : <Play size={20} aria-hidden="true" />}
                 </button>
-                <button className="em-control-btn" onClick={() => loadScenario(currentScenario)}>
-                    <RotateCcw size={20} />
+                <button className="em-control-btn" onClick={() => loadScenario(currentScenario)} aria-label="Reset simulation">
+                    <RotateCcw size={20} aria-hidden="true" />
                 </button>
                 <div className="em-divider" />
                 <div className="em-speed-control">

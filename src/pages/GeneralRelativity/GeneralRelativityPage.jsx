@@ -96,8 +96,8 @@ export default function GeneralRelativityPage() {
             {/* Header */}
             <div className="absolute top-0 left-0 right-0 p-4 z-10 flex flex-col gap-4 pointer-events-none max-w-[calc(100%-20rem)]">
                 <div className="flex flex-col gap-2 pointer-events-auto items-start">
-                    <Link to="/" className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-600/50 rounded-lg text-slate-300 hover:text-white text-sm font-medium transition-all backdrop-blur-sm">
-                        <ArrowLeft className="w-4 h-4" />
+                    <Link to="/" className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-600/50 rounded-lg text-slate-300 hover:text-white text-sm font-medium transition-all backdrop-blur-sm" aria-label="Back to home">
+                        <ArrowLeft className="w-4 h-4" aria-hidden="true" />
                         Back to Hub
                     </Link>
                     <div className="flex items-center gap-4 flex-wrap">
@@ -108,12 +108,16 @@ export default function GeneralRelativityPage() {
                             <button
                                 onClick={() => setRendererType('webgl')}
                                 className={`px-3 py-1 rounded text-xs font-mono transition-colors ${rendererType === 'webgl' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                                aria-pressed={rendererType === 'webgl'}
+                                aria-label="Use WebGL renderer"
                             >
                                 WebGL
                             </button>
                             <button
                                 onClick={() => setRendererType('webgpu')}
                                 className={`px-3 py-1 rounded text-xs font-mono transition-colors ${rendererType === 'webgpu' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                                aria-pressed={rendererType === 'webgpu'}
+                                aria-label="Use WebGPU renderer"
                             >
                                 WebGPU
                             </button>
