@@ -1,0 +1,84 @@
+.schematic-editor {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    background-color: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 8px;
+}
+
+.toolbar {
+    display: flex;
+    gap: 10px;
+    padding: 10px;
+    background-color: #1e293b;
+    border-bottom: 1px solid #334155;
+}
+
+.toolbar button {
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+}
+
+.toolbar button:hover {
+    background-color: #2563eb;
+}
+
+.canvas-wrapper {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.properties-panel {
+    padding: 15px;
+    background-color: #1e293b;
+    border-top: 1px solid #334155;
+    display: flex;
+    gap: 15px;
+    align-items: center;
+}
+
+.properties-panel h3 {
+    margin: 0;
+    color: #e2e8f0;
+    font-size: 1rem;
+}
+
+.properties-panel label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.properties-panel input {
+    background-color: #0f172a;
+    border: 1px solid #334155;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    width: 80px;
+}
+
+.delete-btn {
+    background-color: #ef4444;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: auto;
+}
+
+.delete-btn:hover {
+    background-color: #dc2626;
+}

@@ -100,6 +100,16 @@ export const simulations = [
         path: '/thermodynamics',
         category: 'Thermodynamics',
     },
+    {
+        id: 'electronics',
+        title: 'Electronics & Circuits',
+        description: 'Interactive circuit simulator with AC phasors, diode waveform shaping, and network theorem sandbox.',
+        icon: '🔌',
+        iconBg: 'rgba(16, 185, 129, 0.15)',
+        status: 'available',
+        path: '/electronics',
+        category: 'Classical',
+    },
 ];
 
 export const threeBodySim = {
