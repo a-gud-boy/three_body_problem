@@ -378,40 +378,73 @@ const ThreeBodyPage = () => {
             const reader = new FileReader();
             reader.onload = (event) => {
                 try {
-                    const state = JSON.parse(event.target.result);
+                    const rawState = JSON.parse(event.target.result);
 
-                    // Validate structure
-                    if (!state.bodies || !Array.isArray(state.bodies)) {
+                    // Robust Validation & Sanitization
+                    if (!rawState || typeof rawState !== 'object') {
+                        throw new Error('Invalid JSON structure');
+                    }
+
+                    if (!rawState.bodies || !Array.isArray(rawState.bodies)) {
                         throw new Error('Invalid file: missing bodies array');
                     }
 
-                    if (state.bodies.length > MAX_BODIES) {
+                    if (rawState.bodies.length > MAX_BODIES) {
                         throw new Error(`Too many bodies in file (max ${MAX_BODIES})`);
                     }
+
+                    // Helper for numeric validation to prevent NaN/Infinity exploits
+                    const safeNum = (val, def, min = -1e6, max = 1e6) => {
+                        const n = parseFloat(val);
+                        return (Number.isFinite(n)) ? Math.max(min, Math.min(max, n)) : def;
+                    };
+
+                    // Sanitize bodies - extracting only known properties to prevent prototype pollution
+                    const sanitizedBodies = rawState.bodies.map(b => {
+                        return {
+                            x: safeNum(b.x, 0),
+                            y: safeNum(b.y, 0),
+                            z: safeNum(b.z, 0),
+                            vx: safeNum(b.vx, 0, -1e4, 1e4),
+                            vy: safeNum(b.vy, 0, -1e4, 1e4),
+                            vz: safeNum(b.vz, 0, -1e4, 1e4),
+                            mass: safeNum(b.mass, 1, 0.001, 1e10),
+                            color: (typeof b.color === 'number' && b.color >= 0 && b.color <= 0xffffff)
+                                ? Math.floor(b.color)
+                                : 0x3b82f6
+                        };
+                    });
 
                     // Clear existing visuals
                     while (meshRefs.current.length > 0) {
                         removeBodyVisuals(0);
                     }
 
-                    // Load bodies
-                    bodiesRef.current = state.bodies.map(b => ({
-                        x: b.x || 0, y: b.y || 0, z: b.z || 0,
-                        vx: b.vx || 0, vy: b.vy || 0, vz: b.vz || 0,
-                        mass: b.mass || 1,
-                        color: b.color || 0x3b82f6
-                    }));
+                    // Load sanitized bodies
+                    bodiesRef.current = sanitizedBodies;
 
                     // Create visuals
                     bodiesRef.current.forEach(body => addBodyVisuals(body));
 
-                    // Restore settings
-                    if (state.gravityG) setGravityG(state.gravityG);
-                    if (state.time) timeRef.current = state.time;
-                    if (state.settings) {
-                        if (state.settings.physicsMode) setPhysicsMode(state.settings.physicsMode);
-                        if (state.settings.simSpeed) setSimSpeed(state.settings.simSpeed);
-                        if (state.settings.collisionMode) setCollisionMode(state.settings.collisionMode);
+                    // Restore settings with validation
+                    if ('gravityG' in rawState) {
+                        setGravityG(safeNum(rawState.gravityG, 1, 0.01, 100));
+                    }
+                    if ('time' in rawState) {
+                        timeRef.current = safeNum(rawState.time, 0, 0, 1e12);
+                    }
+
+                    if (rawState.settings && typeof rawState.settings === 'object') {
+                        const s = rawState.settings;
+                        if (['EULER', 'RK4'].includes(s.physicsMode)) {
+                            setPhysicsMode(s.physicsMode);
+                        }
+                        if ('simSpeed' in s) {
+                            setSimSpeed(safeNum(s.simSpeed, 1, 0.01, 20));
+                        }
+                        if (['off', 'elastic', 'inelastic'].includes(s.collisionMode)) {
+                            setCollisionMode(s.collisionMode);
+                        }
                     }
 
                     // Clear trails
@@ -427,7 +460,7 @@ const ThreeBodyPage = () => {
                     setInitialEnergy(null);
                     markNeedsRender();
 
-                    alert(`Loaded ${bodiesRef.current.length} bodies from file`);
+                    alert(`Successfully loaded ${bodiesRef.current.length} bodies from file`);
                 } catch (err) {
                     alert('Failed to load file: ' + err.message);
                 }
