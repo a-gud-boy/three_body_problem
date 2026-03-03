@@ -8,6 +8,7 @@ export default function WaveInterferencePage() {
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
     const simulatorRef = useRef(null);
+    const imageDataRef = useRef(null);
 
     // Simulation resolution (lower than screen for performance + retro look)
     const SIM_WIDTH = 200;
@@ -149,7 +150,10 @@ export default function WaveInterferencePage() {
 
             // Render
             const ctx = canvas.getContext('2d');
-            const imageData = ctx.createImageData(SIM_WIDTH, SIM_HEIGHT);
+            if (!imageDataRef.current) {
+                imageDataRef.current = ctx.createImageData(SIM_WIDTH, SIM_HEIGHT);
+            }
+            const imageData = imageDataRef.current;
             sim.renderToBuffer(imageData);
             ctx.putImageData(imageData, 0, 0);
         }
