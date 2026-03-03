@@ -17,6 +17,7 @@ const GeneralRelativityPage = React.lazy(() => import('./pages/GeneralRelativity
 const QuantumSandboxPage = React.lazy(() => import('./pages/QuantumSandbox/QuantumSandboxPage'));
 const AerodynamicsPage = React.lazy(() => import('./pages/Aerodynamics/AerodynamicsPage'));
 const ThermodynamicsPage = React.lazy(() => import('./pages/Thermodynamics/ThermodynamicsPage'));
+const ElectronicsPage = React.lazy(() => import('./pages/Electronics/ElectronicsPage'));
 
 const router = createHashRouter([
     {
@@ -69,6 +70,10 @@ const router = createHashRouter([
             {
                 path: '/thermodynamics',
                 element: <Suspense fallback={<SuspenseFallback />}><ThermodynamicsPage /></Suspense>,
+            },
+            {
+                path: '/electronics',
+                element: <Suspense fallback={<SuspenseFallback />}><ElectronicsPage /></Suspense>,
             },
             {
                 path: '/concept/:id',

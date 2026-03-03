@@ -1,0 +1,228 @@
+.ac-phasor-tab {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.simulation-area {
+    display: flex;
+    gap: 16px;
+    flex: 1;
+    min-height: 0;
+}
+
+.schematic-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* ── Right Panel ── */
+.visualizer-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: linear-gradient(170deg, #0f172a 0%, #020617 100%);
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Header */
+.viz-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background-color: rgba(15, 23, 42, 0.8);
+    border-bottom: 1px solid #1e293b;
+}
+
+.viz-title {
+    color: #e2e8f0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    letter-spacing: 0.02em;
+}
+
+.deselect-btn {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.deselect-btn:hover {
+    background: rgba(239, 68, 68, 0.3);
+    color: #fee2e2;
+}
+
+/* Error */
+.error-banner {
+    background: rgba(153, 27, 27, 0.6);
+    color: #fecaca;
+    padding: 8px 14px;
+    font-size: 0.8rem;
+    border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* Sections */
+.viz-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    position: relative;
+}
+
+.viz-section-label {
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    color: #475569;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.viz-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border-bottom: 1px solid #1e293b;
+}
+
+/* Controls */
+.viz-controls {
+    padding: 10px 14px;
+    background-color: rgba(15, 23, 42, 0.6);
+    border-bottom: 1px solid #1e293b;
+}
+
+.control-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.freq-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+}
+
+.control-label {
+    color: #94a3b8;
+    font-size: 0.8rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.freq-control input[type="range"] {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #1e293b;
+    border-radius: 4px;
+    outline: none;
+}
+
+.freq-control input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #3b82f6;
+    cursor: pointer;
+    border: 2px solid #1e293b;
+    box-shadow: 0 0 6px rgba(59, 130, 246, 0.5);
+}
+
+.freq-value {
+    color: #3b82f6;
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-width: 56px;
+    text-align: right;
+}
+
+.pause-btn {
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    color: #93c5fd;
+    font-size: 0.75rem;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.pause-btn:hover {
+    background: rgba(59, 130, 246, 0.25);
+}
+
+.pause-btn.paused {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.25);
+    color: #6ee7b7;
+}
+
+.pause-btn.paused:hover {
+    background: rgba(16, 185, 129, 0.25);
+}
+
+/* Info Readout */
+.info-readout {
+    padding: 10px 14px;
+    background-color: rgba(15, 23, 42, 0.4);
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 8px;
+    background: rgba(30, 41, 59, 0.5);
+    border: 1px solid #1e293b;
+    border-radius: 6px;
+}
+
+.info-label {
+    color: #64748b;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.info-value {
+    color: #e2e8f0;
+    font-size: 0.85rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    font-family: 'Inter', 'SF Mono', monospace;
+}
