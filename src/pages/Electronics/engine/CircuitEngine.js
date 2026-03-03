@@ -1,4 +1,4 @@
-import { solveComplexMatrix, solveRealMatrix } from './matrix.js';
+import { solveComplexMatrix } from './matrix.js';
 import Complex from './Complex.js';
 
 export const COMPONENT_TYPES = {
@@ -79,8 +79,8 @@ class CircuitEngine {
                 // Y = 1 / (j * omega * L) = -j / (omega * L)
                 admittance = new Complex(0, -1 / (this.omega * comp.value));
             } else if (comp.type === COMPONENT_TYPES.WIRE) {
-                 // Model wire as tiny resistor
-                 admittance = new Complex(1 / 1e-6, 0);
+                // Model wire as tiny resistor
+                admittance = new Complex(1 / 1e-6, 0);
             }
 
             if (admittance.mag() > 0) {
@@ -113,18 +113,23 @@ class CircuitEngine {
                 A[vIndex][n2] = A[vIndex][n2].add(new Complex(-1, 0));
             }
 
+            // Prevent singular matrices from parallel/shorted ideal voltage sources
+            // by modeling a 1 micro-ohm internal series resistance (-R_internal on diagonal)
+            A[vIndex][vIndex] = new Complex(-1e-6, 0);
+
             // Right-hand side stamp
             if (vSrc.type === COMPONENT_TYPES.AC_VOLTAGE) {
                 const phase = vSrc.phase || 0;
                 // value is amplitude (peak voltage)
                 B[vIndex] = B[vIndex].add(Complex.fromPolar(vSrc.value, phase * Math.PI / 180));
             } else if (vSrc.type === COMPONENT_TYPES.DC_VOLTAGE) {
-                 B[vIndex] = B[vIndex].add(new Complex(vSrc.value, 0));
+                B[vIndex] = B[vIndex].add(new Complex(vSrc.value, 0));
             }
         });
 
-        // Add small conductance to main diagonal to prevent singular matrices (e.g., floating nodes)
-        for(let i=0; i<size; i++){
+        // Add small conductance to node diagonal only to prevent singular matrices (e.g., floating nodes)
+        // Do NOT add epsilon to voltage-source rows (indices >= numNodes) as that corrupts the MNA stamp
+        for (let i = 0; i < numNodes; i++) {
             A[i][i] = A[i][i].add(new Complex(1e-10, 0));
         }
 
@@ -144,12 +149,6 @@ class CircuitEngine {
         });
 
         return results;
-    }
-
-    // Solve Transient (Time-Domain) Analysis using Backward Euler
-    solveTransient(tEnd, dt) {
-        // Implementation for diodes, etc.
-        // For simplicity right now we will use numerical integration if needed.
     }
 }
 

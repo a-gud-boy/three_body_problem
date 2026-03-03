@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import './ElectronicsPage.css';
 import ACPhasorTab from './components/ACPhasorTab';
@@ -7,22 +7,17 @@ import WaveformTab from './components/WaveformTab';
 import NetworkTheoremsTab from './components/NetworkTheoremsTab';
 
 const ElectronicsPage = () => {
-    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('ac-phasor');
 
     return (
         <div className="electronics-container">
-            {/* Header section similar to other pages */}
-            <div className="simulation-header">
-                <button className="back-button" onClick={() => navigate('/')}>
-                    <ArrowLeft size={20} />
-                    Back to Hub
-                </button>
-                <div className="title-section">
-                    <h1>Electronics & Circuits</h1>
-                    <p>Interactive Circuit Simulator</p>
-                </div>
-            </div>
+            <header className="simulation-header">
+                <Link to="/" className="back-link" aria-label="Back to home">
+                    <ArrowLeft size={20} aria-hidden="true" />
+                    <span>Back to Hub</span>
+                </Link>
+                <h1>Electronics &amp; Circuits</h1>
+            </header>
 
             <div className="electronics-content">
                 <div className="tabs">
@@ -47,9 +42,15 @@ const ElectronicsPage = () => {
                 </div>
 
                 <div className="tab-content">
-                    {activeTab === 'ac-phasor' && <ACPhasorTab />}
-                    {activeTab === 'waveform' && <WaveformTab />}
-                    {activeTab === 'theorems' && <NetworkTheoremsTab />}
+                    <div style={{ display: activeTab === 'ac-phasor' ? 'flex' : 'none', flexDirection: 'column', height: '100%' }}>
+                        <ACPhasorTab />
+                    </div>
+                    <div style={{ display: activeTab === 'waveform' ? 'flex' : 'none', flexDirection: 'column', height: '100%' }}>
+                        <WaveformTab />
+                    </div>
+                    <div style={{ display: activeTab === 'theorems' ? 'flex' : 'none', flexDirection: 'column', height: '100%' }}>
+                        <NetworkTheoremsTab />
+                    </div>
                 </div>
             </div>
         </div>

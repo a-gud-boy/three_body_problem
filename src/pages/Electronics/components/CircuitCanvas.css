@@ -9,24 +9,33 @@
     user-select: none;
 }
 
-.grid-background {
+.canvas-inner {
     position: absolute;
     top: 0;
     left: 0;
-    right: 0;
-    bottom: 0;
-    background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px),
-                      linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
+    width: 100%;
+    height: 100%;
+    will-change: transform;
+}
+
+.grid-background {
+    position: absolute;
+    top: -2000px;
+    left: -2000px;
+    width: 6000px;
+    height: 6000px;
+    background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
     background-size: 40px 40px;
     pointer-events: none;
 }
 
 .wires-layer {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    top: -2000px;
+    left: -2000px;
+    width: 6000px;
+    height: 6000px;
     pointer-events: none;
 }
 
@@ -59,4 +68,98 @@
     pointer-events: none;
     position: absolute;
     bottom: -20px;
+}
+
+/* Pan & Zoom Controls */
+.canvas-controls {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    z-index: 20;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(100, 116, 139, 0.3);
+    border-radius: 8px;
+    padding: 4px 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.canvas-control-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(51, 65, 85, 0.6);
+    border: 1px solid rgba(100, 116, 139, 0.3);
+    border-radius: 6px;
+    color: #e2e8f0;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    padding: 0;
+    line-height: 1;
+}
+
+.canvas-control-btn:hover {
+    background: rgba(59, 130, 246, 0.3);
+    border-color: rgba(59, 130, 246, 0.5);
+    color: #93c5fd;
+}
+
+.canvas-control-btn.reset-btn {
+    font-size: 14px;
+    margin-left: 2px;
+}
+
+.zoom-label {
+    font-size: 11px;
+    font-family: monospace;
+    color: #94a3b8;
+    min-width: 36px;
+    text-align: center;
+    user-select: none;
+}
+
+.pan-hint {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    font-size: 11px;
+    color: rgba(148, 163, 184, 0.5);
+    z-index: 20;
+    pointer-events: none;
+    user-select: none;
+    font-family: system-ui, sans-serif;
+}
+
+.terminal-handle {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background-color: #3b82f6;
+    border: 2px solid white;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    cursor: crosshair;
+    z-index: 10;
+    opacity: 0.4;
+    transition: opacity 0.2s, background-color 0.2s, transform 0.2s;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+}
+
+.terminal-handle:hover,
+.terminal-handle.active {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.2);
+}
+
+.terminal-handle.hovered {
+    opacity: 1;
+    background-color: #22c55e;
+    transform: translate(-50%, -50%) scale(1.5);
 }

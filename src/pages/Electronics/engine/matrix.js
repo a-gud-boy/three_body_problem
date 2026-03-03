@@ -2,8 +2,12 @@
 
 import Complex from './Complex.js';
 
-export function solveRealMatrix(A, B) {
-    const n = A.length;
+export function solveRealMatrix(inputA, inputB) {
+    const n = inputA.length;
+    // Deep clone to avoid mutating caller's data
+    const A = inputA.map(row => [...row]);
+    const B = [...inputB];
+
     // Gaussian elimination with partial pivoting
     for (let i = 0; i < n; i++) {
         let maxRow = i;
@@ -42,8 +46,12 @@ export function solveRealMatrix(A, B) {
     return X;
 }
 
-export function solveComplexMatrix(A, B) {
-    const n = A.length;
+export function solveComplexMatrix(inputA, inputB) {
+    const n = inputA.length;
+    // Deep clone to avoid mutating caller's data
+    const A = inputA.map(row => row.map(c => new Complex(c.re, c.im)));
+    const B = inputB.map(c => new Complex(c.re, c.im));
+
     // Gaussian elimination with partial pivoting for complex numbers
     for (let i = 0; i < n; i++) {
         let maxRow = i;

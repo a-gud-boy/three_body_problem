@@ -31,19 +31,40 @@
     background-color: #2563eb;
 }
 
+.auto-connect-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #94a3b8;
+    font-size: 0.85rem;
+    cursor: pointer;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.auto-connect-label input[type="checkbox"] {
+    accent-color: #3b82f6;
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}
+
 .canvas-wrapper {
-    flex: 1;
+    flex: 1 1 0;
+    min-height: 0;
     position: relative;
     overflow: hidden;
 }
 
 .properties-panel {
-    padding: 15px;
+    padding: 10px 15px;
     background-color: #1e293b;
     border-top: 1px solid #334155;
     display: flex;
     gap: 15px;
     align-items: center;
+    flex-shrink: 0;
+    flex-wrap: wrap;
 }
 
 .properties-panel h3 {
