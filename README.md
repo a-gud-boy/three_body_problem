@@ -49,6 +49,11 @@ This project is a collection of educational and experimental physics engines des
 | :--- | :--- | :--- |
 | **[Entropy Lab](./src/pages/Thermodynamics)** | 20,000 particle hard-sphere simulation using WebGPU. Experiment with Ideal Gas Law, Adiabatic processes, and Maxwell's Demon. | `WebGPU`, `Collision Detection`, `Maxwell's Demon` |
 
+### 🔌 Electronics
+| Simulation | Description | Key Tech |
+| :--- | :--- | :--- |
+| **[Electronics & Circuits](./src/pages/Electronics)** | Interactive circuit simulator with AC phasors, diode waveform shaping, and network theorem sandbox. | `Circuit Simulation`, `AC Phasors`, `Oscilloscope` |
+
 ---
 
 ## 🛠️ Tech Stack
