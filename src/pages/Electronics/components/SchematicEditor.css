@@ -90,6 +90,81 @@
     width: 80px;
 }
 
+.properties-panel select {
+    background-color: #0f172a;
+    border: 1px solid #334155;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    min-width: 110px;
+}
+
+.component-dropdown {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.component-dropdown-label {
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.component-dropdown-trigger {
+    background-color: #0f172a;
+    border: 1px solid #334155;
+    color: #e2e8f0;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    min-width: 140px;
+    text-align: left;
+}
+
+.component-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 180px;
+    max-height: 220px;
+    overflow-y: auto;
+    background-color: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 4px;
+    z-index: 30;
+    box-shadow: 0 10px 20px rgba(2, 6, 23, 0.5);
+}
+
+.component-dropdown-item {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: #cbd5e1;
+    text-align: left;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.component-dropdown-item:hover,
+.component-dropdown-item:focus {
+    background-color: rgba(56, 189, 248, 0.15);
+    color: #e0f2fe;
+    outline: none;
+}
+
+.component-dropdown-item.preview {
+    background-color: rgba(6, 182, 212, 0.22);
+    color: #ecfeff;
+}
+
+.component-dropdown-item.active {
+    background-color: rgba(59, 130, 246, 0.22);
+    color: #dbeafe;
+}
+
 .delete-btn {
     background-color: #ef4444;
     color: white;

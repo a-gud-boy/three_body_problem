@@ -107,6 +107,24 @@ This document outlines the planned features, improvements, and research goals fo
 
 ---
 
+## ⚡ Electronics Audit Follow-up
+**Goal:** Address the priority findings from the Electronics & Circuits simulation audit.
+
+- [x] **Topological Pre-processing (High Priority)**
+    - [x] Collapse nodes connected by ideal wires before MNA stamping.
+    - [x] Exclude explicit wire components from the admittance matrix.
+- [x] **Drag Performance (High Priority)**
+    - [x] Use mutable drag preview during pointer move.
+    - [x] Commit final component position to React state on mouse up.
+- [x] **Short Circuit Protection (Medium Priority)**
+    - [x] Detect shorted/parallel ideal voltage source conflicts and show a user-facing error.
+- [x] **Animation Loop Hygiene (Medium Priority)**
+    - [x] Move phasor/waveform animation to managed `requestAnimationFrame` with cleanup.
+- [ ] **Accessibility Pass (Low/Medium Priority)**
+    - Add ARIA labels and keyboard affordances to circuit canvas interactions.
+
+---
+
 ## 🤝 Community & Contribution
 - [ ] **Scenario Sharing:** Export/Import simulation states via JSON or URL parameters.
 - [ ] **Workshop Mode:** Allow users to write custom JS/GLSL scripts to define forces or initial conditions.

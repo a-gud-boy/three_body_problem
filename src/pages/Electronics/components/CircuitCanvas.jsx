@@ -1,9 +1,81 @@
-import React, { useState, useRef, useMemo, useCallback } from 'react';
+import React, { useImperativeHandle, useState, useRef, useMemo, useCallback } from 'react';
 import './CircuitCanvas.css';
 
 const GRID_SIZE = 40;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 3;
+const CURVE_SAMPLES = 28;
+
+function cubicBezierPoint(p0, p1, p2, p3, t) {
+    const u = 1 - t;
+    const tt = t * t;
+    const uu = u * u;
+    const uuu = uu * u;
+    const ttt = tt * t;
+
+    return {
+        x: (uuu * p0.x) + (3 * uu * t * p1.x) + (3 * u * tt * p2.x) + (ttt * p3.x),
+        y: (uuu * p0.y) + (3 * uu * t * p1.y) + (3 * u * tt * p2.y) + (ttt * p3.y)
+    };
+}
+
+function pointToSegmentDistance(p, a, b) {
+    const abx = b.x - a.x;
+    const aby = b.y - a.y;
+    const abLen2 = abx * abx + aby * aby;
+    if (abLen2 === 0) {
+        return Math.hypot(p.x - a.x, p.y - a.y);
+    }
+
+    const apx = p.x - a.x;
+    const apy = p.y - a.y;
+    const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / abLen2));
+    const projX = a.x + (abx * t);
+    const projY = a.y + (aby * t);
+    return Math.hypot(p.x - projX, p.y - projY);
+}
+
+function doesCutIntersectCurve(cutStart, cutEnd, curve, tolerance) {
+    for (let i = 0; i <= CURVE_SAMPLES; i++) {
+        const t = i / CURVE_SAMPLES;
+        const p = cubicBezierPoint(curve.root, curve.cp1, curve.cp2, curve.target, t);
+        if (pointToSegmentDistance(p, cutStart, cutEnd) <= tolerance) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function buildTerminalCurve(p1, p2) {
+    // Blender-like noodle: handles are horizontal and scale with separation.
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+    const dirX = dx >= 0 ? 1 : -1;
+
+    // Favor horizontal spacing like node-graph noodles while still adapting on diagonals.
+    const handle = Math.max(28, Math.min((absDx * 0.5) + (absDy * 0.18), 170));
+
+    return {
+        root: { x: p1.x, y: p1.y },
+        cp1: { x: p1.x + dirX * handle, y: p1.y },
+        cp2: { x: p2.x - dirX * handle, y: p2.y },
+        target: { x: p2.x, y: p2.y }
+    };
+}
+
+function getNextNodeCounter(sourceComponents) {
+    let maxN = 0;
+    sourceComponents.forEach(c => {
+        const m1 = typeof c.node1 === 'string' && c.node1.match(/^(?:NODE-|n)(\d+)$/i);
+        if (m1) maxN = Math.max(maxN, parseInt(m1[1], 10));
+
+        const m2 = typeof c.node2 === 'string' && c.node2.match(/^(?:NODE-|n)(\d+)$/i);
+        if (m2) maxN = Math.max(maxN, parseInt(m2[1], 10));
+    });
+    return maxN;
+}
 
 const COMPONENT_SVG = {
     'R': (props) => (
@@ -52,8 +124,23 @@ const COMPONENT_SVG = {
     )
 };
 
-const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly = false, autoConnect = false }) => {
+function CircuitCanvas({
+    ref,
+    components,
+    setComponents,
+    onSelectionChange,
+    selectedComponentId = null,
+    readOnly = false,
+    autoConnect = false,
+}) {
+    const [previewId, setPreviewId] = useState(null);
+
+    useImperativeHandle(ref, () => ({
+        setPreview: (id) => setPreviewId(id),
+        clearPreview: () => setPreviewId(null),
+    }), []);
     const containerRef = useRef(null);
+    const dragPositionRef = useRef(null);
     const [draggingId, setDraggingId] = useState(null);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const [selectedId, setSelectedId] = useState(null);
@@ -62,6 +149,8 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
     const [wiringStart, setWiringStart] = useState(null);
     const [wiringPos, setWiringPos] = useState(null);
     const [hoveredTerminal, setHoveredTerminal] = useState(null);
+    const [wireCutStart, setWireCutStart] = useState(null);
+    const [wireCutPos, setWireCutPos] = useState(null);
 
     // Pan & zoom state
     const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -69,6 +158,11 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
     const [isPanning, setIsPanning] = useState(false);
     const panStartRef = useRef({ x: 0, y: 0 });
     const panOffsetStartRef = useRef({ x: 0, y: 0 });
+
+    React.useEffect(() => {
+        setSelectedId(selectedComponentId);
+    }, [selectedComponentId]);
+
 
     const snapToGrid = useCallback((val) => Math.round(val / GRID_SIZE) * GRID_SIZE, []);
 
@@ -132,6 +226,136 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
         };
     }, [panOffset, zoom]);
 
+    const getExplicitWireCurve = useCallback((wire, sourceComponents = components) => {
+        const sComp = sourceComponents.find(c => c.id === wire.sourceComp);
+        const tComp = sourceComponents.find(c => c.id === wire.targetComp);
+        if (!sComp || !tComp) return null;
+
+        const sTerms = getTerminals(sComp);
+        const tTerms = getTerminals(tComp);
+        const root = sTerms[wire.sourceTerm];
+        const target = tTerms[wire.targetTerm];
+        if (!root || !target) return null;
+
+        return buildTerminalCurve(root, target);
+    }, [components, getTerminals]);
+
+    const getImplicitWireEdges = useCallback((sourceComponents = components) => {
+        const nodes = {};
+        const explicitWires = [];
+
+        sourceComponents.forEach(comp => {
+            if (comp.type === 'W') {
+                explicitWires.push(comp);
+                return;
+            }
+
+            const terms = getTerminals(comp);
+            if (terms.t1.isReal) {
+                if (!nodes[comp.node1]) nodes[comp.node1] = [];
+                nodes[comp.node1].push({ ...terms.t1, compId: comp.id, termKey: 't1', nodeId: comp.node1 });
+            }
+            if (terms.t2.isReal) {
+                if (!nodes[comp.node2]) nodes[comp.node2] = [];
+                nodes[comp.node2].push({ ...terms.t2, compId: comp.id, termKey: 't2', nodeId: comp.node2 });
+            }
+        });
+
+        const edges = [];
+
+        Object.keys(nodes).forEach(nodeId => {
+            const points = nodes[nodeId];
+            if (points.length < 2) return;
+
+            const adjacency = new Map();
+            points.forEach(p => adjacency.set(p, []));
+
+            explicitWires.forEach(w => {
+                if (w.node1 !== nodeId && w.node2 !== nodeId) return;
+                const pS = points.find(p => p.compId === w.sourceComp && p.termKey === w.sourceTerm);
+                const pT = points.find(p => p.compId === w.targetComp && p.termKey === w.targetTerm);
+                if (pS && pT) {
+                    adjacency.get(pS).push(pT);
+                    adjacency.get(pT).push(pS);
+                }
+            });
+
+            const islands = [];
+            const visited = new Set();
+            points.forEach(p => {
+                if (visited.has(p)) return;
+                const island = [];
+                const queue = [p];
+                visited.add(p);
+                while (queue.length > 0) {
+                    const curr = queue.shift();
+                    island.push(curr);
+                    adjacency.get(curr).forEach(neighbor => {
+                        if (!visited.has(neighbor)) {
+                            visited.add(neighbor);
+                            queue.push(neighbor);
+                        }
+                    });
+                }
+                islands.push(island);
+            });
+
+            const connectedIslands = [islands[0]];
+            const unconnectedIslands = islands.slice(1);
+
+            while (unconnectedIslands.length > 0) {
+                let minDist = Infinity;
+                let bestConnIslandIdx = -1;
+                let bestUnconnIslandIdx = -1;
+                let bestP1 = null;
+                let bestP2 = null;
+
+                for (let i = 0; i < connectedIslands.length; i++) {
+                    const island1 = connectedIslands[i];
+                    for (let j = 0; j < unconnectedIslands.length; j++) {
+                        const island2 = unconnectedIslands[j];
+                        for (const p1 of island1) {
+                            for (const p2 of island2) {
+                                const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+                                if (dist < minDist) {
+                                    minDist = dist;
+                                    bestConnIslandIdx = i;
+                                    bestUnconnIslandIdx = j;
+                                    bestP1 = p1;
+                                    bestP2 = p2;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (!bestP1 || !bestP2) break;
+
+                edges.push({ nodeId, p1: bestP1, p2: bestP2 });
+
+                const joinedIsland = unconnectedIslands[bestUnconnIslandIdx];
+                connectedIslands[bestConnIslandIdx] = connectedIslands[bestConnIslandIdx].concat(joinedIsland);
+                unconnectedIslands.splice(bestUnconnIslandIdx, 1);
+            }
+        });
+
+        return edges;
+    }, [components, getTerminals]);
+
+    const pickImplicitCutTerminal = useCallback((edge, sourceComponents = components) => {
+        const compA = sourceComponents.find(c => c.id === edge.p1.compId);
+        const compB = sourceComponents.find(c => c.id === edge.p2.compId);
+
+        const aIsGroundSymbol = compA?.type === 'G';
+        const bIsGroundSymbol = compB?.type === 'G';
+
+        if (!aIsGroundSymbol && bIsGroundSymbol) return edge.p1;
+        if (!bIsGroundSymbol && aIsGroundSymbol) return edge.p2;
+
+        // Default to p2 for deterministic behavior.
+        return edge.p2;
+    }, [components]);
+
     const handleTerminalMouseDown = useCallback((e, comp, termKey) => {
         if (readOnly) return;
         e.stopPropagation();
@@ -139,13 +363,13 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
         if (e.ctrlKey || e.metaKey) {
             let maxN = 0;
             components.forEach(c => {
-                const m1 = typeof c.node1 === 'string' && c.node1.match(/^n(\d+)$/);
+                const m1 = typeof c.node1 === 'string' && c.node1.match(/^(?:NODE-|n)(\d+)$/i);
                 if (m1) maxN = Math.max(maxN, parseInt(m1[1], 10));
 
-                const m2 = typeof c.node2 === 'string' && c.node2.match(/^n(\d+)$/);
+                const m2 = typeof c.node2 === 'string' && c.node2.match(/^(?:NODE-|n)(\d+)$/i);
                 if (m2) maxN = Math.max(maxN, parseInt(m2[1], 10));
             });
-            const newNodeName = `n${maxN + 1}`;
+            const newNodeName = `NODE-${maxN + 1}`;
 
             // Disconnect this terminal by giving it a unique new node name
             setComponents(prev => prev.map(c => {
@@ -182,6 +406,15 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
     const handleMouseDown = useCallback((e, id) => {
         if (readOnly) return;
         e.stopPropagation();
+
+        // Ctrl/Cmd + drag from a component should cut wires, not move the component.
+        if ((e.ctrlKey || e.metaKey) && e.button === 0) {
+            const canvasPos = screenToCanvas(e.clientX, e.clientY);
+            setWireCutStart(canvasPos);
+            setWireCutPos(canvasPos);
+            return;
+        }
+
         setSelectedId(id);
         if (onSelectionChange) onSelectionChange(id);
 
@@ -189,6 +422,7 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
         if (comp) {
             const canvasPos = screenToCanvas(e.clientX, e.clientY);
             setDraggingId(id);
+            dragPositionRef.current = { x: comp.x, y: comp.y };
             setDragOffset({
                 x: canvasPos.x - comp.x,
                 y: canvasPos.y - comp.y
@@ -197,6 +431,12 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
     }, [readOnly, components, onSelectionChange, screenToCanvas]);
 
     const handleMouseMove = useCallback((e) => {
+        if (wireCutStart) {
+            const canvasPos = screenToCanvas(e.clientX, e.clientY);
+            setWireCutPos(canvasPos);
+            return;
+        }
+
         // Handle panning
         if (isPanning) {
             const dx = e.clientX - panStartRef.current.x;
@@ -248,12 +488,90 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
         let newX = canvasPos.x - dragOffset.x;
         let newY = canvasPos.y - dragOffset.y;
 
-        setComponents(prev => prev.map(c =>
-            c.id === draggingId ? { ...c, x: newX, y: newY } : c
-        ));
-    }, [isPanning, draggingId, readOnly, dragOffset, setComponents, screenToCanvas, wiringStart, components, getTerminals]);
+        dragPositionRef.current = { x: newX, y: newY };
+
+        setComponents(prev => {
+            return prev.map(c =>
+                c.id === draggingId ? { ...c, x: newX, y: newY } : c
+            );
+        });
+    }, [wireCutStart, isPanning, draggingId, readOnly, dragOffset, setComponents, screenToCanvas, wiringStart, components, getTerminals]);
 
     const handleMouseUp = useCallback(() => {
+        if (wireCutStart) {
+            const cutStart = wireCutStart;
+            const cutEnd = wireCutPos || wireCutStart;
+            const cutLength = Math.hypot(cutEnd.x - cutStart.x, cutEnd.y - cutStart.y);
+
+            if (cutLength > 4) {
+                const cutTolerance = 12 / zoom;
+                setComponents(prev => {
+                    const explicitWireIdsToRemove = new Set();
+                    prev.forEach(c => {
+                        if (c.type !== 'W') return;
+                        const curve = getExplicitWireCurve(c, prev);
+                        if (!curve) return;
+                        if (doesCutIntersectCurve(cutStart, cutEnd, curve, cutTolerance)) {
+                            explicitWireIdsToRemove.add(c.id);
+                        }
+                    });
+
+                    let next = prev.filter(c => !(c.type === 'W' && explicitWireIdsToRemove.has(c.id)));
+
+                    // Also break implicit (node-name) connections if their rendered edge is cut.
+                    const implicitEdges = getImplicitWireEdges(prev);
+                    const terminalsToSplit = [];
+                    implicitEdges.forEach(edge => {
+                        const curve = buildTerminalCurve(edge.p1, edge.p2);
+                        if (doesCutIntersectCurve(cutStart, cutEnd, curve, cutTolerance)) {
+                            const terminal = pickImplicitCutTerminal(edge, prev);
+                            if (terminal) {
+                                terminalsToSplit.push({ compId: terminal.compId, termKey: terminal.termKey });
+                            }
+                        }
+                    });
+
+                    if (terminalsToSplit.length > 0) {
+                        const dedup = new Map();
+                        terminalsToSplit.forEach(t => {
+                            dedup.set(`${t.compId}:${t.termKey}`, t);
+                        });
+
+                        let maxNode = getNextNodeCounter(next);
+                        const replacementByTerminal = new Map();
+                        dedup.forEach((t, key) => {
+                            maxNode += 1;
+                            replacementByTerminal.set(key, `NODE-${maxNode}`);
+                        });
+
+                        next = next.map(comp => {
+                            if (comp.type === 'W') return comp;
+
+                            let node1 = comp.node1;
+                            let node2 = comp.node2;
+                            const replacement1 = replacementByTerminal.get(`${comp.id}:t1`);
+                            const replacement2 = replacementByTerminal.get(`${comp.id}:t2`);
+
+                            if (replacement1) node1 = replacement1;
+                            if (replacement2) node2 = replacement2;
+
+                            if (node1 === comp.node1 && node2 === comp.node2) {
+                                return comp;
+                            }
+
+                            return { ...comp, node1, node2 };
+                        });
+                    }
+
+                    return next;
+                });
+            }
+
+            setWireCutStart(null);
+            setWireCutPos(null);
+            return;
+        }
+
         // End panning
         if (isPanning) {
             setIsPanning(false);
@@ -304,11 +622,18 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
 
         if (!draggingId) return;
 
-        if (autoConnect && !readOnly) {
-            setComponents(prev => {
-                const draggedComp = prev.find(c => c.id === draggingId);
-                if (!draggedComp || draggedComp.type === 'G') return prev; // Don't auto-reconnect grounds easily
+        const finalDragPos = dragPositionRef.current;
+        const baseComponents = components.map((c) => {
+            if (c.id !== draggingId || !finalDragPos) return c;
+            return { ...c, x: finalDragPos.x, y: finalDragPos.y };
+        });
 
+        let nextComponents = baseComponents;
+
+        if (autoConnect && !readOnly) {
+            const draggedComp = baseComponents.find(c => c.id === draggingId);
+
+            if (draggedComp && draggedComp.type !== 'G') {
                 const draggedTerms = getTerminals(draggedComp);
                 let newNode1 = draggedComp.node1;
                 let newNode2 = draggedComp.node2;
@@ -322,7 +647,7 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
                 let minD1 = snapDist;
                 let minD2 = snapDist;
 
-                prev.forEach(otherComp => {
+                baseComponents.forEach(otherComp => {
                     if (otherComp.id === draggingId || otherComp.type === 'W') return;
                     const otherTerms = getTerminals(otherComp);
 
@@ -372,13 +697,12 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
                 });
 
                 if (newNode1 !== draggedComp.node1 || newNode2 !== draggedComp.node2) {
-                    let updated = [...prev];
-                    updated = updated.map(c =>
+                    nextComponents = baseComponents.map(c =>
                         c.id === draggingId ? { ...c, node1: newNode1, node2: newNode2 } : c
                     );
 
                     if (targetComp1 && targetTerm1 && newNode1 !== draggedComp.node1) {
-                        updated.push({
+                        nextComponents.push({
                             type: 'W',
                             id: `W_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                             sourceComp: draggingId,
@@ -387,11 +711,12 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
                             targetTerm: targetTerm1,
                             node1: newNode1,
                             node2: newNode1,
-                            x: 0, y: 0
+                            x: 0,
+                            y: 0
                         });
                     }
                     if (targetComp2 && targetTerm2 && newNode2 !== draggedComp.node2) {
-                        updated.push({
+                        nextComponents.push({
                             type: 'W',
                             id: `W_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                             sourceComp: draggingId,
@@ -400,21 +725,32 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
                             targetTerm: targetTerm2,
                             node1: newNode2,
                             node2: newNode2,
-                            x: 0, y: 0
+                            x: 0,
+                            y: 0
                         });
                     }
-
-                    return updated;
                 }
-                return prev;
-            });
+            }
         }
 
+        setComponents(nextComponents);
+        dragPositionRef.current = null;
         setDraggingId(null);
-    }, [isPanning, draggingId, autoConnect, readOnly, setComponents, wiringStart, hoveredTerminal]);
+    }, [wireCutStart, wireCutPos, zoom, getExplicitWireCurve, getImplicitWireEdges, pickImplicitCutTerminal, isPanning, draggingId, autoConnect, readOnly, setComponents, wiringStart, hoveredTerminal, components, getTerminals]);
 
     // Start panning on empty canvas click
     const handleCanvasMouseDown = useCallback((e) => {
+        if (readOnly) return;
+
+        // Ctrl/Cmd + drag: cut wires that intersect the stroke.
+        if ((e.ctrlKey || e.metaKey) && e.button === 0) {
+            const canvasPos = screenToCanvas(e.clientX, e.clientY);
+            setWireCutStart(canvasPos);
+            setWireCutPos(canvasPos);
+            setIsPanning(false);
+            return;
+        }
+
         // Middle mouse button always pans
         if (e.button === 1) {
             e.preventDefault();
@@ -432,7 +768,7 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
             panStartRef.current = { x: e.clientX, y: e.clientY };
             panOffsetStartRef.current = { ...panOffset };
         }
-    }, [panOffset, onSelectionChange]);
+    }, [readOnly, screenToCanvas, panOffset, onSelectionChange]);
 
     // Zoom with scroll wheel
     const handleWheel = useCallback((e) => {
@@ -514,18 +850,15 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
             const wireColor = isGround ? '#22c55e' : '#3b82f6';
             const dash = isGround ? '6 3' : 'none';
 
-            const rX = root.x + WIRE_OFFSET;
-            const rY = root.y + WIRE_OFFSET;
-            const tX = target.x + WIRE_OFFSET;
-            const tY = target.y + WIRE_OFFSET;
-
-            const dist = Math.hypot(tX - rX, tY - rY);
-            const tension = Math.min(Math.max(dist * 0.4, 40), 150);
-
-            const cp1X = rX + root.nx * tension;
-            const cp1Y = rY + root.ny * tension;
-            const cp2X = tX + target.nx * tension;
-            const cp2Y = tY + target.ny * tension;
+            const curve = buildTerminalCurve(root, target);
+            const rX = curve.root.x + WIRE_OFFSET;
+            const rY = curve.root.y + WIRE_OFFSET;
+            const tX = curve.target.x + WIRE_OFFSET;
+            const tY = curve.target.y + WIRE_OFFSET;
+            const cp1X = curve.cp1.x + WIRE_OFFSET;
+            const cp1Y = curve.cp1.y + WIRE_OFFSET;
+            const cp2X = curve.cp2.x + WIRE_OFFSET;
+            const cp2Y = curve.cp2.y + WIRE_OFFSET;
 
             elements.push(
                 <path
@@ -636,18 +969,15 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
                     connectionCounts.set(bestP1, connectionCounts.get(bestP1) + 1);
                     connectionCounts.set(bestP2, connectionCounts.get(bestP2) + 1);
 
-                    const rX = bestP1.x + WIRE_OFFSET;
-                    const rY = bestP1.y + WIRE_OFFSET;
-                    const tX = bestP2.x + WIRE_OFFSET;
-                    const tY = bestP2.y + WIRE_OFFSET;
-
-                    const dist = Math.hypot(tX - rX, tY - rY);
-                    const tension = Math.min(Math.max(dist * 0.4, 40), 150);
-
-                    const cp1X = rX + bestP1.nx * tension;
-                    const cp1Y = rY + bestP1.ny * tension;
-                    const cp2X = tX + bestP2.nx * tension;
-                    const cp2Y = tY + bestP2.ny * tension;
+                    const curve = buildTerminalCurve(bestP1, bestP2);
+                    const rX = curve.root.x + WIRE_OFFSET;
+                    const rY = curve.root.y + WIRE_OFFSET;
+                    const tX = curve.target.x + WIRE_OFFSET;
+                    const tY = curve.target.y + WIRE_OFFSET;
+                    const cp1X = curve.cp1.x + WIRE_OFFSET;
+                    const cp1Y = curve.cp1.y + WIRE_OFFSET;
+                    const cp2X = curve.cp2.x + WIRE_OFFSET;
+                    const cp2Y = curve.cp2.y + WIRE_OFFSET;
 
                     elements.push(
                         <path
@@ -701,7 +1031,7 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
             onClick={handleCanvasClick}
             onWheel={handleWheel}
             onContextMenu={(e) => e.preventDefault()}
-            style={{ cursor: isPanning ? 'grabbing' : (draggingId ? 'grabbing' : 'default') }}
+            style={{ cursor: wireCutStart ? 'crosshair' : (isPanning ? 'grabbing' : (draggingId ? 'grabbing' : 'default')) }}
         >
             {/* Zoom controls */}
             <div className="canvas-controls">
@@ -727,6 +1057,18 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
                 {/* Draw wires */}
                 <svg className="wires-layer">
                     {wires}
+                    {wireCutStart && wireCutPos && (
+                        <line
+                            x1={wireCutStart.x + WIRE_OFFSET}
+                            y1={wireCutStart.y + WIRE_OFFSET}
+                            x2={wireCutPos.x + WIRE_OFFSET}
+                            y2={wireCutPos.y + WIRE_OFFSET}
+                            stroke="#ef4444"
+                            strokeWidth="4"
+                            strokeDasharray="8 6"
+                            opacity="0.9"
+                        />
+                    )}
                     {wiringStart && wiringPos && (() => {
                         const rX = wiringStart.x + WIRE_OFFSET;
                         const rY = wiringStart.y + WIRE_OFFSET;
@@ -758,29 +1100,43 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
                 </svg>
 
                 {/* Draw active wiring terminals */}
-                {!readOnly && components.flatMap(comp => {
+                {!readOnly && components.filter(comp => comp.type !== 'W').flatMap(comp => {
                     const terms = getTerminals(comp);
                     const handles = [];
                     if (terms.t1.isReal) {
                         handles.push(
-                            <div
-                                key={`${comp.id}-t1`}
-                                className={`terminal-handle ${hoveredTerminal?.compId === comp.id && hoveredTerminal?.termKey === 't1' ? 'hovered' : ''} ${wiringStart?.compId === comp.id && wiringStart?.termKey === 't1' ? 'active' : ''}`}
-                                style={{ left: terms.t1.x, top: terms.t1.y }}
-                                onMouseDown={(e) => handleTerminalMouseDown(e, comp, 't1')}
-                                title="Drag to connect. Ctrl+Click to disconnect."
-                            />
+                            <React.Fragment key={`${comp.id}-t1`}>
+                                <div
+                                    className={`terminal-handle ${hoveredTerminal?.compId === comp.id && hoveredTerminal?.termKey === 't1' ? 'hovered' : ''} ${wiringStart?.compId === comp.id && wiringStart?.termKey === 't1' ? 'active' : ''}`}
+                                    style={{ left: terms.t1.x, top: terms.t1.y }}
+                                    onMouseDown={(e) => handleTerminalMouseDown(e, comp, 't1')}
+                                    title="Terminal a: Drag to connect. Ctrl+Click to disconnect."
+                                />
+                                <div
+                                    className="terminal-label"
+                                    style={{ left: terms.t1.x + (terms.t1.nx * 14), top: terms.t1.y + (terms.t1.ny * 14) }}
+                                >
+                                    a
+                                </div>
+                            </React.Fragment>
                         );
                     }
                     if (terms.t2.isReal) {
                         handles.push(
-                            <div
-                                key={`${comp.id}-t2`}
-                                className={`terminal-handle ${hoveredTerminal?.compId === comp.id && hoveredTerminal?.termKey === 't2' ? 'hovered' : ''} ${wiringStart?.compId === comp.id && wiringStart?.termKey === 't2' ? 'active' : ''}`}
-                                style={{ left: terms.t2.x, top: terms.t2.y }}
-                                onMouseDown={(e) => handleTerminalMouseDown(e, comp, 't2')}
-                                title="Drag to connect. Ctrl+Click to disconnect."
-                            />
+                            <React.Fragment key={`${comp.id}-t2`}>
+                                <div
+                                    className={`terminal-handle ${hoveredTerminal?.compId === comp.id && hoveredTerminal?.termKey === 't2' ? 'hovered' : ''} ${wiringStart?.compId === comp.id && wiringStart?.termKey === 't2' ? 'active' : ''}`}
+                                    style={{ left: terms.t2.x, top: terms.t2.y }}
+                                    onMouseDown={(e) => handleTerminalMouseDown(e, comp, 't2')}
+                                    title="Terminal b: Drag to connect. Ctrl+Click to disconnect."
+                                />
+                                <div
+                                    className="terminal-label"
+                                    style={{ left: terms.t2.x + (terms.t2.nx * 14), top: terms.t2.y + (terms.t2.ny * 14) }}
+                                >
+                                    b
+                                </div>
+                            </React.Fragment>
                         );
                     }
                     return handles;
@@ -790,15 +1146,17 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
                 {components.filter(c => c.type !== 'W').map(comp => {
                     const SvgIcon = COMPONENT_SVG[comp.type] || COMPONENT_SVG['R'];
                     const isSelected = comp.id === selectedId;
+                    const isPreviewed = comp.id === previewId;
 
                     return (
                         <div
                             key={comp.id}
-                            className={`circuit-component ${isSelected ? 'selected' : ''}`}
+                            className={`circuit-component ${isSelected ? 'selected' : ''} ${isPreviewed ? 'previewed' : ''}`}
                             style={{
                                 left: comp.x,
                                 top: comp.y,
                                 transform: `translate(-50%, -50%) rotate(${comp.rotation || 0}deg)`,
+                                zIndex: isPreviewed ? 25 : (isSelected ? 20 : 5),
                                 cursor: readOnly ? 'default' : (draggingId === comp.id ? 'grabbing' : 'grab')
                             }}
                             onMouseDown={(e) => handleMouseDown(e, comp.id)}
@@ -814,6 +1172,6 @@ const CircuitCanvas = ({ components, setComponents, onSelectionChange, readOnly 
             </div>
         </div>
     );
-};
+}
 
 export default CircuitCanvas;

@@ -13,23 +13,23 @@ const NODE_COLORS = [
 const ACPhasorTab = () => {
     const [components, setComponents] = useState([
         // Series RLC circuit layout — rectangular loop
-        // Vac left side (vertical): t1=top(n1) at (120,100), t2=bottom(GND) at (120,280)
-        { id: 'Vac1', type: 'Vac', node1: 'n1', node2: 'GND', value: 10, phase: 0, x: 120, y: 200, rotation: 0 },
-        // R across top: t1=left(n1) at (120,100), t2=right(n2) at (240,100) — center at (180,100)
-        { id: 'R1', type: 'R', node1: 'n1', node2: 'n2', value: 100, x: 200, y: 120, rotation: 0 },
-        // L across top: t1=left(n2) at (240,100), t2=right(n3) at (360,100) — center at (300,100)
-        { id: 'L1', type: 'L', node1: 'n2', node2: 'n3', value: 0.1, x: 360, y: 120, rotation: 0 },
-        // C right side (vertical, rotated 90): t1(n3) at (440,100), t2(GND) at (440,280) — center at (440,200)
-        { id: 'C1', type: 'C', node1: 'n3', node2: 'GND', value: 10e-6, x: 440, y: 200, rotation: 90 },
+        // Vac left side (vertical): t1=top(NODE-1) at (120,100), t2=bottom(GND) at (120,280)
+        { id: 'AC-Source-1', type: 'Vac', node1: 'NODE-1', node2: 'GND', value: 10, phase: 0, x: 120, y: 200, rotation: 0 },
+        // R across top: t1=left(NODE-1) at (120,100), t2=right(NODE-2) at (240,100) — center at (180,100)
+        { id: 'Resistor-1', type: 'R', node1: 'NODE-1', node2: 'NODE-2', value: 100, x: 200, y: 120, rotation: 0 },
+        // L across top: t1=left(NODE-2) at (240,100), t2=right(NODE-3) at (360,100) — center at (300,100)
+        { id: 'Inductor-1', type: 'L', node1: 'NODE-2', node2: 'NODE-3', value: 0.1, x: 360, y: 120, rotation: 0 },
+        // C right side (vertical, rotated 90): t1(NODE-3) at (440,100), t2(GND) at (440,280) — center at (440,200)
+        { id: 'Capacitor-1', type: 'C', node1: 'NODE-3', node2: 'GND', value: 10e-6, x: 440, y: 200, rotation: 90 },
         // Ground at bottom center
-        { id: 'GND1', type: 'G', node1: 'GND', node2: 'GND', value: 0, x: 280, y: 320, rotation: 0 },
+        { id: 'Ground-1', type: 'G', node1: 'GND', node2: 'GND', value: 0, x: 280, y: 320, rotation: 0 },
 
         // Explicit wiring mappings
-        { id: 'W1', type: 'W', sourceComp: 'Vac1', sourceTerm: 't1', targetComp: 'R1', targetTerm: 't1', node1: 'n1', node2: 'n1', x: 0, y: 0 },
-        { id: 'W2', type: 'W', sourceComp: 'R1', sourceTerm: 't2', targetComp: 'L1', targetTerm: 't1', node1: 'n2', node2: 'n2', x: 0, y: 0 },
-        { id: 'W3', type: 'W', sourceComp: 'L1', sourceTerm: 't2', targetComp: 'C1', targetTerm: 't1', node1: 'n3', node2: 'n3', x: 0, y: 0 },
-        { id: 'W4', type: 'W', sourceComp: 'Vac1', sourceTerm: 't2', targetComp: 'GND1', targetTerm: 't1', node1: 'GND', node2: 'GND', x: 0, y: 0 },
-        { id: 'W5', type: 'W', sourceComp: 'C1', sourceTerm: 't2', targetComp: 'GND1', targetTerm: 't1', node1: 'GND', node2: 'GND', x: 0, y: 0 }
+        { id: 'W1', type: 'W', sourceComp: 'AC-Source-1', sourceTerm: 't1', targetComp: 'Resistor-1', targetTerm: 't1', node1: 'NODE-1', node2: 'NODE-1', x: 0, y: 0 },
+        { id: 'W2', type: 'W', sourceComp: 'Resistor-1', sourceTerm: 't2', targetComp: 'Inductor-1', targetTerm: 't1', node1: 'NODE-2', node2: 'NODE-2', x: 0, y: 0 },
+        { id: 'W3', type: 'W', sourceComp: 'Inductor-1', sourceTerm: 't2', targetComp: 'Capacitor-1', targetTerm: 't1', node1: 'NODE-3', node2: 'NODE-3', x: 0, y: 0 },
+        { id: 'W4', type: 'W', sourceComp: 'AC-Source-1', sourceTerm: 't2', targetComp: 'Ground-1', targetTerm: 't1', node1: 'GND', node2: 'GND', x: 0, y: 0 },
+        { id: 'W5', type: 'W', sourceComp: 'Capacitor-1', sourceTerm: 't2', targetComp: 'Ground-1', targetTerm: 't1', node1: 'GND', node2: 'GND', x: 0, y: 0 }
     ]);
     const [frequency, setFrequency] = useState(60);
     const [selectedId, setSelectedId] = useState(null);
@@ -38,7 +38,6 @@ const ACPhasorTab = () => {
 
     const waveformCanvasRef = useRef(null);
     const phasorCanvasRef = useRef(null);
-    const timeRef = useRef(0);
     const resultsRef = useRef(null);
 
     const selectedComponent = useMemo(
@@ -118,22 +117,16 @@ const ACPhasorTab = () => {
         };
     }, [selectedComponent, results, frequency]);
 
-    // Reset time only when circuit parameters change, not when paused toggles
-    useEffect(() => {
-        timeRef.current = 0;
-    }, [frequency, components]);
-
     // Draw Waveform Canvas
     useEffect(() => {
         const canvas = waveformCanvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
+        const currentTime = 0;
 
-        const drawFrame = () => {
-            const currentTime = 0; // static time
-            const currentResults = resultsRef.current;
-            const W = canvas.width;
-            const H = canvas.height;
+        const currentResults = resultsRef.current;
+        const W = canvas.width;
+        const H = canvas.height;
 
             ctx.clearRect(0, 0, W, H);
 
@@ -170,80 +163,74 @@ const ACPhasorTab = () => {
             ctx.lineTo(W, halfH);
             ctx.stroke();
 
-            if (!currentResults || !currentResults.nodes) {
-                ctx.fillStyle = '#64748b';
-                ctx.font = '14px Inter, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('No simulation data', W / 2, halfH);
-                return;
+        if (!currentResults || !currentResults.nodes) {
+            ctx.fillStyle = '#64748b';
+            ctx.font = '14px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('No simulation data', W / 2, halfH);
+            return;
+        }
+
+        const omega = 2 * Math.PI * frequency;
+        const period = 1 / frequency;
+        const displayTime = 3 * period;
+
+        if (selectedComponent && selectedComponent.type !== 'G') {
+            // Selected component mode: show voltage across it
+            let complexVal;
+            if (selectedComponent.type === 'Vac') {
+                complexVal = currentResults.nodes[selectedComponent.node1] || new Complex(0, 0);
+            } else {
+                const vn1 = currentResults.nodes[selectedComponent.node1] || new Complex(0, 0);
+                const vn2 = currentResults.nodes[selectedComponent.node2] || new Complex(0, 0);
+                complexVal = vn1.sub(vn2);
             }
 
-            const omega = 2 * Math.PI * frequency;
-            const period = 1 / frequency;
-            const displayTime = 3 * period;
+            const mag = complexVal.mag();
+            const scaleY = mag > 0 ? (halfH * 0.75) / mag : 1;
 
-            if (selectedComponent && selectedComponent.type !== 'G') {
-                // Selected component mode: show voltage across it
-                let complexVal;
-                if (selectedComponent.type === 'Vac') {
-                    complexVal = currentResults.nodes[selectedComponent.node1] || new Complex(0, 0);
-                } else {
-                    const vn1 = currentResults.nodes[selectedComponent.node1] || new Complex(0, 0);
-                    const vn2 = currentResults.nodes[selectedComponent.node2] || new Complex(0, 0);
-                    complexVal = vn1.sub(vn2);
-                }
+            // Draw waveform with glow
+            drawGlowWaveform(ctx, complexVal, '#3b82f6', omega, displayTime, currentTime, W, halfH, scaleY);
 
-                const mag = complexVal.mag();
+            // Label
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '11px Inter, sans-serif';
+            ctx.textAlign = 'left';
+            const labelText = selectedComponent.type === 'Vac'
+                ? `V(${selectedComponent.node1})`
+                : `V(${selectedComponent.node1}) - V(${selectedComponent.node2})`;
+            ctx.fillText(labelText, 8, 16);
+            ctx.fillText(`${mag.toFixed(2)}V pk`, 8, 30);
+        } else {
+            // Overview mode: show source waveform
+            const acSource = components.find(c => c.type === 'Vac');
+            if (acSource && currentResults.nodes[acSource.node1]) {
+                const sourceV = currentResults.nodes[acSource.node1];
+                const mag = sourceV.mag();
                 const scaleY = mag > 0 ? (halfH * 0.75) / mag : 1;
+                drawGlowWaveform(ctx, sourceV, '#3b82f6', omega, displayTime, currentTime, W, halfH, scaleY);
 
-                // Draw waveform with glow
-                drawGlowWaveform(ctx, complexVal, '#3b82f6', omega, displayTime, currentTime, W, halfH, scaleY);
-
-                // Label
                 ctx.fillStyle = '#94a3b8';
                 ctx.font = '11px Inter, sans-serif';
                 ctx.textAlign = 'left';
-                const labelText = selectedComponent.type === 'Vac'
-                    ? `V(${selectedComponent.node1})`
-                    : `V(${selectedComponent.node1}) - V(${selectedComponent.node2})`;
-                ctx.fillText(labelText, 8, 16);
-                ctx.fillText(`${mag.toFixed(2)}V pk`, 8, 30);
-            } else {
-                // Overview mode: show source waveform
-                // Find AC source
-                const acSource = components.find(c => c.type === 'Vac');
-                if (acSource && currentResults.nodes[acSource.node1]) {
-                    const sourceV = currentResults.nodes[acSource.node1];
-                    const mag = sourceV.mag();
-                    const scaleY = mag > 0 ? (halfH * 0.75) / mag : 1;
-                    drawGlowWaveform(ctx, sourceV, '#3b82f6', omega, displayTime, currentTime, W, halfH, scaleY);
-
-                    ctx.fillStyle = '#94a3b8';
-                    ctx.font = '11px Inter, sans-serif';
-                    ctx.textAlign = 'left';
-                    ctx.fillText(`Source: V(${acSource.node1})  ${mag.toFixed(2)}V pk`, 8, 16);
-                }
+                ctx.fillText(`Source: V(${acSource.node1})  ${mag.toFixed(2)}V pk`, 8, 16);
             }
-
-        };
-
-        drawFrame();
-    }, [frequency, selectedComponent, components]);
+        }
+    }, [frequency, selectedComponent, components, results]);
 
     // Draw Phasor Diagram Canvas
     useEffect(() => {
         const canvas = phasorCanvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
+        const currentTime = 0;
 
-        const draw = () => {
-            const currentTime = 0; // static time
-            const currentResults = resultsRef.current;
-            const W = canvas.width;
-            const H = canvas.height;
-            const centerX = W / 2;
-            const centerY = H / 2;
-            const maxRadius = Math.min(centerX, centerY) * 0.75;
+        const currentResults = resultsRef.current;
+        const W = canvas.width;
+        const H = canvas.height;
+        const centerX = W / 2;
+        const centerY = H / 2;
+        const maxRadius = Math.min(centerX, centerY) * 0.75;
 
             ctx.clearRect(0, 0, W, H);
 
@@ -275,66 +262,62 @@ const ACPhasorTab = () => {
             ctx.fillText('Re', W - 14, centerY - 6);
             ctx.fillText('Im', centerX + 14, 14);
 
-            if (!currentResults || !currentResults.nodes) {
-                ctx.fillStyle = '#64748b';
-                ctx.font = '14px Inter, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('No data', centerX, centerY);
-                return;
-            }
+        if (!currentResults || !currentResults.nodes) {
+            ctx.fillStyle = '#64748b';
+            ctx.font = '14px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('No data', centerX, centerY);
+            return;
+        }
 
-            const omega = 2 * Math.PI * frequency;
+        const omega = 2 * Math.PI * frequency;
 
-            if (selectedComponent && selectedComponent.type !== 'G') {
-                // Selected component: show its voltage phasor + source reference
-                let complexVal;
-                if (selectedComponent.type === 'Vac') {
-                    complexVal = currentResults.nodes[selectedComponent.node1] || new Complex(0, 0);
-                } else {
-                    const vn1 = currentResults.nodes[selectedComponent.node1] || new Complex(0, 0);
-                    const vn2 = currentResults.nodes[selectedComponent.node2] || new Complex(0, 0);
-                    complexVal = vn1.sub(vn2);
-                }
-
-                const mag = complexVal.mag();
-                const phasorScale = mag > 0 ? maxRadius / mag : 1;
-
-                // Draw source reference (dimmed) if not the source itself
-                if (selectedComponent.type !== 'Vac') {
-                    const acSource = components.find(c => c.type === 'Vac');
-                    if (acSource && currentResults.nodes[acSource.node1]) {
-                        const srcV = currentResults.nodes[acSource.node1];
-                        const srcScale = srcV.mag() > 0 ? maxRadius / Math.max(srcV.mag(), mag) : 1;
-                        drawPhasorArrow(ctx, srcV, omega, currentTime, centerX, centerY, srcScale, '#3b82f640', `V(${acSource.node1})`, true);
-                    }
-                    // Recalculate scale relative to max
-                    const acSource2 = components.find(c => c.type === 'Vac');
-                    const srcMag = acSource2 && currentResults.nodes[acSource2.node1] ? currentResults.nodes[acSource2.node1].mag() : 0;
-                    const maxMag = Math.max(mag, srcMag);
-                    const adjustedScale = maxMag > 0 ? maxRadius / maxMag : 1;
-                    drawPhasorArrow(ctx, complexVal, omega, currentTime, centerX, centerY, adjustedScale, '#3b82f6', `V(${selectedComponent.id})`);
-                } else {
-                    drawPhasorArrow(ctx, complexVal, omega, currentTime, centerX, centerY, phasorScale, '#3b82f6', `V(${selectedComponent.node1})`);
-                }
+        if (selectedComponent && selectedComponent.type !== 'G') {
+            // Selected component: show its voltage phasor + source reference
+            let complexVal;
+            if (selectedComponent.type === 'Vac') {
+                complexVal = currentResults.nodes[selectedComponent.node1] || new Complex(0, 0);
             } else {
-                // Overview: show all node phasors
-                const nodeKeys = Object.keys(currentResults.nodes).filter(n => n !== 'GND');
-                let maxMag = 0;
-                nodeKeys.forEach(n => {
-                    maxMag = Math.max(maxMag, currentResults.nodes[n].mag());
-                });
-                const phasorScale = maxMag > 0 ? maxRadius / maxMag : 1;
-
-                nodeKeys.forEach((node, idx) => {
-                    const color = NODE_COLORS[idx % NODE_COLORS.length];
-                    drawPhasorArrow(ctx, currentResults.nodes[node], omega, currentTime, centerX, centerY, phasorScale, color, `V(${node})`);
-                });
+                const vn1 = currentResults.nodes[selectedComponent.node1] || new Complex(0, 0);
+                const vn2 = currentResults.nodes[selectedComponent.node2] || new Complex(0, 0);
+                complexVal = vn1.sub(vn2);
             }
 
-        };
+            const mag = complexVal.mag();
+            const phasorScale = mag > 0 ? maxRadius / mag : 1;
 
-        draw();
-    }, [frequency, selectedComponent, components]);
+            // Draw source reference (dimmed) if not the source itself
+            if (selectedComponent.type !== 'Vac') {
+                const acSource = components.find(c => c.type === 'Vac');
+                if (acSource && currentResults.nodes[acSource.node1]) {
+                    const srcV = currentResults.nodes[acSource.node1];
+                    const srcScale = srcV.mag() > 0 ? maxRadius / Math.max(srcV.mag(), mag) : 1;
+                    drawPhasorArrow(ctx, srcV, omega, currentTime, centerX, centerY, srcScale, '#3b82f640', `V(${acSource.node1})`, true);
+                }
+                // Recalculate scale relative to max
+                const acSource2 = components.find(c => c.type === 'Vac');
+                const srcMag = acSource2 && currentResults.nodes[acSource2.node1] ? currentResults.nodes[acSource2.node1].mag() : 0;
+                const maxMag = Math.max(mag, srcMag);
+                const adjustedScale = maxMag > 0 ? maxRadius / maxMag : 1;
+                drawPhasorArrow(ctx, complexVal, omega, currentTime, centerX, centerY, adjustedScale, '#3b82f6', `V(${selectedComponent.id})`);
+            } else {
+                drawPhasorArrow(ctx, complexVal, omega, currentTime, centerX, centerY, phasorScale, '#3b82f6', `V(${selectedComponent.node1})`);
+            }
+        } else {
+            // Overview: show all node phasors
+            const nodeKeys = Object.keys(currentResults.nodes).filter(n => n !== 'GND');
+            let maxMag = 0;
+            nodeKeys.forEach(n => {
+                maxMag = Math.max(maxMag, currentResults.nodes[n].mag());
+            });
+            const phasorScale = maxMag > 0 ? maxRadius / maxMag : 1;
+
+            nodeKeys.forEach((node, idx) => {
+                const color = NODE_COLORS[idx % NODE_COLORS.length];
+                drawPhasorArrow(ctx, currentResults.nodes[node], omega, currentTime, centerX, centerY, phasorScale, color, `V(${node})`);
+            });
+        }
+    }, [frequency, selectedComponent, components, results]);
 
     // Format engineering notation
     const formatValue = (val) => {
