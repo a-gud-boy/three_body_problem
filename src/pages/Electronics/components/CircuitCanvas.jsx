@@ -1,4 +1,6 @@
 import React, { useImperativeHandle, useState, useRef, useMemo, useCallback } from 'react';
+import { buildNodeCollapseMap } from '../engine/nodeCollapse';
+import { getComponentConfig } from '../engine/componentConfig';
 import './CircuitCanvas.css';
 
 const GRID_SIZE = 40;
@@ -77,6 +79,7 @@ function getNextNodeCounter(sourceComponents) {
     return maxN;
 }
 
+
 const COMPONENT_SVG = {
     'R': (props) => (
         <svg width="60" height="20" viewBox="0 0 60 20" {...props}>
@@ -141,8 +144,9 @@ function CircuitCanvas({
     }), []);
     const containerRef = useRef(null);
     const dragPositionRef = useRef(null);
+    const dragOffsetRef = useRef({ x: 0, y: 0 });
     const [draggingId, setDraggingId] = useState(null);
-    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+    const draggingIdRef = useRef(null);
     const [selectedId, setSelectedId] = useState(null);
 
     // Wiring state
@@ -166,54 +170,54 @@ function CircuitCanvas({
 
     const snapToGrid = useCallback((val) => Math.round(val / GRID_SIZE) * GRID_SIZE, []);
 
-    // Calculate pseudo-terminals for visualization purposes based on rotation and component type
+    // Calculate pseudo-terminals for visualization purposes based on rotation and component type.
+    // Driven by COMPONENT_CONFIG — supports any number of terminals.
     const getTerminals = useCallback((comp) => {
         const cx = comp.x;
         const cy = comp.y;
-
-        // Per-component-type dimensions (half-sizes from SVG viewBox)
-        const dims = {
-            'R': { hw: 30, hh: 10 },
-            'L': { hw: 30, hh: 10 },
-            'D': { hw: 30, hh: 10 },
-            'C': { hw: 30, hh: 20 },
-            'Vac': { hw: 20, hh: 20 },
-            'G': { hw: 20, hh: 20 },
-        };
-
-        const d = dims[comp.type] || { hw: 30, hh: 10 };
+        const config = getComponentConfig(comp.type);
+        const { dims: d, vertical, terminals: termDefs } = config;
         const rot = comp.rotation || 0;
-
-        // For Vac and G, terminals are along the vertical axis (top/bottom) by default
-        const isVerticalComponent = comp.type === 'Vac' || comp.type === 'G';
-
         const rotRad = rot * Math.PI / 180;
         const cosRot = Math.cos(rotRad);
         const sinRot = Math.sin(rotRad);
 
-        let local_t1_x, local_t1_y, local_t2_x, local_t2_y;
+        const result = {};
 
-        if (isVerticalComponent) {
-            local_t1_x = 0; local_t1_y = -d.hh;
-            local_t2_x = 0; local_t2_y = d.hh;
-        } else {
-            local_t1_x = -d.hw; local_t1_y = 0;
-            local_t2_x = d.hw; local_t2_y = 0;
-        }
+        termDefs.forEach((termDef, idx) => {
+            // Compute local position based on index: first terminal at negative end, last at positive end
+            let localX, localY;
+            if (termDefs.length === 1) {
+                // Single terminal (e.g. Ground) — place at the top/left
+                localX = vertical ? 0 : -d.hw;
+                localY = vertical ? -d.hh : 0;
+            } else {
+                // Distribute terminals evenly: first at negative end, last at positive end
+                const t = termDefs.length > 1 ? idx / (termDefs.length - 1) : 0.5;
+                if (vertical) {
+                    localX = 0;
+                    localY = -d.hh + t * 2 * d.hh;
+                } else {
+                    localX = -d.hw + t * 2 * d.hw;
+                    localY = 0;
+                }
+            }
 
-        const t1_dir_x = local_t1_x * cosRot - local_t1_y * sinRot;
-        const t1_dir_y = local_t1_x * sinRot + local_t1_y * cosRot;
+            // Apply rotation
+            const dirX = localX * cosRot - localY * sinRot;
+            const dirY = localX * sinRot + localY * cosRot;
+            const len = Math.hypot(dirX, dirY) || 1;
 
-        const t2_dir_x = local_t2_x * cosRot - local_t2_y * sinRot;
-        const t2_dir_y = local_t2_x * sinRot + local_t2_y * cosRot;
+            result[termDef.termKey] = {
+                x: cx + dirX,
+                y: cy + dirY,
+                nx: dirX / len,
+                ny: dirY / len,
+                isReal: true
+            };
+        });
 
-        const len1 = Math.hypot(t1_dir_x, t1_dir_y) || 1;
-        const len2 = Math.hypot(t2_dir_x, t2_dir_y) || 1;
-
-        return {
-            t1: { x: cx + t1_dir_x, y: cy + t1_dir_y, nx: t1_dir_x / len1, ny: t1_dir_y / len1, isReal: true },
-            t2: { x: cx + t2_dir_x, y: cy + t2_dir_y, nx: t2_dir_x / len2, ny: t2_dir_y / len2, isReal: comp.type !== 'G' }
-        };
+        return result;
     }, []);
 
     // Convert screen coordinates to canvas (world) coordinates
@@ -241,6 +245,7 @@ function CircuitCanvas({
     }, [components, getTerminals]);
 
     const getImplicitWireEdges = useCallback((sourceComponents = components) => {
+        const collapseNode = buildNodeCollapseMap(sourceComponents);
         const nodes = {};
         const explicitWires = [];
 
@@ -252,12 +257,14 @@ function CircuitCanvas({
 
             const terms = getTerminals(comp);
             if (terms.t1.isReal) {
-                if (!nodes[comp.node1]) nodes[comp.node1] = [];
-                nodes[comp.node1].push({ ...terms.t1, compId: comp.id, termKey: 't1', nodeId: comp.node1 });
+                const collapsed = collapseNode(comp.node1);
+                if (!nodes[collapsed]) nodes[collapsed] = [];
+                nodes[collapsed].push({ ...terms.t1, compId: comp.id, termKey: 't1', nodeId: comp.node1 });
             }
             if (terms.t2.isReal) {
-                if (!nodes[comp.node2]) nodes[comp.node2] = [];
-                nodes[comp.node2].push({ ...terms.t2, compId: comp.id, termKey: 't2', nodeId: comp.node2 });
+                const collapsed = collapseNode(comp.node2);
+                if (!nodes[collapsed]) nodes[collapsed] = [];
+                nodes[collapsed].push({ ...terms.t2, compId: comp.id, termKey: 't2', nodeId: comp.node2 });
             }
         });
 
@@ -271,7 +278,6 @@ function CircuitCanvas({
             points.forEach(p => adjacency.set(p, []));
 
             explicitWires.forEach(w => {
-                if (w.node1 !== nodeId && w.node2 !== nodeId) return;
                 const pS = points.find(p => p.compId === w.sourceComp && p.termKey === w.sourceTerm);
                 const pT = points.find(p => p.compId === w.targetComp && p.termKey === w.targetTerm);
                 if (pS && pT) {
@@ -389,17 +395,26 @@ function CircuitCanvas({
             });
             const newNodeName = `NODE-${maxN + 1}`;
 
-            // Disconnect this terminal by giving it a unique new node name
-            setComponents(prev => prev.map(c => {
-                if (c.id === comp.id) {
-                    return {
-                        ...c,
-                        node1: termKey === 't1' ? newNodeName : c.node1,
-                        node2: termKey === 't2' ? newNodeName : c.node2
-                    };
-                }
-                return c;
-            }));
+            // Bug #12 fix: Disconnect this terminal AND remove any explicit wires referencing it.
+            setComponents(prev => prev
+                .filter(c => {
+                    if (c.type !== 'W') return true;
+                    // Remove wires that reference the disconnected terminal
+                    if (c.sourceComp === comp.id && c.sourceTerm === termKey) return false;
+                    if (c.targetComp === comp.id && c.targetTerm === termKey) return false;
+                    return true;
+                })
+                .map(c => {
+                    if (c.id === comp.id) {
+                        return {
+                            ...c,
+                            node1: termKey === 't1' ? newNodeName : c.node1,
+                            node2: termKey === 't2' ? newNodeName : c.node2
+                        };
+                    }
+                    return c;
+                })
+            );
             return;
         }
 
@@ -440,11 +455,12 @@ function CircuitCanvas({
         if (comp) {
             const canvasPos = screenToCanvas(e.clientX, e.clientY);
             setDraggingId(id);
+            draggingIdRef.current = id;
             dragPositionRef.current = { x: comp.x, y: comp.y };
-            setDragOffset({
+            dragOffsetRef.current = {
                 x: canvasPos.x - comp.x,
                 y: canvasPos.y - comp.y
-            });
+            };
         }
     }, [readOnly, components, onSelectionChange, screenToCanvas]);
 
@@ -480,18 +496,14 @@ function CircuitCanvas({
                 if (comp.type === 'W') continue;
 
                 const terms = getTerminals(comp);
-                if (terms.t1.isReal) {
-                    const d1 = Math.hypot(canvasPos.x - terms.t1.x, canvasPos.y - terms.t1.y);
-                    if (d1 < minDist && !(comp.id === wiringStart.compId && wiringStart.termKey === 't1')) {
-                        minDist = d1;
-                        hovered = { compId: comp.id, termKey: 't1', node: comp.node1, x: terms.t1.x, y: terms.t1.y, nx: terms.t1.nx, ny: terms.t1.ny };
-                    }
-                }
-                if (terms.t2.isReal) {
-                    const d2 = Math.hypot(canvasPos.x - terms.t2.x, canvasPos.y - terms.t2.y);
-                    if (d2 < minDist && !(comp.id === wiringStart.compId && wiringStart.termKey === 't2')) {
-                        minDist = d2;
-                        hovered = { compId: comp.id, termKey: 't2', node: comp.node2, x: terms.t2.x, y: terms.t2.y, nx: terms.t2.nx, ny: terms.t2.ny };
+                const config = getComponentConfig(comp.type);
+                for (const termDef of config.terminals) {
+                    const term = terms[termDef.termKey];
+                    if (!term || !term.isReal) continue;
+                    const dist = Math.hypot(canvasPos.x - term.x, canvasPos.y - term.y);
+                    if (dist < minDist && !(comp.id === wiringStart.compId && wiringStart.termKey === termDef.termKey)) {
+                        minDist = dist;
+                        hovered = { compId: comp.id, termKey: termDef.termKey, node: comp[termDef.key], x: term.x, y: term.y, nx: term.nx, ny: term.ny };
                     }
                 }
             }
@@ -499,21 +511,21 @@ function CircuitCanvas({
             return;
         }
 
-        // Handle component dragging
-        if (!draggingId || readOnly) return;
+        // Handle component dragging — update React state so wires recalculate
+        if (!draggingIdRef.current || readOnly) return;
 
         const canvasPos = screenToCanvas(e.clientX, e.clientY);
-        let newX = canvasPos.x - dragOffset.x;
-        let newY = canvasPos.y - dragOffset.y;
+        let newX = canvasPos.x - dragOffsetRef.current.x;
+        let newY = canvasPos.y - dragOffsetRef.current.y;
 
         dragPositionRef.current = { x: newX, y: newY };
 
         setComponents(prev => {
             return prev.map(c =>
-                c.id === draggingId ? { ...c, x: newX, y: newY } : c
+                c.id === draggingIdRef.current ? { ...c, x: newX, y: newY } : c
             );
         });
-    }, [wireCutStart, isPanning, draggingId, readOnly, dragOffset, setComponents, screenToCanvas, wiringStart, components, getTerminals]);
+    }, [wireCutStart, isPanning, readOnly, setComponents, screenToCanvas, wiringStart, components, getTerminals]);
 
     const handleMouseUp = useCallback(() => {
         if (wireCutStart) {
@@ -565,7 +577,21 @@ function CircuitCanvas({
                         });
 
                         next = next.map(comp => {
-                            if (comp.type === 'W') return comp;
+                            // Bug #9 fix: Also update wire objects when terminal nodes are renamed.
+                            if (comp.type === 'W') {
+                                let wNode1 = comp.node1;
+                                let wNode2 = comp.node2;
+                                // If the wire's source terminal was split, update its node1
+                                const srcReplacement = replacementByTerminal.get(`${comp.sourceComp}:${comp.sourceTerm}`);
+                                if (srcReplacement) wNode1 = srcReplacement;
+                                // If the wire's target terminal was split, update its node2
+                                const tgtReplacement = replacementByTerminal.get(`${comp.targetComp}:${comp.targetTerm}`);
+                                if (tgtReplacement) wNode2 = tgtReplacement;
+                                if (wNode1 !== comp.node1 || wNode2 !== comp.node2) {
+                                    return { ...comp, node1: wNode1, node2: wNode2 };
+                                }
+                                return comp;
+                            }
 
                             let node1 = comp.node1;
                             let node2 = comp.node2;
@@ -603,36 +629,26 @@ function CircuitCanvas({
                 const sourceNode = wiringStart.node;
                 const targetNode = hoveredTerminal.node;
 
-                let updatedComponents = [...components];
-
-                if (sourceNode !== targetNode) {
-                    const nodeToKeep = (sourceNode === 'GND' || targetNode === 'GND') ? 'GND' : targetNode;
-                    const nodeToReplace = nodeToKeep === sourceNode ? targetNode : sourceNode;
-
-                    updatedComponents = updatedComponents.map(c => ({
-                        ...c,
-                        node1: c.node1 === nodeToReplace ? nodeToKeep : c.node1,
-                        node2: c.node2 === nodeToReplace ? nodeToKeep : c.node2
-                    }));
-                }
-
-                // Add an explicit wire object to remember this connection!
-                updatedComponents.push({
-                    type: 'W',
-                    id: `W_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                    // We link based on component ID and terminals so even if node names change over time, the visual wire stays intact
-                    sourceComp: wiringStart.compId,
-                    sourceTerm: wiringStart.termKey,
-                    targetComp: hoveredTerminal.compId,
-                    targetTerm: hoveredTerminal.termKey,
-                    // Use the final agreed upon underlying node ID 
-                    node1: (sourceNode === 'GND' || targetNode === 'GND') ? 'GND' : targetNode,
-                    node2: (sourceNode === 'GND' || targetNode === 'GND') ? 'GND' : targetNode,
-                    x: 0,
-                    y: 0
+                // Bug #7 fix: Don't do a global node rename. Just create a wire object
+                // with the real source/target node names. The engine's _buildCollapsedNetlist()
+                // union-find will handle merging them electrically at solve time.
+                // Bug #10 fix: Use setComponents(prev => ...) to avoid stale closure.
+                setComponents(prev => {
+                    // Add an explicit wire object that carries both original node names
+                    return [...prev, {
+                        type: 'W',
+                        id: `W_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        sourceComp: wiringStart.compId,
+                        sourceTerm: wiringStart.termKey,
+                        targetComp: hoveredTerminal.compId,
+                        targetTerm: hoveredTerminal.termKey,
+                        // Bug #8 fix: store the actual source and target node names
+                        node1: sourceNode,
+                        node2: targetNode,
+                        x: 0,
+                        y: 0
+                    }];
                 });
-
-                setComponents(updatedComponents);
             }
             setWiringStart(null);
             setWiringPos(null);
@@ -717,9 +733,23 @@ function CircuitCanvas({
                 });
 
                 if (newNode1 !== draggedComp.node1 || newNode2 !== draggedComp.node2) {
-                    nextComponents = baseComponents.map(c =>
-                        c.id === draggingId ? { ...c, node1: newNode1, node2: newNode2 } : c
-                    );
+                    // Fix: Before creating new auto-connect wires, remove old wires
+                    // from the dragged component's terminals to prevent accumulation.
+                    // Only remove wires from terminals that are being RE-connected.
+                    nextComponents = baseComponents.filter(c => {
+                        if (c.type !== 'W') return true;
+                        // Remove wires from t1 if we're about to create a new t1 connection
+                        if (targetComp1 && targetTerm1 && newNode1 !== draggedComp.node1) {
+                            if (c.sourceComp === draggingId && c.sourceTerm === 't1') return false;
+                            if (c.targetComp === draggingId && c.targetTerm === 't1') return false;
+                        }
+                        // Remove wires from t2 if we're about to create a new t2 connection
+                        if (targetComp2 && targetTerm2 && newNode2 !== draggedComp.node2) {
+                            if (c.sourceComp === draggingId && c.sourceTerm === 't2') return false;
+                            if (c.targetComp === draggingId && c.targetTerm === 't2') return false;
+                        }
+                        return true;
+                    });
 
                     if (targetComp1 && targetTerm1 && newNode1 !== draggedComp.node1) {
                         nextComponents.push({
@@ -729,7 +759,7 @@ function CircuitCanvas({
                             sourceTerm: 't1',
                             targetComp: targetComp1,
                             targetTerm: targetTerm1,
-                            node1: newNode1,
+                            node1: draggedComp.node1,
                             node2: newNode1,
                             x: 0,
                             y: 0
@@ -743,7 +773,7 @@ function CircuitCanvas({
                             sourceTerm: 't2',
                             targetComp: targetComp2,
                             targetTerm: targetTerm2,
-                            node1: newNode2,
+                            node1: draggedComp.node2,
                             node2: newNode2,
                             x: 0,
                             y: 0
@@ -755,6 +785,7 @@ function CircuitCanvas({
 
         setComponents(nextComponents);
         dragPositionRef.current = null;
+        draggingIdRef.current = null;
         setDraggingId(null);
     }, [wireCutStart, wireCutPos, zoom, getExplicitWireCurve, getImplicitWireEdges, pickImplicitCutTerminal, pickExplicitCutTerminal, isPanning, draggingId, autoConnect, readOnly, setComponents, wiringStart, hoveredTerminal, components, getTerminals]);
 
@@ -824,6 +855,7 @@ function CircuitCanvas({
     // The wires-layer SVG is positioned at CSS (-2000, -2000), so we offset coordinates by +2000
     const WIRE_OFFSET = 2000;
     const wires = useMemo(() => {
+        const collapseNode = buildNodeCollapseMap(components);
         const nodes = {};
         const explicitWires = [];
 
@@ -834,15 +866,15 @@ function CircuitCanvas({
             }
 
             const terms = getTerminals(comp);
-            if (terms.t1.isReal) {
-                if (!nodes[comp.node1]) nodes[comp.node1] = [];
-                nodes[comp.node1].push({ ...terms.t1, compId: comp.id, termKey: 't1' });
-            }
-
-            if (terms.t2.isReal) {
-                if (!nodes[comp.node2]) nodes[comp.node2] = [];
-                nodes[comp.node2].push({ ...terms.t2, compId: comp.id, termKey: 't2' });
-            }
+            const config = getComponentConfig(comp.type);
+            config.terminals.forEach(termDef => {
+                const term = terms[termDef.termKey];
+                if (term && term.isReal) {
+                    const collapsed = collapseNode(comp[termDef.key]);
+                    if (!nodes[collapsed]) nodes[collapsed] = [];
+                    nodes[collapsed].push({ ...term, compId: comp.id, termKey: termDef.termKey });
+                }
+            });
         });
 
         const elements = [];
@@ -866,7 +898,7 @@ function CircuitCanvas({
 
             if (!root || !target) return;
 
-            const isGround = w.node1 === 'GND';
+            const isGround = w.node1 === 'GND' || w.node2 === 'GND';
             const wireColor = isGround ? '#22c55e' : '#3b82f6';
             const dash = isGround ? '6 3' : 'none';
 
@@ -916,8 +948,6 @@ function CircuitCanvas({
 
             // Pre-seed connection counts and adjacency from explicit wires mapped to this node
             explicitWires.forEach(w => {
-                if (w.node1 !== nodeId && w.node2 !== nodeId) return;
-
                 const pS = points.find(p => p.compId === w.sourceComp && p.termKey === w.sourceTerm);
                 const pT = points.find(p => p.compId === w.targetComp && p.termKey === w.targetTerm);
 
@@ -1122,44 +1152,29 @@ function CircuitCanvas({
                 {/* Draw active wiring terminals */}
                 {!readOnly && components.filter(comp => comp.type !== 'W').flatMap(comp => {
                     const terms = getTerminals(comp);
-                    const handles = [];
-                    if (terms.t1.isReal) {
-                        handles.push(
-                            <React.Fragment key={`${comp.id}-t1`}>
+                    const config = getComponentConfig(comp.type);
+                    return config.terminals.map(termDef => {
+                        const term = terms[termDef.termKey];
+                        if (!term || !term.isReal) return null;
+                        // Use first char of termKey as the short label (e.g. 't1' → 'a', 't2' → 'b')
+                        const shortLabel = String.fromCharCode(96 + parseInt(termDef.termKey.slice(1)));
+                        return (
+                            <React.Fragment key={`${comp.id}-${termDef.termKey}`}>
                                 <div
-                                    className={`terminal-handle ${hoveredTerminal?.compId === comp.id && hoveredTerminal?.termKey === 't1' ? 'hovered' : ''} ${wiringStart?.compId === comp.id && wiringStart?.termKey === 't1' ? 'active' : ''}`}
-                                    style={{ left: terms.t1.x, top: terms.t1.y }}
-                                    onMouseDown={(e) => handleTerminalMouseDown(e, comp, 't1')}
-                                    title="Terminal a: Drag to connect. Ctrl+Click to disconnect."
+                                    className={`terminal-handle ${hoveredTerminal?.compId === comp.id && hoveredTerminal?.termKey === termDef.termKey ? 'hovered' : ''} ${wiringStart?.compId === comp.id && wiringStart?.termKey === termDef.termKey ? 'active' : ''}`}
+                                    style={{ left: term.x, top: term.y }}
+                                    onMouseDown={(e) => handleTerminalMouseDown(e, comp, termDef.termKey)}
+                                    title={`${termDef.label}: Drag to connect. Ctrl+Click to disconnect.`}
                                 />
                                 <div
                                     className="terminal-label"
-                                    style={{ left: terms.t1.x + (terms.t1.nx * 14), top: terms.t1.y + (terms.t1.ny * 14) }}
+                                    style={{ left: term.x + (term.nx * 14), top: term.y + (term.ny * 14) }}
                                 >
-                                    a
+                                    {shortLabel}
                                 </div>
                             </React.Fragment>
                         );
-                    }
-                    if (terms.t2.isReal) {
-                        handles.push(
-                            <React.Fragment key={`${comp.id}-t2`}>
-                                <div
-                                    className={`terminal-handle ${hoveredTerminal?.compId === comp.id && hoveredTerminal?.termKey === 't2' ? 'hovered' : ''} ${wiringStart?.compId === comp.id && wiringStart?.termKey === 't2' ? 'active' : ''}`}
-                                    style={{ left: terms.t2.x, top: terms.t2.y }}
-                                    onMouseDown={(e) => handleTerminalMouseDown(e, comp, 't2')}
-                                    title="Terminal b: Drag to connect. Ctrl+Click to disconnect."
-                                />
-                                <div
-                                    className="terminal-label"
-                                    style={{ left: terms.t2.x + (terms.t2.nx * 14), top: terms.t2.y + (terms.t2.ny * 14) }}
-                                >
-                                    b
-                                </div>
-                            </React.Fragment>
-                        );
-                    }
-                    return handles;
+                    }).filter(Boolean);
                 })}
 
                 {/* Draw components */}
@@ -1171,6 +1186,7 @@ function CircuitCanvas({
                     return (
                         <div
                             key={comp.id}
+                            data-comp-id={comp.id}
                             className={`circuit-component ${isSelected ? 'selected' : ''} ${isPreviewed ? 'previewed' : ''}`}
                             style={{
                                 left: comp.x,

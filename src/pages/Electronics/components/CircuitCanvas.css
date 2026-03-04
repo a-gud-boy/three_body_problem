@@ -51,9 +51,17 @@
 }
 
 .circuit-component.selected {
-    outline: 2px solid #3b82f6;
-    background-color: rgba(59, 130, 246, 0.1);
-    border-radius: 4px;
+    filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.8)) drop-shadow(0 0 12px rgba(59, 130, 246, 0.4));
+}
+
+.circuit-component.selected .component-svg {
+    transform: scale(1.08);
+    transition: transform 0.15s ease;
+}
+
+.circuit-component.selected .component-label {
+    color: #93c5fd;
+    font-weight: 700;
 }
 
 .circuit-component.previewed {

@@ -1,4 +1,5 @@
 import { solveComplexMatrix } from './matrix.js';
+import { buildCollapsedNetlist } from './nodeCollapse.js';
 import Complex from './Complex.js';
 
 export const COMPONENT_TYPES = {
@@ -29,6 +30,9 @@ class CircuitEngine {
     }
 
     addComponent(type, id, node1, node2, value, extra = {}) {
+        // Bug #6 fix: Ground components are topological markers, not circuit elements.
+        // They should not be added to the engine.
+        if (type === COMPONENT_TYPES.GROUND) return;
         this.components.push({ type, id, node1, node2, value, ...extra });
         this._addNode(node1);
         this._addNode(node2);
@@ -112,98 +116,25 @@ class CircuitEngine {
                 );
             }
 
-            // Exact duplicate constraint: keep it (physically equivalent), solver may still
-            // reject truly dependent topologies through singular-matrix detection.
-            sanitized.push(comp);
+            // Bug #3 fix: Drop exact duplicate voltage sources to prevent a singular matrix.
+            // Two identical voltage sources in parallel are redundant.
         });
 
         return sanitized;
     }
 
     // Collapse ideal-wire-connected nodes before stamping MNA.
-    // This keeps wires out of the matrix and improves conditioning.
+    // Delegates to the shared buildCollapsedNetlist() from nodeCollapse.js
+    // to ensure rendering and solving always agree on node topology.
     _buildCollapsedNetlist() {
-        const parent = new Map();
-
-        const ensureNode = (nodeId) => {
-            if (nodeId !== 'GND' && !parent.has(nodeId)) {
-                parent.set(nodeId, nodeId);
-            }
-        };
-
-        const find = (nodeId) => {
-            const root = parent.get(nodeId);
-            if (root === nodeId) return root;
-            const collapsed = find(root);
-            parent.set(nodeId, collapsed);
-            return collapsed;
-        };
-
-        const union = (a, b) => {
-            const rootA = find(a);
-            const rootB = find(b);
-            if (rootA !== rootB) {
-                parent.set(rootB, rootA);
-            }
-        };
-
-        this.components.forEach((c) => {
-            ensureNode(c.node1);
-            ensureNode(c.node2);
-        });
-
-        this.components.forEach((c) => {
-            if (c.type !== COMPONENT_TYPES.WIRE) return;
-            if (c.node1 === 'GND' || c.node2 === 'GND') return;
-            if (!parent.has(c.node1) || !parent.has(c.node2)) return;
-            union(c.node1, c.node2);
-        });
-
-        // Any wire tied to ground grounds its entire collapsed set.
-        const groundedRoots = new Set();
-        this.components.forEach((c) => {
-            if (c.type !== COMPONENT_TYPES.WIRE) return;
-            if (c.node1 === 'GND' && c.node2 !== 'GND' && parent.has(c.node2)) {
-                groundedRoots.add(find(c.node2));
-            }
-            if (c.node2 === 'GND' && c.node1 !== 'GND' && parent.has(c.node1)) {
-                groundedRoots.add(find(c.node1));
-            }
-        });
-
-        const normalizeNode = (nodeId) => {
-            if (nodeId === 'GND') return 'GND';
-            if (!parent.has(nodeId)) return nodeId;
-            const root = find(nodeId);
-            return groundedRoots.has(root) ? 'GND' : root;
-        };
-
-        const collapsedComponents = this.components
-            .filter((c) => c.type !== COMPONENT_TYPES.GROUND)
-            .filter((c) => c.type !== COMPONENT_TYPES.WIRE)
-            .map((c) => ({
-                ...c,
-                node1: normalizeNode(c.node1),
-                node2: normalizeNode(c.node2)
-            }));
-
-        const nodeSet = new Set();
-        collapsedComponents.forEach((c) => {
-            if (c.node1 !== 'GND') nodeSet.add(c.node1);
-            if (c.node2 !== 'GND') nodeSet.add(c.node2);
-        });
-
-        return {
-            components: collapsedComponents,
-            nodes: Array.from(nodeSet)
-        };
+        return buildCollapsedNetlist(this.components);
     }
 
     // AC Steady-State Analysis using Complex MNA
     solveAC() {
         const { components: collapsedComponents, nodes: collapsedNodes } = this._buildCollapsedNetlist();
         const netlistComponents = this._sanitizeAndValidateIdealSources(collapsedComponents);
-        this.nodes = collapsedNodes;
+        // Bug #1 fix: Do NOT overwrite this.nodes. Use local variable only.
         const numNodes = collapsedNodes.length;
 
         const getNodeIndex = (nodeId) => {
@@ -232,8 +163,16 @@ class CircuitEngine {
                 // Y = j * omega * C
                 admittance = new Complex(0, this.omega * comp.value);
             } else if (comp.type === COMPONENT_TYPES.INDUCTOR) {
-                // Y = 1 / (j * omega * L) = -j / (omega * L)
-                admittance = new Complex(0, -1 / (this.omega * comp.value));
+                // Bug #4 fix: Guard against omega=0 (DC). At DC, inductor is a short (large admittance).
+                if (this.omega === 0) {
+                    admittance = new Complex(1e6, 0); // ~short circuit at DC
+                } else {
+                    // Y = 1 / (j * omega * L) = -j / (omega * L)
+                    admittance = new Complex(0, -1 / (this.omega * comp.value));
+                }
+            } else if (comp.type === COMPONENT_TYPES.DIODE) {
+                // Bug #5 fix: Diodes are non-linear and cannot be handled by AC phasor analysis.
+                throw new Error(`Diode '${comp.id}' cannot be used in AC phasor analysis. Use the Waveform Shaping tab for diode circuits.`);
             }
 
             if (admittance.mag() > 0) {

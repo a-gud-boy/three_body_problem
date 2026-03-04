@@ -39,6 +39,9 @@ const ACPhasorTab = () => {
     const waveformCanvasRef = useRef(null);
     const phasorCanvasRef = useRef(null);
     const resultsRef = useRef(null);
+    const waveformContainerRef = useRef(null);
+    const phasorContainerRef = useRef(null);
+    const [canvasWidth, setCanvasWidth] = useState(600);
 
     const selectedComponent = useMemo(
         () => components.find(c => c.id === selectedId),
@@ -47,6 +50,23 @@ const ACPhasorTab = () => {
 
     // Keep resultsRef in sync
     useEffect(() => { resultsRef.current = results; }, [results]);
+
+    // Responsive canvas sizing via ResizeObserver
+    useLayoutEffect(() => {
+        const container = waveformContainerRef.current;
+        if (!container) return;
+        const observer = new ResizeObserver(entries => {
+            for (const entry of entries) {
+                const w = Math.floor(entry.contentRect.width);
+                if (w > 0) setCanvasWidth(w);
+            }
+        });
+        observer.observe(container);
+        // Initial measurement
+        const rect = container.getBoundingClientRect();
+        if (rect.width > 0) setCanvasWidth(Math.floor(rect.width));
+        return () => observer.disconnect();
+    }, []);
 
     // Run Engine Simulation
     useEffect(() => {
@@ -128,40 +148,40 @@ const ACPhasorTab = () => {
         const W = canvas.width;
         const H = canvas.height;
 
-            ctx.clearRect(0, 0, W, H);
+        ctx.clearRect(0, 0, W, H);
 
-            // Background
-            ctx.fillStyle = '#020617';
-            ctx.fillRect(0, 0, W, H);
+        // Background
+        ctx.fillStyle = '#020617';
+        ctx.fillRect(0, 0, W, H);
 
-            // Grid
-            const halfH = H / 2;
-            ctx.strokeStyle = '#1e293b';
-            ctx.lineWidth = 1;
-            // Horizontal lines
-            for (let i = 0; i <= 4; i++) {
-                const y = (H / 4) * i;
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(W, y);
-                ctx.stroke();
-            }
-            // Vertical lines
-            for (let i = 0; i <= 6; i++) {
-                const x = (W / 6) * i;
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, H);
-                ctx.stroke();
-            }
-
-            // Center axis (brighter)
-            ctx.strokeStyle = '#334155';
-            ctx.lineWidth = 1;
+        // Grid
+        const halfH = H / 2;
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 1;
+        // Horizontal lines
+        for (let i = 0; i <= 4; i++) {
+            const y = (H / 4) * i;
             ctx.beginPath();
-            ctx.moveTo(0, halfH);
-            ctx.lineTo(W, halfH);
+            ctx.moveTo(0, y);
+            ctx.lineTo(W, y);
             ctx.stroke();
+        }
+        // Vertical lines
+        for (let i = 0; i <= 6; i++) {
+            const x = (W / 6) * i;
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, H);
+            ctx.stroke();
+        }
+
+        // Center axis (brighter)
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, halfH);
+        ctx.lineTo(W, halfH);
+        ctx.stroke();
 
         if (!currentResults || !currentResults.nodes) {
             ctx.fillStyle = '#64748b';
@@ -232,35 +252,35 @@ const ACPhasorTab = () => {
         const centerY = H / 2;
         const maxRadius = Math.min(centerX, centerY) * 0.75;
 
-            ctx.clearRect(0, 0, W, H);
+        ctx.clearRect(0, 0, W, H);
 
-            // Background
-            ctx.fillStyle = '#020617';
-            ctx.fillRect(0, 0, W, H);
+        // Background
+        ctx.fillStyle = '#020617';
+        ctx.fillRect(0, 0, W, H);
 
-            // Draw circular grid
-            ctx.strokeStyle = '#1e293b';
-            ctx.lineWidth = 1;
-            for (let r = 1; r <= 3; r++) {
-                ctx.beginPath();
-                ctx.arc(centerX, centerY, (maxRadius / 3) * r, 0, 2 * Math.PI);
-                ctx.stroke();
-            }
-            // Axes
-            ctx.strokeStyle = '#334155';
+        // Draw circular grid
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 1;
+        for (let r = 1; r <= 3; r++) {
             ctx.beginPath();
-            ctx.moveTo(0, centerY);
-            ctx.lineTo(W, centerY);
-            ctx.moveTo(centerX, 0);
-            ctx.lineTo(centerX, H);
+            ctx.arc(centerX, centerY, (maxRadius / 3) * r, 0, 2 * Math.PI);
             ctx.stroke();
+        }
+        // Axes
+        ctx.strokeStyle = '#334155';
+        ctx.beginPath();
+        ctx.moveTo(0, centerY);
+        ctx.lineTo(W, centerY);
+        ctx.moveTo(centerX, 0);
+        ctx.lineTo(centerX, H);
+        ctx.stroke();
 
-            // Axis labels
-            ctx.fillStyle = '#475569';
-            ctx.font = '10px Inter, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('Re', W - 14, centerY - 6);
-            ctx.fillText('Im', centerX + 14, 14);
+        // Axis labels
+        ctx.fillStyle = '#475569';
+        ctx.font = '10px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Re', W - 14, centerY - 6);
+        ctx.fillText('Im', centerX + 14, 14);
 
         if (!currentResults || !currentResults.nodes) {
             ctx.fillStyle = '#64748b';
@@ -367,15 +387,15 @@ const ACPhasorTab = () => {
                     )}
 
                     {/* Waveform Section */}
-                    <div className="viz-section">
+                    <div className="viz-section" ref={waveformContainerRef}>
                         <div className="viz-section-label">Waveform</div>
-                        <canvas ref={waveformCanvasRef} width={600} height={180} className="viz-canvas" />
+                        <canvas ref={waveformCanvasRef} width={canvasWidth} height={180} className="viz-canvas" />
                     </div>
 
                     {/* Phasor Section */}
-                    <div className="viz-section">
+                    <div className="viz-section" ref={phasorContainerRef}>
                         <div className="viz-section-label">Phasor Diagram</div>
-                        <canvas ref={phasorCanvasRef} width={600} height={200} className="viz-canvas" />
+                        <canvas ref={phasorCanvasRef} width={canvasWidth} height={200} className="viz-canvas" />
                     </div>
 
                     {/* Controls */}
@@ -480,7 +500,7 @@ function drawGlowWaveform(ctx, complexVal, color, omega, displayTime, currentTim
     ctx.beginPath();
     for (let px = 0; px < W; px++) {
         const t = (px / W) * displayTime + currentTime;
-        const y = halfH - mag * Math.cos(omega * t + phase) * scaleY;
+        const y = halfH - mag * Math.sin(omega * t + phase) * scaleY;
         if (px === 0) ctx.moveTo(px, y);
         else ctx.lineTo(px, y);
     }
@@ -494,7 +514,7 @@ function drawGlowWaveform(ctx, complexVal, color, omega, displayTime, currentTim
     ctx.beginPath();
     for (let px = 0; px < W; px++) {
         const t = (px / W) * displayTime + currentTime;
-        const y = halfH - mag * Math.cos(omega * t + phase) * scaleY;
+        const y = halfH - mag * Math.sin(omega * t + phase) * scaleY;
         if (px === 0) ctx.moveTo(px, y);
         else ctx.lineTo(px, y);
     }

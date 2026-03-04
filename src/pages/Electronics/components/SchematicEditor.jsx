@@ -1,7 +1,8 @@
-// src/pages/Electronics/components/SchematicEditor.jsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CircuitCanvas from './CircuitCanvas';
 import { COMPONENT_TYPES } from '../engine/CircuitEngine';
+import { buildNodeCollapseMap } from '../engine/nodeCollapse';
+import { getTerminalDescriptors } from '../engine/componentConfig';
 import './SchematicEditor.css';
 
 const CREATE_NODE_OPTION = '__create_node__';
@@ -82,6 +83,9 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
     const componentMenuRef = useRef(null);
     const circuitCanvasRef = useRef(null);
     const terminalSelectorIdRef = useRef(0);
+
+    // Single cached collapse map — avoids rebuilding union-find 5× per render
+    const collapseNode = useMemo(() => buildNodeCollapseMap(components), [components]);
 
     const handleAdd = (type) => {
         const newId = getNextComponentId(type, components);
@@ -217,7 +221,8 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
             if (component.node1) {
                 options.push({
                     key: `${component.id}:a`,
-                    nodeName: component.node1,
+                    nodeName: collapseNode(component.node1),
+                    rawNodeName: component.node1,
                     label: `${component.id} (a)`
                 });
             }
@@ -225,7 +230,8 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
             if (component.node2) {
                 options.push({
                     key: `${component.id}:b`,
-                    nodeName: component.node2,
+                    nodeName: collapseNode(component.node2),
+                    rawNodeName: component.node2,
                     label: `${component.id} (b)`
                 });
             }
@@ -235,12 +241,13 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
     }, [components]);
 
     const getOrderedTerminalOptions = useCallback((field) => {
-        const selectedNodeName = localProps?.[field];
+        const rawNodeName = localProps?.[field];
+        const collapsedNodeName = rawNodeName ? collapseNode(rawNodeName) : rawNodeName;
         const selectedTermKey = field === 'node1' ? 'a' : 'b';
 
         return [...terminalOptions].sort((left, right) => {
-            const leftIsSelectedNode = left.nodeName === selectedNodeName;
-            const rightIsSelectedNode = right.nodeName === selectedNodeName;
+            const leftIsSelectedNode = left.nodeName === collapsedNodeName;
+            const rightIsSelectedNode = right.nodeName === collapsedNodeName;
 
             if (leftIsSelectedNode !== rightIsSelectedNode) {
                 return leftIsSelectedNode ? -1 : 1;
@@ -257,7 +264,7 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
 
             return left.label.localeCompare(right.label, undefined, { sensitivity: 'base' });
         });
-    }, [localProps, selectedId, terminalOptions]);
+    }, [components, localProps, selectedId, terminalOptions, collapseNode]);
 
     const connectionTerminalOptions = useCallback((field) => {
         const selectedTermKey = field === 'node1' ? 'a' : 'b';
@@ -292,20 +299,10 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
             const sourceNode = sourceTerm === 't1' ? sourceComponent.node1 : sourceComponent.node2;
             const targetNode = parsed.terminalKey === 't1' ? targetComponent.node1 : targetComponent.node2;
 
-            let updatedComponents = [...prev];
+            // Bug #7 fix: Don't do a global node rename. Just create a wire object.
+            // The engine's _buildCollapsedNetlist() union-find handles merging at solve time.
 
-            if (sourceNode !== targetNode) {
-                const nodeToKeep = (sourceNode === 'GND' || targetNode === 'GND') ? 'GND' : targetNode;
-                const nodeToReplace = nodeToKeep === sourceNode ? targetNode : sourceNode;
-
-                updatedComponents = updatedComponents.map(component => ({
-                    ...component,
-                    node1: component.node1 === nodeToReplace ? nodeToKeep : component.node1,
-                    node2: component.node2 === nodeToReplace ? nodeToKeep : component.node2
-                }));
-            }
-
-            const existingWire = updatedComponents.some(component => {
+            const existingWire = prev.some(component => {
                 if (component.type !== 'W') return false;
 
                 const sameDirection = component.sourceComp === selectedId
@@ -321,12 +318,10 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
                 return sameDirection || reverseDirection;
             });
 
-            if (existingWire) return updatedComponents;
-
-            const wireNode = (sourceNode === 'GND' || targetNode === 'GND') ? 'GND' : targetNode;
+            if (existingWire) return prev;
 
             return [
-                ...updatedComponents,
+                ...prev,
                 {
                     type: 'W',
                     id: `W_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
@@ -334,8 +329,9 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
                     sourceTerm,
                     targetComp: parsed.componentId,
                     targetTerm: parsed.terminalKey,
-                    node1: wireNode,
-                    node2: wireNode,
+                    // Bug #8 fix: Store real source and target node names
+                    node1: sourceNode,
+                    node2: targetNode,
                     x: 0,
                     y: 0
                 }
@@ -537,6 +533,58 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
 
     const renderTerminalField = (field, label) => {
         const selectors = extraTerminalSelectors[field];
+        const rawNodeName = localProps[field];
+        const collapsedValue = rawNodeName ? collapseNode(rawNodeName) : rawNodeName;
+        const sourceTerm = field === 'node1' ? 't1' : 't2';
+        const sourceTermLabel = field === 'node1' ? 'a' : 'b';
+
+        // Find ALL directly-wired terminals via explicit wire objects
+        const allWiredKeys = [];
+        components.forEach(c => {
+            if (c.type !== 'W') return;
+            if (c.sourceComp === selectedId && c.sourceTerm === sourceTerm) {
+                const key = `${c.targetComp}:${c.targetTerm === 't1' ? 'a' : 'b'}`;
+                if (!allWiredKeys.includes(key)) allWiredKeys.push(key);
+            }
+            if (c.targetComp === selectedId && c.targetTerm === sourceTerm) {
+                const key = `${c.sourceComp}:${c.sourceTerm === 't1' ? 'a' : 'b'}`;
+                if (!allWiredKeys.includes(key)) allWiredKeys.push(key);
+            }
+        });
+
+        // Primary connection: first explicit wire, or first same-collapsed-group terminal
+        let primaryKey = allWiredKeys[0] || null;
+        if (!primaryKey) {
+            const match = terminalOptions.find(opt =>
+                opt.nodeName === collapsedValue && opt.key !== `${selectedId}:${sourceTermLabel}`
+            );
+            if (match) primaryKey = match.key;
+        }
+
+        const selectValue = primaryKey || `${selectedId}:${sourceTermLabel}`;
+
+        // Additional wired connections (beyond the first)
+        const additionalWiredKeys = allWiredKeys.slice(1);
+
+        // Sort options: primary wired first, then other wired, then same collapsed group, then others
+        const wiredSet = new Set(allWiredKeys);
+        const sortedOptions = [...terminalOptions]
+            .filter(opt => opt.key !== `${selectedId}:${sourceTermLabel}`) // exclude self
+            .sort((a, b) => {
+                const aIsPrimary = a.key === primaryKey;
+                const bIsPrimary = b.key === primaryKey;
+                if (aIsPrimary !== bIsPrimary) return aIsPrimary ? -1 : 1;
+
+                const aIsWired = wiredSet.has(a.key);
+                const bIsWired = wiredSet.has(b.key);
+                if (aIsWired !== bIsWired) return aIsWired ? -1 : 1;
+
+                const aIsConnected = a.nodeName === collapsedValue;
+                const bIsConnected = b.nodeName === collapsedValue;
+                if (aIsConnected !== bIsConnected) return aIsConnected ? -1 : 1;
+
+                return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
+            });
 
         return (
             <div className="terminal-field">
@@ -544,23 +592,59 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
                 <div className="terminal-control-group">
                     <div className="terminal-select-row">
                         <select
-                            value={localProps[field]}
-                            onChange={(e) => handleNodeSelection(field, e.target.value)}
+                            value={selectValue}
+                            onChange={(e) => {
+                                const selectedKey = e.target.value;
+                                if (selectedKey === CREATE_NODE_OPTION) {
+                                    const newNode = getNextNodeName(components);
+                                    handleLocalPropChange(field, newNode);
+                                    applyPropChange(field, newNode);
+                                } else {
+                                    // Disconnect primary if it exists, then connect new
+                                    if (primaryKey) disconnectTerminalFromOption(field, primaryKey);
+                                    connectTerminalToOption(field, selectedKey);
+                                }
+                            }}
                         >
-                            {getOrderedTerminalOptions(field).map(option => (
-                                <option key={option.key} value={option.nodeName}>{option.label}</option>
+                            {sortedOptions.map(option => (
+                                <option key={option.key} value={option.key}>{option.label}</option>
                             ))}
                             <option value={CREATE_NODE_OPTION}>+ Create New Node</option>
                         </select>
                         <button
                             type="button"
-                            className="terminal-add-btn"
-                            onClick={() => handleAddTerminalSelector(field)}
-                            aria-label={`Add another ${label.toLowerCase()} terminal connection`}
+                            className="terminal-remove-btn"
+                            onClick={() => { if (primaryKey) disconnectTerminalFromOption(field, primaryKey); }}
+                            aria-label={`Remove primary ${label.toLowerCase()} connection`}
                         >
-                            +
+                            x
                         </button>
                     </div>
+                    {additionalWiredKeys.map(wiredKey => {
+                        const opt = terminalOptions.find(o => o.key === wiredKey);
+                        const wiredLabel = opt ? opt.label : wiredKey;
+                        return (
+                            <div key={`wired-${wiredKey}`} className="terminal-select-row extra-terminal-select-row">
+                                <select value={wiredKey} onChange={(e) => {
+                                    disconnectTerminalFromOption(field, wiredKey);
+                                    if (e.target.value) connectTerminalToOption(field, e.target.value);
+                                }}>
+                                    <option value={wiredKey}>{wiredLabel}</option>
+                                    {sortedOptions.filter(o => o.key !== wiredKey && !allWiredKeys.includes(o.key)).map(option => (
+                                        <option key={option.key} value={option.key}>{option.label}</option>
+                                    ))}
+                                </select>
+                                <button
+                                    type="button"
+                                    className="terminal-remove-btn"
+                                    onClick={() => disconnectTerminalFromOption(field, wiredKey)}
+                                    aria-label={`Remove connection to ${wiredLabel}`}
+                                >
+                                    x
+                                </button>
+                            </div>
+                        );
+                    })}
                     {selectors.map(selector => (
                         <div key={selector.id} className="terminal-select-row extra-terminal-select-row">
                             <select
@@ -582,6 +666,14 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
                             </button>
                         </div>
                     ))}
+                    <button
+                        type="button"
+                        className="terminal-add-btn"
+                        onClick={() => handleAddTerminalSelector(field)}
+                        aria-label={`Add another ${label.toLowerCase()} terminal connection`}
+                    >
+                        +
+                    </button>
                 </div>
             </div>
         );
@@ -669,8 +761,9 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
                             onKeyDown={(e) => e.key === 'Enter' && applyPropChange('value', parseFloat(e.target.value))}
                         />
                     </label>
-                    {renderTerminalField('node1', 'Terminal a')}
-                    {renderTerminalField('node2', 'Terminal b')}
+                    {selectedComponent && getTerminalDescriptors(selectedComponent.type).map(termDef => (
+                        renderTerminalField(termDef.key, termDef.label)
+                    ))}
                     <label>
                         Rotation:
                         <input

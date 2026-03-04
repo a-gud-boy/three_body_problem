@@ -6,20 +6,21 @@ import Complex from '../engine/Complex';
 
 const NetworkTheoremsTab = () => {
     const [components, setComponents] = useState([
-        { id: 'Vac1', type: 'Vac', node1: 'n1', node2: 'GND', value: 12, phase: 0, x: 100, y: 200, rotation: 0 },
-        { id: 'R1', type: 'R', node1: 'n1', node2: 'n2', value: 10, x: 200, y: 100, rotation: 0 },
-        { id: 'R2', type: 'R', node1: 'n2', node2: 'GND', value: 20, x: 250, y: 200, rotation: 90 },
-        { id: 'R3', type: 'R', node1: 'n2', node2: 'n3', value: 30, x: 350, y: 100, rotation: 0 },
+        { id: 'Vac1', type: 'Vac', node1: 'NODE-1', node2: 'GND', value: 12, phase: 0, x: 100, y: 200, rotation: 0 },
+        { id: 'R1', type: 'R', node1: 'NODE-1', node2: 'NODE-2', value: 10, x: 200, y: 100, rotation: 0 },
+        { id: 'R2', type: 'R', node1: 'NODE-2', node2: 'GND', value: 20, x: 250, y: 200, rotation: 90 },
+        { id: 'R3', type: 'R', node1: 'NODE-2', node2: 'NODE-3', value: 30, x: 350, y: 100, rotation: 0 },
         { id: 'GND1', type: 'G', node1: 'GND', node2: 'GND', value: 0, x: 100, y: 300, rotation: 0 },
 
         // Explicit wiring mappings
-        { id: 'W1', type: 'W', sourceComp: 'Vac1', sourceTerm: 't1', targetComp: 'R1', targetTerm: 't1', node1: 'n1', node2: 'n1', x: 0, y: 0 },
-        { id: 'W2', type: 'W', sourceComp: 'R1', sourceTerm: 't2', targetComp: 'R2', targetTerm: 't1', node1: 'n2', node2: 'n2', x: 0, y: 0 },
-        { id: 'W3', type: 'W', sourceComp: 'R2', sourceTerm: 't1', targetComp: 'R3', targetTerm: 't1', node1: 'n2', node2: 'n2', x: 0, y: 0 },
+        { id: 'W1', type: 'W', sourceComp: 'Vac1', sourceTerm: 't1', targetComp: 'R1', targetTerm: 't1', node1: 'NODE-1', node2: 'NODE-1', x: 0, y: 0 },
+        { id: 'W2', type: 'W', sourceComp: 'R1', sourceTerm: 't2', targetComp: 'R2', targetTerm: 't1', node1: 'NODE-2', node2: 'NODE-2', x: 0, y: 0 },
+        { id: 'W3', type: 'W', sourceComp: 'R2', sourceTerm: 't1', targetComp: 'R3', targetTerm: 't1', node1: 'NODE-2', node2: 'NODE-2', x: 0, y: 0 },
         { id: 'W4', type: 'W', sourceComp: 'Vac1', sourceTerm: 't2', targetComp: 'GND1', targetTerm: 't1', node1: 'GND', node2: 'GND', x: 0, y: 0 },
         { id: 'W5', type: 'W', sourceComp: 'R2', sourceTerm: 't2', targetComp: 'GND1', targetTerm: 't1', node1: 'GND', node2: 'GND', x: 0, y: 0 }
     ]);
-    const [terminalA, setTerminalA] = useState('n3');
+    const [selectedId, setSelectedId] = useState(null);
+    const [terminalA, setTerminalA] = useState('NODE-3');
     const [terminalB, setTerminalB] = useState('GND');
     const [theveninVoltage, setTheveninVoltage] = useState(null);
     const [theveninImpedance, setTheveninImpedance] = useState(null);
@@ -30,7 +31,7 @@ const NetworkTheoremsTab = () => {
             // 1. Calculate Open Circuit Voltage (Vth)
             const engineOpen = new CircuitEngine();
             components.forEach(c => {
-                if (c.type !== 'G' && c.type !== 'W') engineOpen.addComponent(c.type, c.id, c.node1, c.node2, c.value, { phase: c.phase || 0 });
+                if (c.type !== 'G') engineOpen.addComponent(c.type, c.id, c.node1, c.node2, c.value, { phase: c.phase || 0 });
             });
             const resOpen = engineOpen.solveAC();
 
@@ -42,7 +43,7 @@ const NetworkTheoremsTab = () => {
             // 2. Calculate Short Circuit Current (I_sc) to find Zth = Vth / I_sc
             const engineShort = new CircuitEngine();
             components.forEach(c => {
-                if (c.type !== 'G' && c.type !== 'W') {
+                if (c.type !== 'G') {
                     engineShort.addComponent(c.type, c.id, c.node1, c.node2, c.value, { phase: c.phase || 0 });
                 }
             });
@@ -72,7 +73,7 @@ const NetworkTheoremsTab = () => {
                 <div className="left-panel">
                     <h3>Circuit Builder</h3>
                     <div className="canvas-container">
-                        <SchematicEditor components={components} setComponents={setComponents} />
+                        <SchematicEditor components={components} setComponents={setComponents} selectedId={selectedId} setSelectedId={setSelectedId} />
                     </div>
                 </div>
                 <div className="right-panel">

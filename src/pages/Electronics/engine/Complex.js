@@ -10,7 +10,7 @@ class Complex {
 
     div(c) {
         const denom = c.re * c.re + c.im * c.im;
-        if (denom === 0) throw new Error("Division by zero in complex number");
+        if (denom < 1e-30) throw new Error("Division by near-zero in complex number");
         return new Complex(
             (this.re * c.re + this.im * c.im) / denom,
             (this.im * c.re - this.re * c.im) / denom
