@@ -356,6 +356,24 @@ function CircuitCanvas({
         return edge.p2;
     }, [components]);
 
+    const pickExplicitCutTerminal = useCallback((wire, sourceComponents = components) => {
+        const sourceComp = sourceComponents.find(c => c.id === wire.sourceComp);
+        const targetComp = sourceComponents.find(c => c.id === wire.targetComp);
+
+        const sourceIsGroundSymbol = sourceComp?.type === 'G';
+        const targetIsGroundSymbol = targetComp?.type === 'G';
+
+        if (!sourceIsGroundSymbol && targetIsGroundSymbol) {
+            return { compId: wire.sourceComp, termKey: wire.sourceTerm };
+        }
+        if (!targetIsGroundSymbol && sourceIsGroundSymbol) {
+            return { compId: wire.targetComp, termKey: wire.targetTerm };
+        }
+
+        // Default to target endpoint for deterministic behavior.
+        return { compId: wire.targetComp, termKey: wire.targetTerm };
+    }, [components]);
+
     const handleTerminalMouseDown = useCallback((e, comp, termKey) => {
         if (readOnly) return;
         e.stopPropagation();
@@ -507,12 +525,15 @@ function CircuitCanvas({
                 const cutTolerance = 12 / zoom;
                 setComponents(prev => {
                     const explicitWireIdsToRemove = new Set();
+                    const terminalsToSplit = [];
                     prev.forEach(c => {
                         if (c.type !== 'W') return;
                         const curve = getExplicitWireCurve(c, prev);
                         if (!curve) return;
                         if (doesCutIntersectCurve(cutStart, cutEnd, curve, cutTolerance)) {
                             explicitWireIdsToRemove.add(c.id);
+                            const terminal = pickExplicitCutTerminal(c, prev);
+                            if (terminal) terminalsToSplit.push(terminal);
                         }
                     });
 
@@ -520,7 +541,6 @@ function CircuitCanvas({
 
                     // Also break implicit (node-name) connections if their rendered edge is cut.
                     const implicitEdges = getImplicitWireEdges(prev);
-                    const terminalsToSplit = [];
                     implicitEdges.forEach(edge => {
                         const curve = buildTerminalCurve(edge.p1, edge.p2);
                         if (doesCutIntersectCurve(cutStart, cutEnd, curve, cutTolerance)) {
@@ -736,7 +756,7 @@ function CircuitCanvas({
         setComponents(nextComponents);
         dragPositionRef.current = null;
         setDraggingId(null);
-    }, [wireCutStart, wireCutPos, zoom, getExplicitWireCurve, getImplicitWireEdges, pickImplicitCutTerminal, isPanning, draggingId, autoConnect, readOnly, setComponents, wiringStart, hoveredTerminal, components, getTerminals]);
+    }, [wireCutStart, wireCutPos, zoom, getExplicitWireCurve, getImplicitWireEdges, pickImplicitCutTerminal, pickExplicitCutTerminal, isPanning, draggingId, autoConnect, readOnly, setComponents, wiringStart, hoveredTerminal, components, getTerminals]);
 
     // Start panning on empty canvas click
     const handleCanvasMouseDown = useCallback((e) => {

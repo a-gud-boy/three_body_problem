@@ -99,6 +99,62 @@
     min-width: 110px;
 }
 
+.terminal-field {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+.terminal-field-label {
+    color: #94a3b8;
+    font-size: 0.9rem;
+    line-height: 30px;
+    white-space: nowrap;
+}
+
+.terminal-control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.terminal-select-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.terminal-add-btn,
+.terminal-remove-btn {
+    border: 1px solid #334155;
+    color: #cbd5e1;
+    background-color: #0f172a;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.terminal-add-btn:hover,
+.terminal-remove-btn:hover {
+    border-color: #475569;
+    color: #f8fafc;
+}
+
+.terminal-add-btn {
+    color: #22c55e;
+}
+
+.terminal-remove-btn {
+    color: #ef4444;
+}
+
+.extra-terminal-select-row select {
+    min-width: 190px;
+}
+
 .component-dropdown {
     position: relative;
     display: flex;

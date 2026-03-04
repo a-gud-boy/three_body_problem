@@ -32,6 +32,23 @@ const normalizeNodeName = (nodeName) => {
     return nodeName;
 };
 
+const getMaxNodeIndex = (sourceComponents) => sourceComponents.reduce((max, component) => {
+    if (component.type === 'W') return max;
+    const nodeIndices = [parseNodeIndex(component.node1), parseNodeIndex(component.node2)].filter(Number.isFinite);
+    if (nodeIndices.length === 0) return max;
+    return Math.max(max, ...nodeIndices);
+}, 0);
+
+const parseTerminalOptionKey = (optionKey) => {
+    if (typeof optionKey !== 'string') return null;
+    const match = optionKey.match(/^(.*):(a|b)$/);
+    if (!match) return null;
+    return {
+        componentId: match[1],
+        terminalKey: match[2] === 'a' ? 't1' : 't2'
+    };
+};
+
 const getNextNodeName = (sourceComponents, offset = 0) => {
     const maxIndex = sourceComponents.reduce((max, component) => {
         if (component.type === 'W') return max;
@@ -61,8 +78,10 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
     const [autoConnect, setAutoConnect] = useState(true);
     const [componentMenuOpen, setComponentMenuOpen] = useState(false);
     const [highlightedIndex, setHighlightedIndex] = useState(-1);
+    const [extraTerminalSelectors, setExtraTerminalSelectors] = useState({ node1: [], node2: [] });
     const componentMenuRef = useRef(null);
     const circuitCanvasRef = useRef(null);
+    const terminalSelectorIdRef = useRef(0);
 
     const handleAdd = (type) => {
         const newId = getNextComponentId(type, components);
@@ -114,6 +133,11 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
             setLocalProps(null);
         }
     }, [selectedId, components]);
+
+    useEffect(() => {
+        // Extra connection selectors are scoped to the selected component.
+        setExtraTerminalSelectors({ node1: [], node2: [] });
+    }, [selectedId]);
 
     useEffect(() => {
         const hasLegacyNode = components.some(component => {
@@ -207,19 +231,8 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
             }
         });
 
-        // Defensive fallback for any net that exists without a rendered terminal option.
-        const representedNodes = new Set(options.map(option => option.nodeName));
-        nodeOptions.forEach(nodeName => {
-            if (representedNodes.has(nodeName)) return;
-            options.push({
-                key: `node:${nodeName}`,
-                nodeName,
-                label: nodeName === 'GND' ? 'Ground (GND)' : normalizeNodeName(nodeName)
-            });
-        });
-
         return options;
-    }, [components, nodeOptions]);
+    }, [components]);
 
     const getOrderedTerminalOptions = useCallback((field) => {
         const selectedNodeName = localProps?.[field];
@@ -246,6 +259,12 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
         });
     }, [localProps, selectedId, terminalOptions]);
 
+    const connectionTerminalOptions = useCallback((field) => {
+        const selectedTermKey = field === 'node1' ? 'a' : 'b';
+        return getOrderedTerminalOptions(field)
+            .filter(option => option.key !== `${selectedId}:${selectedTermKey}`);
+    }, [getOrderedTerminalOptions, selectedId]);
+
     const handleNodeSelection = (field, selection) => {
         const resolvedNode = selection === CREATE_NODE_OPTION
             ? getNextNodeName(components)
@@ -253,6 +272,204 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
 
         handleLocalPropChange(field, resolvedNode);
         applyPropChange(field, resolvedNode);
+    };
+
+    const connectTerminalToOption = useCallback((field, optionKey) => {
+        const parsed = parseTerminalOptionKey(optionKey);
+        if (!parsed || !selectedId) return;
+
+        const sourceTerm = field === 'node1' ? 't1' : 't2';
+
+        if (parsed.componentId === selectedId && parsed.terminalKey === sourceTerm) {
+            return;
+        }
+
+        setComponents(prev => {
+            const sourceComponent = prev.find(component => component.id === selectedId);
+            const targetComponent = prev.find(component => component.id === parsed.componentId);
+            if (!sourceComponent || !targetComponent) return prev;
+
+            const sourceNode = sourceTerm === 't1' ? sourceComponent.node1 : sourceComponent.node2;
+            const targetNode = parsed.terminalKey === 't1' ? targetComponent.node1 : targetComponent.node2;
+
+            let updatedComponents = [...prev];
+
+            if (sourceNode !== targetNode) {
+                const nodeToKeep = (sourceNode === 'GND' || targetNode === 'GND') ? 'GND' : targetNode;
+                const nodeToReplace = nodeToKeep === sourceNode ? targetNode : sourceNode;
+
+                updatedComponents = updatedComponents.map(component => ({
+                    ...component,
+                    node1: component.node1 === nodeToReplace ? nodeToKeep : component.node1,
+                    node2: component.node2 === nodeToReplace ? nodeToKeep : component.node2
+                }));
+            }
+
+            const existingWire = updatedComponents.some(component => {
+                if (component.type !== 'W') return false;
+
+                const sameDirection = component.sourceComp === selectedId
+                    && component.sourceTerm === sourceTerm
+                    && component.targetComp === parsed.componentId
+                    && component.targetTerm === parsed.terminalKey;
+
+                const reverseDirection = component.sourceComp === parsed.componentId
+                    && component.sourceTerm === parsed.terminalKey
+                    && component.targetComp === selectedId
+                    && component.targetTerm === sourceTerm;
+
+                return sameDirection || reverseDirection;
+            });
+
+            if (existingWire) return updatedComponents;
+
+            const wireNode = (sourceNode === 'GND' || targetNode === 'GND') ? 'GND' : targetNode;
+
+            return [
+                ...updatedComponents,
+                {
+                    type: 'W',
+                    id: `W_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+                    sourceComp: selectedId,
+                    sourceTerm,
+                    targetComp: parsed.componentId,
+                    targetTerm: parsed.terminalKey,
+                    node1: wireNode,
+                    node2: wireNode,
+                    x: 0,
+                    y: 0
+                }
+            ];
+        });
+    }, [selectedId, setComponents]);
+
+    const disconnectTerminalFromOption = useCallback((field, optionKey) => {
+        const parsed = parseTerminalOptionKey(optionKey);
+        if (!parsed || !selectedId) return;
+
+        const sourceTerm = field === 'node1' ? 't1' : 't2';
+
+        setComponents(prev => {
+            const sourceComponent = prev.find(component => component.id === selectedId);
+            const targetComponent = prev.find(component => component.id === parsed.componentId);
+            if (!sourceComponent || !targetComponent) return prev;
+
+            const sourceNode = sourceTerm === 't1' ? sourceComponent.node1 : sourceComponent.node2;
+            const targetNode = parsed.terminalKey === 't1' ? targetComponent.node1 : targetComponent.node2;
+
+            const nextWithoutWire = prev.filter(component => {
+                if (component.type !== 'W') return true;
+
+                const sameDirection = component.sourceComp === selectedId
+                    && component.sourceTerm === sourceTerm
+                    && component.targetComp === parsed.componentId
+                    && component.targetTerm === parsed.terminalKey;
+
+                const reverseDirection = component.sourceComp === parsed.componentId
+                    && component.sourceTerm === parsed.terminalKey
+                    && component.targetComp === selectedId
+                    && component.targetTerm === sourceTerm;
+
+                return !(sameDirection || reverseDirection);
+            });
+
+            // If these terminals are not electrically joined anymore, removing the wire is enough.
+            if (sourceNode !== targetNode) return nextWithoutWire;
+
+            const sourceIsGround = sourceNode === 'GND' || sourceComponent.type === 'G';
+            const targetIsGround = targetNode === 'GND' || targetComponent.type === 'G';
+
+            let splitCompId = parsed.componentId;
+            let splitTerm = parsed.terminalKey;
+
+            if (!sourceIsGround && targetIsGround) {
+                splitCompId = selectedId;
+                splitTerm = sourceTerm;
+            }
+
+            // Nothing to split if both sides are true ground.
+            if ((sourceIsGround && splitCompId === selectedId && sourceComponent.type === 'G')
+                || (targetIsGround && splitCompId === parsed.componentId && targetComponent.type === 'G')) {
+                return nextWithoutWire;
+            }
+
+            const maxNodeIndex = getMaxNodeIndex(nextWithoutWire);
+            const replacementNode = `NODE-${maxNodeIndex + 1}`;
+
+            return nextWithoutWire.map(component => {
+                if (component.type === 'W' || component.id !== splitCompId) return component;
+
+                if (splitTerm === 't1') {
+                    return { ...component, node1: replacementNode };
+                }
+
+                return { ...component, node2: replacementNode };
+            });
+        });
+    }, [selectedId, setComponents]);
+
+    const handleAddTerminalSelector = (field) => {
+        const selectorId = `${field}-${terminalSelectorIdRef.current++}`;
+        setExtraTerminalSelectors(prev => ({
+            ...prev,
+            [field]: [...prev[field], { id: selectorId, value: '' }]
+        }));
+    };
+
+    const handleRemoveTerminalSelector = (field, selectorId, selectorValue) => {
+        if (selectorValue) {
+            disconnectTerminalFromOption(field, selectorValue);
+        }
+
+        setExtraTerminalSelectors(prev => ({
+            ...prev,
+            [field]: prev[field].filter(selector => selector.id !== selectorId)
+        }));
+    };
+
+    const handleExtraTerminalSelection = (field, selectorId, selectedOptionKey) => {
+        if (!selectedOptionKey) {
+            setExtraTerminalSelectors(prev => ({
+                ...prev,
+                [field]: prev[field].map(selector => (
+                    selector.id === selectorId
+                        ? { ...selector, value: '' }
+                        : selector
+                ))
+            }));
+            return;
+        }
+
+        const selectedOption = terminalOptions.find(option => option.key === selectedOptionKey);
+        if (!selectedOption) return;
+
+        const resolvedNode = selectedOption.nodeName;
+        const activeNode = localProps?.[field];
+
+        if (!activeNode) {
+            setExtraTerminalSelectors(prev => ({
+                ...prev,
+                [field]: prev[field].map(selector => (
+                    selector.id === selectorId
+                        ? { ...selector, value: selectedOptionKey }
+                        : selector
+                ))
+            }));
+            handleNodeSelection(field, resolvedNode);
+            return;
+        }
+
+        connectTerminalToOption(field, selectedOptionKey);
+
+        // Keep selector value on the active net so it remains stable after merges.
+        setExtraTerminalSelectors(prev => ({
+            ...prev,
+            [field]: prev[field].map(selector => (
+                selector.id === selectorId
+                    ? { ...selector, value: selectedOptionKey }
+                    : selector
+            ))
+        }));
     };
 
     const selectableComponents = useMemo(
@@ -316,6 +533,58 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
             setComponentMenuOpen(false);
             circuitCanvasRef.current?.clearPreview();
         }
+    };
+
+    const renderTerminalField = (field, label) => {
+        const selectors = extraTerminalSelectors[field];
+
+        return (
+            <div className="terminal-field">
+                <span className="terminal-field-label">{label}:</span>
+                <div className="terminal-control-group">
+                    <div className="terminal-select-row">
+                        <select
+                            value={localProps[field]}
+                            onChange={(e) => handleNodeSelection(field, e.target.value)}
+                        >
+                            {getOrderedTerminalOptions(field).map(option => (
+                                <option key={option.key} value={option.nodeName}>{option.label}</option>
+                            ))}
+                            <option value={CREATE_NODE_OPTION}>+ Create New Node</option>
+                        </select>
+                        <button
+                            type="button"
+                            className="terminal-add-btn"
+                            onClick={() => handleAddTerminalSelector(field)}
+                            aria-label={`Add another ${label.toLowerCase()} terminal connection`}
+                        >
+                            +
+                        </button>
+                    </div>
+                    {selectors.map(selector => (
+                        <div key={selector.id} className="terminal-select-row extra-terminal-select-row">
+                            <select
+                                value={selector.value}
+                                onChange={(e) => handleExtraTerminalSelection(field, selector.id, e.target.value)}
+                            >
+                                <option value="">Connect to terminal...</option>
+                                {connectionTerminalOptions(field).map(option => (
+                                    <option key={`${selector.id}-${option.key}`} value={option.key}>{option.label}</option>
+                                ))}
+                            </select>
+                            <button
+                                type="button"
+                                className="terminal-remove-btn"
+                                onClick={() => handleRemoveTerminalSelector(field, selector.id, selector.value)}
+                                aria-label={`Remove ${label.toLowerCase()} connection target`}
+                            >
+                                x
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
     };
 
     return (
@@ -400,30 +669,8 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
                             onKeyDown={(e) => e.key === 'Enter' && applyPropChange('value', parseFloat(e.target.value))}
                         />
                     </label>
-                    <label>
-                        Terminal a:
-                        <select
-                            value={localProps.node1}
-                            onChange={(e) => handleNodeSelection('node1', e.target.value)}
-                        >
-                            {getOrderedTerminalOptions('node1').map(option => (
-                                <option key={option.key} value={option.nodeName}>{option.label}</option>
-                            ))}
-                            <option value={CREATE_NODE_OPTION}>+ Create New Node</option>
-                        </select>
-                    </label>
-                    <label>
-                        Terminal b:
-                        <select
-                            value={localProps.node2}
-                            onChange={(e) => handleNodeSelection('node2', e.target.value)}
-                        >
-                            {getOrderedTerminalOptions('node2').map(option => (
-                                <option key={option.key} value={option.nodeName}>{option.label}</option>
-                            ))}
-                            <option value={CREATE_NODE_OPTION}>+ Create New Node</option>
-                        </select>
-                    </label>
+                    {renderTerminalField('node1', 'Terminal a')}
+                    {renderTerminalField('node2', 'Terminal b')}
                     <label>
                         Rotation:
                         <input
