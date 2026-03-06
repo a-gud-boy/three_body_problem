@@ -147,6 +147,8 @@ function CircuitCanvas({
     const dragOffsetRef = useRef({ x: 0, y: 0 });
     const [draggingId, setDraggingId] = useState(null);
     const draggingIdRef = useRef(null);
+    const autoConnectRef = useRef(autoConnect);
+    autoConnectRef.current = autoConnect;
     const [selectedId, setSelectedId] = useState(null);
 
     // Wiring state
@@ -656,138 +658,112 @@ function CircuitCanvas({
             return;
         }
 
-        if (!draggingId) return;
+        const currentDraggingId = draggingIdRef.current;
+        if (!currentDraggingId) return;
 
         const finalDragPos = dragPositionRef.current;
-        const baseComponents = components.map((c) => {
-            if (c.id !== draggingId || !finalDragPos) return c;
-            return { ...c, x: finalDragPos.x, y: finalDragPos.y };
-        });
 
-        let nextComponents = baseComponents;
+        // Use functional updater so we always work with the latest components state
+        setComponents(prev => {
+            const baseComponents = prev.map((c) => {
+                if (c.id !== currentDraggingId || !finalDragPos) return c;
+                return { ...c, x: finalDragPos.x, y: finalDragPos.y };
+            });
 
-        if (autoConnect && !readOnly) {
-            const draggedComp = baseComponents.find(c => c.id === draggingId);
+            if (!autoConnectRef.current || readOnly) return baseComponents;
 
-            if (draggedComp && draggedComp.type !== 'G') {
-                const draggedTerms = getTerminals(draggedComp);
-                let newNode1 = draggedComp.node1;
-                let newNode2 = draggedComp.node2;
+            const draggedComp = baseComponents.find(c => c.id === currentDraggingId);
+            if (!draggedComp || draggedComp.type === 'G') return baseComponents;
 
-                let targetComp1 = null;
-                let targetTerm1 = null;
-                let targetComp2 = null;
-                let targetTerm2 = null;
+            const draggedTerms = getTerminals(draggedComp);
+            let newNode1 = draggedComp.node1;
+            let newNode2 = draggedComp.node2;
 
-                const snapDist = 40;
-                let minD1 = snapDist;
-                let minD2 = snapDist;
+            let targetComp1 = null;
+            let targetTerm1 = null;
+            let targetComp2 = null;
+            let targetTerm2 = null;
 
-                baseComponents.forEach(otherComp => {
-                    if (otherComp.id === draggingId || otherComp.type === 'W') return;
-                    const otherTerms = getTerminals(otherComp);
+            const snapDist = 40;
+            let minD1 = snapDist;
+            let minD2 = snapDist;
 
-                    // Check t1 of dragged (if real)
-                    if (draggedTerms.t1.isReal) {
-                        if (otherTerms.t1.isReal) {
-                            const d11 = Math.hypot(draggedTerms.t1.x - otherTerms.t1.x, draggedTerms.t1.y - otherTerms.t1.y);
-                            if (d11 < minD1) {
-                                minD1 = d11;
-                                newNode1 = otherComp.node1;
-                                targetComp1 = otherComp.id;
-                                targetTerm1 = 't1';
-                            }
-                        }
-                        if (otherTerms.t2.isReal) {
-                            const d12 = Math.hypot(draggedTerms.t1.x - otherTerms.t2.x, draggedTerms.t1.y - otherTerms.t2.y);
-                            if (d12 < minD1) {
-                                minD1 = d12;
-                                newNode1 = otherComp.node2;
-                                targetComp1 = otherComp.id;
-                                targetTerm1 = 't2';
-                            }
-                        }
+            baseComponents.forEach(otherComp => {
+                if (otherComp.id === currentDraggingId || otherComp.type === 'W') return;
+                const otherTerms = getTerminals(otherComp);
+
+                if (draggedTerms.t1?.isReal) {
+                    if (otherTerms.t1?.isReal) {
+                        const d11 = Math.hypot(draggedTerms.t1.x - otherTerms.t1.x, draggedTerms.t1.y - otherTerms.t1.y);
+                        if (d11 < minD1) { minD1 = d11; newNode1 = otherComp.node1; targetComp1 = otherComp.id; targetTerm1 = 't1'; }
                     }
-
-                    // Check t2 of dragged (if real)
-                    if (draggedTerms.t2.isReal) {
-                        if (otherTerms.t1.isReal) {
-                            const d21 = Math.hypot(draggedTerms.t2.x - otherTerms.t1.x, draggedTerms.t2.y - otherTerms.t1.y);
-                            if (d21 < minD2) {
-                                minD2 = d21;
-                                newNode2 = otherComp.node1;
-                                targetComp2 = otherComp.id;
-                                targetTerm2 = 't1';
-                            }
-                        }
-                        if (otherTerms.t2.isReal) {
-                            const d22 = Math.hypot(draggedTerms.t2.x - otherTerms.t2.x, draggedTerms.t2.y - otherTerms.t2.y);
-                            if (d22 < minD2) {
-                                minD2 = d22;
-                                newNode2 = otherComp.node2;
-                                targetComp2 = otherComp.id;
-                                targetTerm2 = 't2';
-                            }
-                        }
-                    }
-                });
-
-                if (newNode1 !== draggedComp.node1 || newNode2 !== draggedComp.node2) {
-                    // Fix: Before creating new auto-connect wires, remove old wires
-                    // from the dragged component's terminals to prevent accumulation.
-                    // Only remove wires from terminals that are being RE-connected.
-                    nextComponents = baseComponents.filter(c => {
-                        if (c.type !== 'W') return true;
-                        // Remove wires from t1 if we're about to create a new t1 connection
-                        if (targetComp1 && targetTerm1 && newNode1 !== draggedComp.node1) {
-                            if (c.sourceComp === draggingId && c.sourceTerm === 't1') return false;
-                            if (c.targetComp === draggingId && c.targetTerm === 't1') return false;
-                        }
-                        // Remove wires from t2 if we're about to create a new t2 connection
-                        if (targetComp2 && targetTerm2 && newNode2 !== draggedComp.node2) {
-                            if (c.sourceComp === draggingId && c.sourceTerm === 't2') return false;
-                            if (c.targetComp === draggingId && c.targetTerm === 't2') return false;
-                        }
-                        return true;
-                    });
-
-                    if (targetComp1 && targetTerm1 && newNode1 !== draggedComp.node1) {
-                        nextComponents.push({
-                            type: 'W',
-                            id: `W_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                            sourceComp: draggingId,
-                            sourceTerm: 't1',
-                            targetComp: targetComp1,
-                            targetTerm: targetTerm1,
-                            node1: draggedComp.node1,
-                            node2: newNode1,
-                            x: 0,
-                            y: 0
-                        });
-                    }
-                    if (targetComp2 && targetTerm2 && newNode2 !== draggedComp.node2) {
-                        nextComponents.push({
-                            type: 'W',
-                            id: `W_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                            sourceComp: draggingId,
-                            sourceTerm: 't2',
-                            targetComp: targetComp2,
-                            targetTerm: targetTerm2,
-                            node1: draggedComp.node2,
-                            node2: newNode2,
-                            x: 0,
-                            y: 0
-                        });
+                    if (otherTerms.t2?.isReal) {
+                        const d12 = Math.hypot(draggedTerms.t1.x - otherTerms.t2.x, draggedTerms.t1.y - otherTerms.t2.y);
+                        if (d12 < minD1) { minD1 = d12; newNode1 = otherComp.node2; targetComp1 = otherComp.id; targetTerm1 = 't2'; }
                     }
                 }
-            }
-        }
 
-        setComponents(nextComponents);
+                if (draggedTerms.t2?.isReal) {
+                    if (otherTerms.t1?.isReal) {
+                        const d21 = Math.hypot(draggedTerms.t2.x - otherTerms.t1.x, draggedTerms.t2.y - otherTerms.t1.y);
+                        if (d21 < minD2) { minD2 = d21; newNode2 = otherComp.node1; targetComp2 = otherComp.id; targetTerm2 = 't1'; }
+                    }
+                    if (otherTerms.t2?.isReal) {
+                        const d22 = Math.hypot(draggedTerms.t2.x - otherTerms.t2.x, draggedTerms.t2.y - otherTerms.t2.y);
+                        if (d22 < minD2) { minD2 = d22; newNode2 = otherComp.node2; targetComp2 = otherComp.id; targetTerm2 = 't2'; }
+                    }
+                }
+            });
+
+            if (newNode1 === draggedComp.node1 && newNode2 === draggedComp.node2) return baseComponents;
+
+            let nextComponents = baseComponents.filter(c => {
+                if (c.type !== 'W') return true;
+                if (targetComp1 && targetTerm1 && newNode1 !== draggedComp.node1) {
+                    if (c.sourceComp === currentDraggingId && c.sourceTerm === 't1') return false;
+                    if (c.targetComp === currentDraggingId && c.targetTerm === 't1') return false;
+                }
+                if (targetComp2 && targetTerm2 && newNode2 !== draggedComp.node2) {
+                    if (c.sourceComp === currentDraggingId && c.sourceTerm === 't2') return false;
+                    if (c.targetComp === currentDraggingId && c.targetTerm === 't2') return false;
+                }
+                return true;
+            });
+
+            if (targetComp1 && targetTerm1 && newNode1 !== draggedComp.node1) {
+                nextComponents.push({
+                    type: 'W', id: `W_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    sourceComp: currentDraggingId, sourceTerm: 't1', targetComp: targetComp1, targetTerm: targetTerm1,
+                    node1: draggedComp.node1, node2: newNode1, x: 0, y: 0
+                });
+            }
+            if (targetComp2 && targetTerm2 && newNode2 !== draggedComp.node2) {
+                nextComponents.push({
+                    type: 'W', id: `W_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    sourceComp: currentDraggingId, sourceTerm: 't2', targetComp: targetComp2, targetTerm: targetTerm2,
+                    node1: draggedComp.node2, node2: newNode2, x: 0, y: 0
+                });
+            }
+
+            return nextComponents;
+        });
+
         dragPositionRef.current = null;
         draggingIdRef.current = null;
         setDraggingId(null);
-    }, [wireCutStart, wireCutPos, zoom, getExplicitWireCurve, getImplicitWireEdges, pickImplicitCutTerminal, pickExplicitCutTerminal, isPanning, draggingId, autoConnect, readOnly, setComponents, wiringStart, hoveredTerminal, components, getTerminals]);
+    }, [wireCutStart, wireCutPos, zoom, getExplicitWireCurve, getImplicitWireEdges, pickImplicitCutTerminal, pickExplicitCutTerminal, isPanning, readOnly, setComponents, wiringStart, hoveredTerminal, getTerminals]);
+
+    // Attach mouseup to window so drag always ends even if cursor leaves the container
+    React.useEffect(() => {
+        const onWindowMouseUp = () => {
+            // Always clear drag state on any mouseup, even outside the container
+            if (draggingIdRef.current) {
+                handleMouseUp();
+            }
+        };
+        window.addEventListener('mouseup', onWindowMouseUp);
+        return () => window.removeEventListener('mouseup', onWindowMouseUp);
+    }, [handleMouseUp]);
 
     // Start panning on empty canvas click
     const handleCanvasMouseDown = useCallback((e) => {
@@ -1149,34 +1125,6 @@ function CircuitCanvas({
                     })()}
                 </svg>
 
-                {/* Draw active wiring terminals */}
-                {!readOnly && components.filter(comp => comp.type !== 'W').flatMap(comp => {
-                    const terms = getTerminals(comp);
-                    const config = getComponentConfig(comp.type);
-                    return config.terminals.map(termDef => {
-                        const term = terms[termDef.termKey];
-                        if (!term || !term.isReal) return null;
-                        // Use first char of termKey as the short label (e.g. 't1' → 'a', 't2' → 'b')
-                        const shortLabel = String.fromCharCode(96 + parseInt(termDef.termKey.slice(1)));
-                        return (
-                            <React.Fragment key={`${comp.id}-${termDef.termKey}`}>
-                                <div
-                                    className={`terminal-handle ${hoveredTerminal?.compId === comp.id && hoveredTerminal?.termKey === termDef.termKey ? 'hovered' : ''} ${wiringStart?.compId === comp.id && wiringStart?.termKey === termDef.termKey ? 'active' : ''}`}
-                                    style={{ left: term.x, top: term.y }}
-                                    onMouseDown={(e) => handleTerminalMouseDown(e, comp, termDef.termKey)}
-                                    title={`${termDef.label}: Drag to connect. Ctrl+Click to disconnect.`}
-                                />
-                                <div
-                                    className="terminal-label"
-                                    style={{ left: term.x + (term.nx * 14), top: term.y + (term.ny * 14) }}
-                                >
-                                    {shortLabel}
-                                </div>
-                            </React.Fragment>
-                        );
-                    }).filter(Boolean);
-                })}
-
                 {/* Draw components */}
                 {components.filter(c => c.type !== 'W').map(comp => {
                     const SvgIcon = COMPONENT_SVG[comp.type] || COMPONENT_SVG['R'];
@@ -1204,6 +1152,33 @@ function CircuitCanvas({
                             </div>
                         </div>
                     );
+                })}
+
+                {/* Draw terminal handles ON TOP of components so they always receive mouse events */}
+                {!readOnly && components.filter(comp => comp.type !== 'W').flatMap(comp => {
+                    const terms = getTerminals(comp);
+                    const config = getComponentConfig(comp.type);
+                    return config.terminals.map(termDef => {
+                        const term = terms[termDef.termKey];
+                        if (!term || !term.isReal) return null;
+                        const shortLabel = String.fromCharCode(96 + parseInt(termDef.termKey.slice(1)));
+                        return (
+                            <React.Fragment key={`${comp.id}-${termDef.termKey}`}>
+                                <div
+                                    className={`terminal-handle ${hoveredTerminal?.compId === comp.id && hoveredTerminal?.termKey === termDef.termKey ? 'hovered' : ''} ${wiringStart?.compId === comp.id && wiringStart?.termKey === termDef.termKey ? 'active' : ''}`}
+                                    style={{ left: term.x, top: term.y }}
+                                    onMouseDown={(e) => handleTerminalMouseDown(e, comp, termDef.termKey)}
+                                    title={`${termDef.label}: Drag to connect. Ctrl+Click to disconnect.`}
+                                />
+                                <div
+                                    className="terminal-label"
+                                    style={{ left: term.x + (term.nx * 14), top: term.y + (term.ny * 14) }}
+                                >
+                                    {shortLabel}
+                                </div>
+                            </React.Fragment>
+                        );
+                    }).filter(Boolean);
                 })}
             </div>
         </div>
