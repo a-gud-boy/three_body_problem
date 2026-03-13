@@ -41,14 +41,7 @@ However, several areas for improvement were identified, particularly regarding n
 
 #### 3.2.1 Performance / React Rendering (`ACPhasorTab.jsx`, `CircuitCanvas.jsx`)
 * **Canvas Drawing in `useEffect`:** In `ACPhasorTab.jsx`, the waveform and phasor canvases are drawn inside a `useEffect` that depends on `frequency`, `selectedComponent`, and `components`. This means the canvas is statically redrawn only when these change. However, the comments `// static time` and variables like `const currentTime = 0;` suggest that animation was intended but not fully implemented. If animation is added later via `requestAnimationFrame`, putting it inside a React `useEffect` without a proper cleanup function for the animation frame will cause severe memory leaks and rapid battery drain.
-* **Excessive Re-renders:** In `CircuitCanvas.jsx`, dragging a component updates the React state `components` on every `mousemove` event.
-  ```javascript
-  setComponents(prev => prev.map(c =>
-      c.id === draggingId ? { ...c, x: newX, y: newY } : c
-  ));
-  ```
-  This causes the *entire* canvas, including all SVG wires and components, to re-render in the React Virtual DOM at 60Hz. For larger circuits, this will become extremely sluggish.
-  **Recommendation:** Use a local mutable ref or CSS transforms for the dragged element during the drag, and only commit the final position to the React state `components` on `mouseup`.
+* ~~**Excessive Re-renders:** In `CircuitCanvas.jsx`, dragging a component updates the React state `components` on every `mousemove` event.~~ *(Resolved: The drag logic now uses `dragPositionRef` and DOM manipulation to avoid state updates on every mouse move).*
 
 #### 3.2.2 Wiring and Topology State (`CircuitCanvas.jsx`)
 * **Implicit vs Explicit Wires:** The app uses a mix of implicit wires (nodes with the same name, drawn via a Minimum Spanning Tree algorithm) and explicit wire objects (`type: 'W'`). The MST algorithm inside the `useMemo` for `wires` is computationally expensive `O(N^2)` for unconnected islands and runs on every render.
@@ -63,7 +56,7 @@ However, several areas for improvement were identified, particularly regarding n
 ## 4. Summary of Recommendations
 
 1. **Topological Pre-processing (High Priority):** Implement a node-collapsing algorithm to merge nodes connected by ideal wires. Remove wires (`type: 'W'`) from the MNA matrix completely to improve performance and numerical stability.
-2. **Drag Performance (High Priority):** Refactor the drag-and-drop logic in `CircuitCanvas.jsx` to avoid triggering full React state updates on every `mousemove`.
+2. ~~**Drag Performance (High Priority):** Refactor the drag-and-drop logic in `CircuitCanvas.jsx` to avoid triggering full React state updates on every `mousemove`.~~ *(Resolved)*
 3. **Short Circuit Protection (Medium Priority):** Detect parallel/shorted ideal voltage sources before solving the matrix and throw a user-friendly error instead of relying on the `1e-6` internal resistance hack.
 4. **Animation Loop (Medium Priority):** If the phasors and waveforms are meant to animate over time, refactor the `useEffect` drawing logic to use a managed `requestAnimationFrame` loop that cleans up properly on unmount.
 5. **Accessibility (Low/Medium Priority):** Add ARIA attributes to the canvas container and ensure all controls are keyboard accessible.
