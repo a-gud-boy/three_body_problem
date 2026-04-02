@@ -11,7 +11,7 @@ const CONCEPTS = {
         color: '#0ea5e9', // Sky blue
         overview: `
             This simulation uses the 2D Wave Equation to model the propagation of surface waves on a grid.
-            Unlike particle-based methods (SPH), this Eulerian approach is highly efficient for simulating large bodies of water
+            Unlike particle-based methods, this Eulerian approach is highly efficient for simulating large bodies of water
             where surface height and vertical velocity are the primary variables of interest.
         `,
         keyConcepts: [
