@@ -382,6 +382,15 @@ function CircuitCanvas({
         return { compId: wire.targetComp, termKey: wire.targetTerm };
     }, [components]);
 
+    const handleTerminalKeyDown = useCallback((e, comp, termKey) => {
+        if (readOnly) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            // Basic keyboard activation could just select the terminal for now
+            // More advanced logic would be needed for keyboard wiring
+        }
+    }, [readOnly]);
+
     const handleTerminalMouseDown = useCallback((e, comp, termKey) => {
         if (readOnly) return;
         e.stopPropagation();
@@ -437,6 +446,15 @@ function CircuitCanvas({
         setWiringPos(canvasPos);
         setHoveredTerminal(null);
     }, [readOnly, getTerminals, screenToCanvas, setComponents]);
+
+    const handleComponentKeyDown = useCallback((e, id) => {
+        if (readOnly) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setSelectedId(id);
+            if (onSelectionChange) onSelectionChange(id);
+        }
+    }, [readOnly, onSelectionChange]);
 
     const handleMouseDown = useCallback((e, id) => {
         if (readOnly) return;
@@ -1049,6 +1067,9 @@ function CircuitCanvas({
     return (
         <div
             className="circuit-canvas-container"
+            role="application"
+            aria-label="Interactive circuit diagram"
+            tabIndex={0}
             ref={containerRef}
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleMouseMove}
@@ -1136,6 +1157,10 @@ function CircuitCanvas({
                             key={comp.id}
                             data-comp-id={comp.id}
                             className={`circuit-component ${isSelected ? 'selected' : ''} ${isPreviewed ? 'previewed' : ''}`}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`${comp.type} component ${comp.id}`}
+                            onKeyDown={(e) => handleComponentKeyDown(e, comp.id)}
                             style={{
                                 left: comp.x,
                                 top: comp.y,
@@ -1167,6 +1192,10 @@ function CircuitCanvas({
                                 <div
                                     className={`terminal-handle ${hoveredTerminal?.compId === comp.id && hoveredTerminal?.termKey === termDef.termKey ? 'hovered' : ''} ${wiringStart?.compId === comp.id && wiringStart?.termKey === termDef.termKey ? 'active' : ''}`}
                                     style={{ left: term.x, top: term.y }}
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-label={`Terminal ${termDef.label} on component ${comp.id}`}
+                                    onKeyDown={(e) => handleTerminalKeyDown(e, comp, termDef.termKey)}
                                     onMouseDown={(e) => handleTerminalMouseDown(e, comp, termDef.termKey)}
                                     title={`${termDef.label}: Drag to connect. Ctrl+Click to disconnect.`}
                                 />

@@ -389,21 +389,22 @@ const ACPhasorTab = () => {
                     {/* Waveform Section */}
                     <div className="viz-section" ref={waveformContainerRef}>
                         <div className="viz-section-label">Waveform</div>
-                        <canvas ref={waveformCanvasRef} width={canvasWidth} height={180} className="viz-canvas" />
+                        <canvas ref={waveformCanvasRef} width={canvasWidth} height={180} className="viz-canvas" role="img" aria-label="Waveform plot" />
                     </div>
 
                     {/* Phasor Section */}
                     <div className="viz-section" ref={phasorContainerRef}>
                         <div className="viz-section-label">Phasor Diagram</div>
-                        <canvas ref={phasorCanvasRef} width={canvasWidth} height={200} className="viz-canvas" />
+                        <canvas ref={phasorCanvasRef} width={canvasWidth} height={200} className="viz-canvas" role="img" aria-label="Phasor diagram" />
                     </div>
 
                     {/* Controls */}
                     <div className="viz-controls">
                         <div className="control-row">
-                            <label className="freq-control">
+                            <label className="freq-control" htmlFor="freq-input">
                                 <span className="control-label">Frequency</span>
                                 <input
+                                    id="freq-input"
                                     type="range"
                                     min="1" max="1000"
                                     value={frequency}
