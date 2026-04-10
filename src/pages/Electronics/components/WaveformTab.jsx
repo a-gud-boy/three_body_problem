@@ -253,16 +253,16 @@ const WaveformTab = () => {
                 </div>
                 <div className="right-panel">
                     <h3>Oscilloscope View</h3>
-                    <canvas ref={canvasRef} width={600} height={400} className="oscilloscope-canvas"></canvas>
+                    <canvas ref={canvasRef} width={600} height={400} className="oscilloscope-canvas" role="img" aria-label="Oscilloscope View"></canvas>
                     <div className="probes-setup">
-                        <label>
-                            Probe 1 (Blue):
-                            <input type="text" value={probe1} onChange={e => setProbe1(e.target.value)} />
-                        </label>
-                        <label>
-                            Probe 2 (Pink):
-                            <input type="text" value={probe2} onChange={e => setProbe2(e.target.value)} />
-                        </label>
+                        <div>
+                            <label htmlFor="probe1-input">Probe 1 (Blue):</label>
+                            <input id="probe1-input" type="text" value={probe1} onChange={e => setProbe1(e.target.value)} />
+                        </div>
+                        <div>
+                            <label htmlFor="probe2-input">Probe 2 (Pink):</label>
+                            <input id="probe2-input" type="text" value={probe2} onChange={e => setProbe2(e.target.value)} />
+                        </div>
                     </div>
                     <div className="instructions" style={{ marginTop: '20px' }}>
                         <p><strong>How it works:</strong> Add diodes to build rectifier or clipper circuits. The engine performs instantaneous iterative non-linear relaxation analysis.</p>

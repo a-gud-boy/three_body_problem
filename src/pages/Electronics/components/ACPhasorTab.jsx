@@ -389,28 +389,29 @@ const ACPhasorTab = () => {
                     {/* Waveform Section */}
                     <div className="viz-section" ref={waveformContainerRef}>
                         <div className="viz-section-label">Waveform</div>
-                        <canvas ref={waveformCanvasRef} width={canvasWidth} height={180} className="viz-canvas" />
+                        <canvas ref={waveformCanvasRef} width={canvasWidth} height={180} className="viz-canvas" role="img" aria-label="Waveform Diagram" />
                     </div>
 
                     {/* Phasor Section */}
                     <div className="viz-section" ref={phasorContainerRef}>
                         <div className="viz-section-label">Phasor Diagram</div>
-                        <canvas ref={phasorCanvasRef} width={canvasWidth} height={200} className="viz-canvas" />
+                        <canvas ref={phasorCanvasRef} width={canvasWidth} height={200} className="viz-canvas" role="img" aria-label="Phasor Diagram" />
                     </div>
 
                     {/* Controls */}
                     <div className="viz-controls">
                         <div className="control-row">
-                            <label className="freq-control">
-                                <span className="control-label">Frequency</span>
+                            <div className="freq-control">
+                                <label htmlFor="freq-input" className="control-label">Frequency</label>
                                 <input
+                                    id="freq-input"
                                     type="range"
                                     min="1" max="1000"
                                     value={frequency}
                                     onChange={(e) => setFrequency(Number(e.target.value))}
                                 />
                                 <span className="freq-value">{frequency} Hz</span>
-                            </label>
+                            </div>
                         </div>
                     </div>
 

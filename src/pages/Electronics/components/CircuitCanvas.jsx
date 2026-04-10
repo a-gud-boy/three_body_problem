@@ -827,6 +827,46 @@ function CircuitCanvas({
         if (isPanning) return;
     }, [isPanning]);
 
+    const handleKeyDown = useCallback((e) => {
+        const PAN_STEP = 20;
+        let panned = false;
+
+        switch (e.key) {
+            case 'ArrowLeft':
+                setPanOffset(prev => ({ x: prev.x + PAN_STEP, y: prev.y }));
+                panned = true;
+                break;
+            case 'ArrowRight':
+                setPanOffset(prev => ({ x: prev.x - PAN_STEP, y: prev.y }));
+                panned = true;
+                break;
+            case 'ArrowUp':
+                setPanOffset(prev => ({ x: prev.x, y: prev.y + PAN_STEP }));
+                panned = true;
+                break;
+            case 'ArrowDown':
+                setPanOffset(prev => ({ x: prev.x, y: prev.y - PAN_STEP }));
+                panned = true;
+                break;
+            case '+':
+            case '=':
+                setZoom(z => Math.min(MAX_ZOOM, z * 1.2));
+                panned = true;
+                break;
+            case '-':
+            case '_':
+                setZoom(z => Math.max(MIN_ZOOM, z / 1.2));
+                panned = true;
+                break;
+            default:
+                break;
+        }
+
+        if (panned) {
+            e.preventDefault();
+        }
+    }, [setPanOffset, setZoom]);
+
     // Memoized wire rendering with Manhattan (right-angle) routing
     // The wires-layer SVG is positioned at CSS (-2000, -2000), so we offset coordinates by +2000
     const WIRE_OFFSET = 2000;
@@ -1056,15 +1096,19 @@ function CircuitCanvas({
             onMouseLeave={handleMouseUp}
             onClick={handleCanvasClick}
             onWheel={handleWheel}
+                onKeyDown={handleKeyDown}
             onContextMenu={(e) => e.preventDefault()}
             style={{ cursor: wireCutStart ? 'crosshair' : (isPanning ? 'grabbing' : (draggingId ? 'grabbing' : 'default')) }}
+                role="application"
+                aria-label="Interactive Circuit Canvas"
+                tabIndex={0}
         >
             {/* Zoom controls */}
             <div className="canvas-controls">
-                <button className="canvas-control-btn" onClick={(e) => { e.stopPropagation(); setZoom(z => Math.min(MAX_ZOOM, z * 1.2)); }} title="Zoom In">+</button>
+                    <button className="canvas-control-btn" aria-label="Zoom In" onClick={(e) => { e.stopPropagation(); setZoom(z => Math.min(MAX_ZOOM, z * 1.2)); }} title="Zoom In">+</button>
                 <span className="zoom-label">{zoomPercent}%</span>
-                <button className="canvas-control-btn" onClick={(e) => { e.stopPropagation(); setZoom(z => Math.max(MIN_ZOOM, z / 1.2)); }} title="Zoom Out">−</button>
-                <button className="canvas-control-btn reset-btn" onClick={(e) => { e.stopPropagation(); handleResetView(); }} title="Reset View">⌂</button>
+                    <button className="canvas-control-btn" aria-label="Zoom Out" onClick={(e) => { e.stopPropagation(); setZoom(z => Math.max(MIN_ZOOM, z / 1.2)); }} title="Zoom Out">−</button>
+                    <button className="canvas-control-btn reset-btn" aria-label="Reset View" onClick={(e) => { e.stopPropagation(); handleResetView(); }} title="Reset View">⌂</button>
             </div>
 
             {/* Panning hint */}
