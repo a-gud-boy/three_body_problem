@@ -1,5 +1,6 @@
 // src/pages/GeneralRelativity/utils/physics.test.js
-import { calculateSchwarzschildRadius, calculatePotential, calculateAcceleration, G } from './physics.js';
+import { describe, it, expect } from 'vitest';
+import { calculateSchwarzschildRadius, calculatePotential, calculateAcceleration } from './physics.js';
 
 describe('General Relativity Physics Utils', () => {
 
@@ -35,7 +36,7 @@ describe('General Relativity Physics Utils', () => {
         const rs = 0.2;
         const v = calculatePotential(mass, r, 'relativistic', 100, rs);
         const expected = -1000 / (10 - 0.2);
-        assert.strictEqual(v, expected);
+        expect(v).toBe(expected);
     });
 
     it('calculates Acceleration Vector correctly', () => {
