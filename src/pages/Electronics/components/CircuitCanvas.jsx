@@ -1057,6 +1057,20 @@ function CircuitCanvas({
             onClick={handleCanvasClick}
             onWheel={handleWheel}
             onContextMenu={(e) => e.preventDefault()}
+            role="application"
+            aria-label="Interactive circuit schematic editor"
+            tabIndex={0}
+            onKeyDown={(e) => {
+                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', '+', '=', '-'].includes(e.key)) {
+                    e.preventDefault();
+                }
+                if (e.key === 'ArrowUp') setPanOffset(prev => ({ ...prev, y: prev.y + 20 }));
+                if (e.key === 'ArrowDown') setPanOffset(prev => ({ ...prev, y: prev.y - 20 }));
+                if (e.key === 'ArrowLeft') setPanOffset(prev => ({ ...prev, x: prev.x + 20 }));
+                if (e.key === 'ArrowRight') setPanOffset(prev => ({ ...prev, x: prev.x - 20 }));
+                if (e.key === '+' || e.key === '=') setZoom(z => Math.min(MAX_ZOOM, z * 1.2));
+                if (e.key === '-') setZoom(z => Math.max(MIN_ZOOM, z / 1.2));
+            }}
             style={{ cursor: wireCutStart ? 'crosshair' : (isPanning ? 'grabbing' : (draggingId ? 'grabbing' : 'default')) }}
         >
             {/* Zoom controls */}
