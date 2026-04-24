@@ -822,6 +822,33 @@ function CircuitCanvas({
         setZoom(1);
     }, []);
 
+    const handleKeyDown = useCallback((e) => {
+        // Arrow keys for panning
+        const panStep = 50 / zoom;
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setPanOffset(p => ({ x: p.x, y: p.y + panStep }));
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setPanOffset(p => ({ x: p.x, y: p.y - panStep }));
+        } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            setPanOffset(p => ({ x: p.x + panStep, y: p.y }));
+        } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            setPanOffset(p => ({ x: p.x - panStep, y: p.y }));
+        } else if (e.key === '+' || e.key === '=') {
+            e.preventDefault();
+            setZoom(z => Math.min(MAX_ZOOM, z * 1.2));
+        } else if (e.key === '-' || e.key === '_') {
+            e.preventDefault();
+            setZoom(z => Math.max(MIN_ZOOM, z / 1.2));
+        } else if (e.key === 'Home') {
+            e.preventDefault();
+            handleResetView();
+        }
+    }, [zoom, handleResetView]);
+
     const handleCanvasClick = useCallback((e) => {
         // Don't deselect if we just finished panning
         if (isPanning) return;
@@ -1057,6 +1084,10 @@ function CircuitCanvas({
             onClick={handleCanvasClick}
             onWheel={handleWheel}
             onContextMenu={(e) => e.preventDefault()}
+            onKeyDown={handleKeyDown}
+            role="application"
+            aria-label="Circuit Diagram"
+            tabIndex={0}
             style={{ cursor: wireCutStart ? 'crosshair' : (isPanning ? 'grabbing' : (draggingId ? 'grabbing' : 'default')) }}
         >
             {/* Zoom controls */}

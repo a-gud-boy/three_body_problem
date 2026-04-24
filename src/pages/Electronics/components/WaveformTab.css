@@ -70,10 +70,13 @@
     margin-bottom: 15px;
 }
 
-.probes-setup label {
+.probes-setup .probe-group {
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+.probes-setup label {
     color: #e2e8f0;
 }
 
