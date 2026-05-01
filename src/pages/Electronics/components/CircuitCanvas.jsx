@@ -1050,6 +1050,25 @@ function CircuitCanvas({
         <div
             className="circuit-canvas-container"
             ref={containerRef}
+                role="application"
+                aria-label="Interactive circuit schematic"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                        e.preventDefault();
+                        const panSpeed = 20;
+                        setPan(p => ({
+                            x: p.x + (e.key === 'ArrowLeft' ? panSpeed : e.key === 'ArrowRight' ? -panSpeed : 0),
+                            y: p.y + (e.key === 'ArrowUp' ? panSpeed : e.key === 'ArrowDown' ? -panSpeed : 0)
+                        }));
+                    } else if (e.key === '+' || e.key === '=') {
+                        e.preventDefault();
+                        setZoom(z => Math.min(MAX_ZOOM, z * 1.2));
+                    } else if (e.key === '-' || e.key === '_') {
+                        e.preventDefault();
+                        setZoom(z => Math.max(MIN_ZOOM, z / 1.2));
+                    }
+                }}
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}

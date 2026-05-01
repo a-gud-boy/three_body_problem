@@ -401,16 +401,17 @@ const ACPhasorTab = () => {
                     {/* Controls */}
                     <div className="viz-controls">
                         <div className="control-row">
-                            <label className="freq-control">
-                                <span className="control-label">Frequency</span>
+                            <div className="freq-control">
+                                <label htmlFor="ac-freq-input" className="control-label">Frequency</label>
                                 <input
+                                    id="ac-freq-input"
                                     type="range"
                                     min="1" max="1000"
                                     value={frequency}
                                     onChange={(e) => setFrequency(Number(e.target.value))}
                                 />
                                 <span className="freq-value">{frequency} Hz</span>
-                            </label>
+                            </div>
                         </div>
                     </div>
 
