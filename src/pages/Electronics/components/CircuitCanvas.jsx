@@ -822,6 +822,53 @@ function CircuitCanvas({
         setZoom(1);
     }, []);
 
+    const handleKeyDown = useCallback((e) => {
+        const panAmount = 20;
+        let handled = false;
+
+        switch (e.key) {
+            case 'ArrowLeft':
+                setPanOffset(prev => ({ ...prev, x: prev.x + panAmount }));
+                handled = true;
+                break;
+            case 'ArrowRight':
+                setPanOffset(prev => ({ ...prev, x: prev.x - panAmount }));
+                handled = true;
+                break;
+            case 'ArrowUp':
+                setPanOffset(prev => ({ ...prev, y: prev.y + panAmount }));
+                handled = true;
+                break;
+            case 'ArrowDown':
+                setPanOffset(prev => ({ ...prev, y: prev.y - panAmount }));
+                handled = true;
+                break;
+            case '+':
+            case '=':
+            case 'NumpadAdd':
+                setZoom(z => Math.min(MAX_ZOOM, z * 1.2));
+                handled = true;
+                break;
+            case '-':
+            case '_':
+            case 'NumpadSubtract':
+                setZoom(z => Math.max(MIN_ZOOM, z / 1.2));
+                handled = true;
+                break;
+            case 'Home':
+            case '0':
+                handleResetView();
+                handled = true;
+                break;
+            default:
+                break;
+        }
+
+        if (handled) {
+            e.preventDefault();
+        }
+    }, [handleResetView]);
+
     const handleCanvasClick = useCallback((e) => {
         // Don't deselect if we just finished panning
         if (isPanning) return;
@@ -1050,12 +1097,16 @@ function CircuitCanvas({
         <div
             className="circuit-canvas-container"
             ref={containerRef}
+            role="application"
+            tabIndex={0}
+            aria-label="Interactive Circuit Canvas"
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
             onClick={handleCanvasClick}
             onWheel={handleWheel}
+            onKeyDown={handleKeyDown}
             onContextMenu={(e) => e.preventDefault()}
             style={{ cursor: wireCutStart ? 'crosshair' : (isPanning ? 'grabbing' : (draggingId ? 'grabbing' : 'default')) }}
         >

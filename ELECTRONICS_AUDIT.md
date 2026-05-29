@@ -66,4 +66,4 @@ However, several areas for improvement were identified, particularly regarding n
 2. **Drag Performance (High Priority):** Refactor the drag-and-drop logic in `CircuitCanvas.jsx` to avoid triggering full React state updates on every `mousemove`.
 3. **Short Circuit Protection (Medium Priority):** Detect parallel/shorted ideal voltage sources before solving the matrix and throw a user-friendly error instead of relying on the `1e-6` internal resistance hack.
 4. **Animation Loop (Medium Priority):** If the phasors and waveforms are meant to animate over time, refactor the `useEffect` drawing logic to use a managed `requestAnimationFrame` loop that cleans up properly on unmount.
-5. **Accessibility (Low/Medium Priority):** Add ARIA attributes to the canvas container and ensure all controls are keyboard accessible.
+5. **Accessibility (Low/Medium Priority):** Add ARIA attributes to the canvas container and ensure all controls are keyboard accessible. *(Completed)*

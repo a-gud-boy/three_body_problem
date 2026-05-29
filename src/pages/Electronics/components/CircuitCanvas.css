@@ -7,6 +7,11 @@
     border: 1px solid #334155;
     border-radius: 8px;
     user-select: none;
+    outline: none;
+}
+
+.circuit-canvas-container:focus {
+    box-shadow: 0 0 0 2px #3b82f6;
 }
 
 .canvas-inner {
