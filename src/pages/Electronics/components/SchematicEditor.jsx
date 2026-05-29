@@ -687,8 +687,9 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
                 <button onClick={() => handleAdd(COMPONENT_TYPES.INDUCTOR)}>Add L</button>
                 <button onClick={() => handleAdd(COMPONENT_TYPES.AC_VOLTAGE)}>Add AC Source</button>
                 <button onClick={() => handleAdd(COMPONENT_TYPES.GROUND)}>Add Ground</button>
-                <label className="auto-connect-label">
+                <label className="auto-connect-label" htmlFor="auto-connect-checkbox">
                     <input
+                        id="auto-connect-checkbox"
                         type="checkbox"
                         checked={autoConnect}
                         onChange={(e) => setAutoConnect(e.target.checked)}
@@ -751,9 +752,10 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
                             </div>
                         )}
                     </div>
-                    <label>
+                    <label htmlFor="prop-value-input">
                         Value:
                         <input
+                            id="prop-value-input"
                             type="number"
                             value={localProps.value}
                             onChange={(e) => handleLocalPropChange('value', parseFloat(e.target.value))}
@@ -764,9 +766,10 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
                     {selectedComponent && getTerminalDescriptors(selectedComponent.type).map(termDef => (
                         renderTerminalField(termDef.key, termDef.label)
                     ))}
-                    <label>
+                    <label htmlFor="prop-rotation-input">
                         Rotation:
                         <input
+                            id="prop-rotation-input"
                             type="number"
                             step="90"
                             value={localProps.rotation || 0}
