@@ -1046,6 +1046,28 @@ function CircuitCanvas({
 
     const zoomPercent = Math.round(zoom * 100);
 
+    const handleKeyDown = useCallback((e) => {
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setPanOffset(prev => ({ x: prev.x, y: prev.y + 20 }));
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setPanOffset(prev => ({ x: prev.x, y: prev.y - 20 }));
+        } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            setPanOffset(prev => ({ x: prev.x + 20, y: prev.y }));
+        } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            setPanOffset(prev => ({ x: prev.x - 20, y: prev.y }));
+        } else if (e.key === '+' || e.key === '=') {
+            e.preventDefault();
+            setZoom(z => Math.min(MAX_ZOOM, z * 1.2));
+        } else if (e.key === '-' || e.key === '_') {
+            e.preventDefault();
+            setZoom(z => Math.max(MIN_ZOOM, z / 1.2));
+        }
+    }, []);
+
     return (
         <div
             className="circuit-canvas-container"
@@ -1056,7 +1078,11 @@ function CircuitCanvas({
             onMouseLeave={handleMouseUp}
             onClick={handleCanvasClick}
             onWheel={handleWheel}
+            onKeyDown={handleKeyDown}
             onContextMenu={(e) => e.preventDefault()}
+            role="application"
+            tabIndex={0}
+            aria-label="Circuit Diagram Canvas"
             style={{ cursor: wireCutStart ? 'crosshair' : (isPanning ? 'grabbing' : (draggingId ? 'grabbing' : 'default')) }}
         >
             {/* Zoom controls */}
