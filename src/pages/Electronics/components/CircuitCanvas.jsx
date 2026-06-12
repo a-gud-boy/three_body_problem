@@ -822,6 +822,47 @@ function CircuitCanvas({
         setZoom(1);
     }, []);
 
+    // Keyboard navigation (pan & zoom)
+    const handleKeyDown = useCallback((e) => {
+        const panStep = 50 / zoom;
+        let handled = false;
+
+        switch (e.key) {
+            case 'ArrowUp':
+                setPanOffset(prev => ({ ...prev, y: prev.y + panStep }));
+                handled = true;
+                break;
+            case 'ArrowDown':
+                setPanOffset(prev => ({ ...prev, y: prev.y - panStep }));
+                handled = true;
+                break;
+            case 'ArrowLeft':
+                setPanOffset(prev => ({ ...prev, x: prev.x + panStep }));
+                handled = true;
+                break;
+            case 'ArrowRight':
+                setPanOffset(prev => ({ ...prev, x: prev.x - panStep }));
+                handled = true;
+                break;
+            case '+':
+            case '=':
+                setZoom(z => Math.min(MAX_ZOOM, z * 1.2));
+                handled = true;
+                break;
+            case '-':
+            case '_':
+                setZoom(z => Math.max(MIN_ZOOM, z / 1.2));
+                handled = true;
+                break;
+            default:
+                break;
+        }
+
+        if (handled) {
+            e.preventDefault();
+        }
+    }, [zoom]);
+
     const handleCanvasClick = useCallback((e) => {
         // Don't deselect if we just finished panning
         if (isPanning) return;
@@ -1050,12 +1091,16 @@ function CircuitCanvas({
         <div
             className="circuit-canvas-container"
             ref={containerRef}
+            role="application"
+            tabIndex={0}
+            aria-label="Interactive circuit diagram canvas. Use arrow keys to pan, plus and minus keys to zoom."
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
             onClick={handleCanvasClick}
             onWheel={handleWheel}
+            onKeyDown={handleKeyDown}
             onContextMenu={(e) => e.preventDefault()}
             style={{ cursor: wireCutStart ? 'crosshair' : (isPanning ? 'grabbing' : (draggingId ? 'grabbing' : 'default')) }}
         >
@@ -1068,7 +1113,7 @@ function CircuitCanvas({
             </div>
 
             {/* Panning hint */}
-            <div className="pan-hint">Drag empty space to pan • Scroll to zoom</div>
+            <div className="pan-hint">Drag/Arrows to pan • Scroll/+/- to zoom</div>
 
             {/* Everything inside this div gets panned & zoomed */}
             <div

@@ -687,14 +687,17 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
                 <button onClick={() => handleAdd(COMPONENT_TYPES.INDUCTOR)}>Add L</button>
                 <button onClick={() => handleAdd(COMPONENT_TYPES.AC_VOLTAGE)}>Add AC Source</button>
                 <button onClick={() => handleAdd(COMPONENT_TYPES.GROUND)}>Add Ground</button>
-                <label className="auto-connect-label">
+                <div className="auto-connect-label">
                     <input
+                        id="autoConnectToggle"
                         type="checkbox"
                         checked={autoConnect}
                         onChange={(e) => setAutoConnect(e.target.checked)}
                     />
-                    Auto-connect Nodes
-                </label>
+                    <label htmlFor="autoConnectToggle">
+                        Auto-connect Nodes
+                    </label>
+                </div>
             </div>
 
             <div className="canvas-wrapper">
@@ -751,22 +754,28 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
                             </div>
                         )}
                     </div>
-                    <label>
-                        Value:
+                    <div>
+                        <label htmlFor="propValue">
+                            Value:
+                        </label>
                         <input
+                            id="propValue"
                             type="number"
                             value={localProps.value}
                             onChange={(e) => handleLocalPropChange('value', parseFloat(e.target.value))}
                             onBlur={(e) => applyPropChange('value', parseFloat(e.target.value))}
                             onKeyDown={(e) => e.key === 'Enter' && applyPropChange('value', parseFloat(e.target.value))}
                         />
-                    </label>
+                    </div>
                     {selectedComponent && getTerminalDescriptors(selectedComponent.type).map(termDef => (
                         renderTerminalField(termDef.key, termDef.label)
                     ))}
-                    <label>
-                        Rotation:
+                    <div>
+                        <label htmlFor="propRotation">
+                            Rotation:
+                        </label>
                         <input
+                            id="propRotation"
                             type="number"
                             step="90"
                             value={localProps.rotation || 0}
@@ -774,7 +783,7 @@ const SchematicEditor = ({ components, setComponents, selectedId, setSelectedId 
                             onBlur={(e) => applyPropChange('rotation', parseInt(e.target.value))}
                             onKeyDown={(e) => e.key === 'Enter' && applyPropChange('rotation', parseInt(e.target.value))}
                         />
-                    </label>
+                    </div>
                     <button className="delete-btn" onClick={handleDelete}>Delete</button>
                 </div>
             )}

@@ -79,14 +79,14 @@ const NetworkTheoremsTab = () => {
                 <div className="right-panel">
                     <h3>Theorem Analysis</h3>
                     <div className="controls">
-                        <label>
+                        <label htmlFor="terminalA">
                             Terminal A:
-                            <input type="text" value={terminalA} onChange={e => setTerminalA(e.target.value)} />
                         </label>
-                        <label>
+                        <input id="terminalA" type="text" value={terminalA} onChange={e => setTerminalA(e.target.value)} />
+                        <label htmlFor="terminalB">
                             Terminal B:
-                            <input type="text" value={terminalB} onChange={e => setTerminalB(e.target.value)} />
                         </label>
+                        <input id="terminalB" type="text" value={terminalB} onChange={e => setTerminalB(e.target.value)} />
                         <button className="analyze-btn" onClick={calculateThevenin}>Calculate Equivalent Circuits</button>
                     </div>
 

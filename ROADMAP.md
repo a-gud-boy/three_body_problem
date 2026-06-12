@@ -120,8 +120,8 @@ This document outlines the planned features, improvements, and research goals fo
     - [x] Detect shorted/parallel ideal voltage source conflicts and show a user-facing error.
 - [x] **Animation Loop Hygiene (Medium Priority)**
     - [x] Move phasor/waveform animation to managed `requestAnimationFrame` with cleanup.
-- [ ] **Accessibility Pass (Low/Medium Priority)**
-    - Add ARIA labels and keyboard affordances to circuit canvas interactions.
+- [x] **Accessibility Pass (Low/Medium Priority)**
+    - [x] Add ARIA labels and keyboard affordances to circuit canvas interactions.
 
 ---
 
