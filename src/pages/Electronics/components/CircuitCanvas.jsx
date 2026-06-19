@@ -797,6 +797,38 @@ function CircuitCanvas({
         }
     }, [readOnly, screenToCanvas, panOffset, onSelectionChange]);
 
+    // Keyboard navigation (accessibility)
+    const handleKeyDown = useCallback((e) => {
+        const PAN_AMOUNT = 40;
+        const ZOOM_FACTOR = 1.2;
+
+        let handled = false;
+
+        if (e.key === 'ArrowUp') {
+            setPanOffset(prev => ({ ...prev, y: prev.y + PAN_AMOUNT }));
+            handled = true;
+        } else if (e.key === 'ArrowDown') {
+            setPanOffset(prev => ({ ...prev, y: prev.y - PAN_AMOUNT }));
+            handled = true;
+        } else if (e.key === 'ArrowLeft') {
+            setPanOffset(prev => ({ ...prev, x: prev.x + PAN_AMOUNT }));
+            handled = true;
+        } else if (e.key === 'ArrowRight') {
+            setPanOffset(prev => ({ ...prev, x: prev.x - PAN_AMOUNT }));
+            handled = true;
+        } else if (e.key === '+' || e.key === '=') {
+            setZoom(z => Math.min(MAX_ZOOM, z * ZOOM_FACTOR));
+            handled = true;
+        } else if (e.key === '-' || e.key === '_') {
+            setZoom(z => Math.max(MIN_ZOOM, z / ZOOM_FACTOR));
+            handled = true;
+        }
+
+        if (handled) {
+            e.preventDefault();
+        }
+    }, []);
+
     // Zoom with scroll wheel
     const handleWheel = useCallback((e) => {
         e.preventDefault();
@@ -1050,6 +1082,10 @@ function CircuitCanvas({
         <div
             className="circuit-canvas-container"
             ref={containerRef}
+            role="application"
+            tabIndex={0}
+            aria-label="Circuit Interactive Canvas"
+            onKeyDown={handleKeyDown}
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
@@ -1068,7 +1104,7 @@ function CircuitCanvas({
             </div>
 
             {/* Panning hint */}
-            <div className="pan-hint">Drag empty space to pan • Scroll to zoom</div>
+            <div className="pan-hint">Drag/Arrows to pan • Scroll/+/- to zoom</div>
 
             {/* Everything inside this div gets panned & zoomed */}
             <div
