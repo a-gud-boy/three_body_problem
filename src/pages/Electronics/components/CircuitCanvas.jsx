@@ -797,6 +797,40 @@ function CircuitCanvas({
         }
     }, [readOnly, screenToCanvas, panOffset, onSelectionChange]);
 
+    const handleKeyDown = useCallback((e) => {
+        const PAN_SPEED = 20 / zoom;
+        let handled = true;
+
+        switch (e.key) {
+            case 'ArrowUp':
+                setPanOffset(prev => ({ ...prev, y: prev.y + PAN_SPEED }));
+                break;
+            case 'ArrowDown':
+                setPanOffset(prev => ({ ...prev, y: prev.y - PAN_SPEED }));
+                break;
+            case 'ArrowLeft':
+                setPanOffset(prev => ({ ...prev, x: prev.x + PAN_SPEED }));
+                break;
+            case 'ArrowRight':
+                setPanOffset(prev => ({ ...prev, x: prev.x - PAN_SPEED }));
+                break;
+            case '+':
+            case '=':
+                setZoom(z => Math.min(MAX_ZOOM, z * 1.2));
+                break;
+            case '-':
+            case '_':
+                setZoom(z => Math.max(MIN_ZOOM, z / 1.2));
+                break;
+            default:
+                handled = false;
+        }
+
+        if (handled) {
+            e.preventDefault();
+        }
+    }, [zoom]);
+
     // Zoom with scroll wheel
     const handleWheel = useCallback((e) => {
         e.preventDefault();
@@ -1050,6 +1084,10 @@ function CircuitCanvas({
         <div
             className="circuit-canvas-container"
             ref={containerRef}
+            role="application"
+            tabIndex={0}
+            aria-label="Circuit Schematic Editor"
+            onKeyDown={handleKeyDown}
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
